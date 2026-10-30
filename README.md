@@ -17,7 +17,8 @@ remember, minus the old annoyances.
 
 - **Swordsmen, pikemen and bowmen** in three ranks; combat strength depends on territory and gold
 - **Conquer towers, large towers and castles**: break down the door, defeat the defenders in front of it, take the building
-- **RTS-style controls**: drag to select, groups on Ctrl+1–9, forced moves with Ctrl, orders by right-clicking the minimap
+- **RTS-style controls**: drag to select, groups on Ctrl+1–9, forced moves with Ctrl, waypoints with Shift, patrols with Alt, Tab keeps
+  only the wounded in the selection, orders by right-clicking the minimap
 - **Hospitals, priests and all the spells** of the original per people: convert, samurai sword, freeze, scatter, summon goods and more
 - **War machines**: catapult, ballista, gong and cannon, built in their own workshops
 - **Divine upgrades** for soldiers, paid with mana from wine, mead, beer or rice liquor

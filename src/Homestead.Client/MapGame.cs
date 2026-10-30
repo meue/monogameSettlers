@@ -2174,6 +2174,10 @@ public sealed class MapGame : Game
             _scaling = (Scaling)(((int)_scaling + 1) % Enum.GetValues<Scaling>().Length);
             _scalingShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
         }
+        // Tab: of the selection only the wounded soldiers stay selected.
+        if (Pressed(Keys.Tab) && _group.Count > 0)
+            _group.RemoveAll(s => s.Profession != Profession.Soldier || s.SoldierType is not { } type
+                                  || s.Health >= _world.MaxHealth(s.Player, type, s.Level));
         if (Pressed(Keys.F3))
             _showPerf = !_showPerf;
         if (Pressed(Keys.T))
@@ -2820,7 +2824,24 @@ public sealed class MapGame : Game
         var machines = SelectedMachines();
         if (soldiers.Count + machines.Count == 0)
             return;
-        bool control = Keyboard.GetState().IsKeyDown(Keys.LeftControl) || Keyboard.GetState().IsKeyDown(Keys.RightControl);
+        var keys = Keyboard.GetState();
+        bool control = ControlDown(keys);
+        // Alt: soldiers patrol between where they stand and the point.
+        if (AltDown(keys) && soldiers.Count > 0)
+        {
+            _world.Military.Patrol(soldiers, clicked);
+            PlayCommand();
+            _message = $"{soldiers.Count} soldiers patrol to {clicked.X},{clicked.Y}";
+            return;
+        }
+        // Shift: a waypoint after the current order (Ctrl too: forced).
+        if (ShiftDown(keys) && soldiers.Count > 0)
+        {
+            _world.Military.AddWaypoint(soldiers, clicked, control);
+            PlayCommand();
+            _message = $"{soldiers.Count} soldiers: waypoint {clicked.X},{clicked.Y}{(control ? " (forced)" : "")}";
+            return;
+        }
         // Bowmen do not attack buildings: they keep their order (alone: they walk there). War machines fire at military buildings.
         if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0
             && (soldiers.Count > 0 ? _world.Military.Attack(soldiers, attacked) : 0) + _world.WarMachines.Attack(machines, attacked) is > 0 and var attacking)
@@ -2830,8 +2851,7 @@ public sealed class MapGame : Game
             return;
         }
         // Ctrl: forced order, they walk there without stopping to fight.
-        var keys = Keyboard.GetState();
-        bool forced = keys.IsKeyDown(Keys.LeftControl) || keys.IsKeyDown(Keys.RightControl);
+        bool forced = control;
         if (soldiers.Count > 0)
             _world.Military.Move(soldiers, clicked, forced);
         if (machines.Count > 0)

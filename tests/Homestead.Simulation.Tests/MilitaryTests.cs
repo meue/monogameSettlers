@@ -1077,6 +1077,106 @@ public class MilitaryTests(ITestOutputHelper output)
         Assert.All(soldiers, s => Assert.True(s.Position.X < 30 || s.Position.Y < 30 || s.Position.Y >= 50));
     }
 
+    [Fact]
+    public void Waypoints_are_walked_in_turn_after_the_order_and_a_fourth_replaces_the_last()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var soldier = world.SpawnSoldier(new GridPoint(10, 30), SoldierType.Swordsman)!;
+        world.Military.Move([soldier], new GridPoint(20, 30));
+        world.Military.AddWaypoint([soldier], new GridPoint(20, 40));
+        world.Military.AddWaypoint([soldier], new GridPoint(30, 40));
+        world.Military.AddWaypoint([soldier], new GridPoint(30, 30));
+        world.Military.AddWaypoint([soldier], new GridPoint(40, 30));
+        Assert.Equal([new GridPoint(20, 40), new GridPoint(30, 40), new GridPoint(40, 30)], world.Military.Waypoints(soldier));
+
+        var stops = new[] { new GridPoint(20, 30), new GridPoint(20, 40), new GridPoint(30, 40), new GridPoint(40, 30) };
+        int reached = 0;
+        Run(world, 5_000, stopWhen: () =>
+        {
+            if (reached < stops.Length && PathFinder.Distance(soldier.Position, stops[reached]) <= 1)
+                reached++;
+            Assert.False(PathFinder.Distance(soldier.Position, new GridPoint(30, 30)) == 0, "the replaced waypoint is not walked to");
+            return !soldier.HasTask;
+        });
+        Assert.Equal(stops.Length, reached);
+        Assert.Empty(world.Military.Waypoints(soldier));
+    }
+
+    [Fact]
+    public void A_waypoint_without_an_order_is_walked_to_at_once()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var soldier = world.SpawnSoldier(new GridPoint(10, 30), SoldierType.Swordsman)!;
+        world.Military.AddWaypoint([soldier], new GridPoint(25, 30));
+        Assert.Equal(new GridPoint(25, 30), world.Military.MoveTarget(soldier));
+        Run(world, 2_000, stopWhen: () => !soldier.HasTask);
+        Assert.InRange(PathFinder.Distance(soldier.Position, new GridPoint(25, 30)), 0, 1);
+    }
+
+    [Fact]
+    public void Patrolling_soldiers_walk_to_and_fro_until_another_order()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var soldier = world.SpawnSoldier(new GridPoint(10, 30), SoldierType.Swordsman)!;
+        world.Military.Patrol([soldier], new GridPoint(25, 30));
+        Assert.Equal(new GridPoint(10, 30), world.Military.PatrolBack(soldier));
+
+        // There, back, and there again.
+        int legs = 0;
+        var next = new GridPoint(25, 30);
+        Run(world, 6_000, stopWhen: () =>
+        {
+            if (soldier.Position == next)
+            {
+                legs++;
+                next = next == new GridPoint(25, 30) ? new GridPoint(10, 30) : new GridPoint(25, 30);
+            }
+            return legs == 3;
+        });
+        Assert.Equal(3, legs);
+        Assert.True(soldier.HasTask);
+
+        world.Military.Move([soldier], new GridPoint(15, 40));
+        Assert.Null(world.Military.PatrolBack(soldier));
+    }
+
+    [Fact]
+    public void Patrolling_soldiers_fight_enemies_on_the_way_and_patrol_on()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var soldier = world.SpawnSoldier(new GridPoint(10, 30), SoldierType.Swordsman, level: 3)!;
+        world.Military.Patrol([soldier], new GridPoint(40, 30));
+        var enemy = world.SpawnSoldier(new GridPoint(25, 33), SoldierType.Swordsman, player: 1)!;
+        world.Military.Hold([enemy]);
+
+        Run(world, 3_000, stopWhen: () => enemy.IsDead);
+        Assert.True(enemy.IsDead);
+        Assert.NotNull(world.Military.PatrolBack(soldier));
+        Run(world, 3_000, stopWhen: () => soldier.Position == new GridPoint(40, 30));
+        Assert.Equal(new GridPoint(40, 30), soldier.Position);
+    }
+
+    [Fact]
+    public void Waypoints_and_patrols_are_kept_in_a_saved_game()
+    {
+        var world = new World(new GameMap(60), TestConfig.NoTools);
+        var walker = world.SpawnSoldier(new GridPoint(10, 20), SoldierType.Swordsman)!;
+        var patrol = world.SpawnSoldier(new GridPoint(10, 40), SoldierType.Pikeman)!;
+        world.Military.Move([walker], new GridPoint(20, 20));
+        world.Military.AddWaypoint([walker], new GridPoint(30, 25), forced: true);
+        world.Military.Patrol([patrol], new GridPoint(30, 40));
+        Run(world, 50);
+
+        var stream = new MemoryStream();
+        Homestead.Simulation.Persistence.Snapshot.Write(stream, world);
+        stream.Position = 0;
+        var loaded = Homestead.Simulation.Persistence.Snapshot.Read<World>(stream);
+        var loadedWalker = loaded.Settlers.Single(s => s.Id == walker.Id);
+        var loadedPatrol = loaded.Settlers.Single(s => s.Id == patrol.Id);
+        Assert.Equal([new GridPoint(30, 25)], loaded.Military.Waypoints(loadedWalker));
+        Assert.Equal(new GridPoint(10, 40), loaded.Military.PatrolBack(loadedPatrol));
+    }
+
     private static void SpawnSoldiers(World world, SoldierType type, int count, GridPoint near)
     {
         for (int i = 0; i < count; i++)
