@@ -89,6 +89,9 @@ public sealed partial class World
     /// <summary>Computer players; each acts for its own player in every tick.</summary>
     public List<Ai.AiPlayer> AiPlayers { get; } = new();
 
+    /// <summary>The players' orders, applied at the start of the next step (see <see cref="Commands.GameCommand"/>).</summary>
+    public Commands.CommandQueue Commands { get; } = new();
+
     private GameEvents? _events;
 
     /// <summary>Messages to the players (attacks, …); created on first use in games saved before there were any.</summary>
@@ -165,6 +168,7 @@ public sealed partial class World
     public void Step()
     {
         long mark = StepProfile is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
+        Commands.Apply(this);
         foreach (var walker in Walkers)
             walker.Tick();
 

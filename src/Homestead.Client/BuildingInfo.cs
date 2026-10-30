@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
@@ -393,6 +394,9 @@ public sealed partial class BuildingInfo
         }
     }
 
+    /// <summary>Gives the panel's orders (set by the game; see <see cref="IssueCommand"/>).</summary>
+    public IssueCommand? Issue { get; set; }
+
     /// <summary>
     /// A click on a storehouse's goods (panel space): specializes it on that good, or – on its own good –
     /// gives it the general rule again. Returns a message, or null if it hit nothing.
@@ -403,7 +407,7 @@ public sealed partial class BuildingInfo
             || StorehouseGoods!.GoodAt(panel, StorehouseTop, StorehouseRow) is not { } good)
             return null;
         bool clear = world.Logistics.SpecializationOf(building) == good.Material;
-        world.Logistics.SetSpecialization(building, clear ? null : good.Material);
+        Issue!(new SetSpecialization(ownPlayer, building.Id, clear ? null : good.Material));
         UiSounds.Toggle();
         return clear ? "storehouse: the general rule again (Waren › Warentransport)" : $"storehouse: only {good.Name}";
     }

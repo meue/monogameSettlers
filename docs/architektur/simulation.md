@@ -193,6 +193,13 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
   Alte Spielstände übernehmen die aktuellen Regeln (`Magic.FollowRules`). Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`
   (`upgrades.manaEarned` je n-ter Aufwertung, Original: 10/30/60/110/170/200). `Upgrade`: braucht fertigen kleinen Tempel; erst alle drei Typen Stufe 2, dann 3;
   gilt nur für danach Ausgebildete. Werte: `data/magic.json`.
+- `Commands/` (Lockstep-Vorbereitung): Spielerbefehle als Daten (`GameCommand`-Records: Spieler, IDs von Siedlern/Gebäuden/Schiffen, Punkte,
+  Enums, Zahlen; Gebäudetyp als `BuildingDefinition`, über Volk + Name eindeutig), wirken nur auf Eigenes des Spielers. `World.Commands`
+  (`CommandQueue`): `Issue` vergibt `Sequence`, `World.Step` wendet als Erstes alle wartenden in dieser Reihenfolge an, Ergebnisse in `Applied` bis
+  zum nächsten Schritt; pausiert allein `ApplyWhilePaused`. Gruppen: `UnitCommands` (Rechtsklick `MoveUnits`: feindliches Gebäude angreifen, sonst
+  laufen; Wegpunkt, Patrouille, Halten, Spezialisten, Priester, Zauber, Schiffe), `BuildingCommands` (Baustelle, Abriss, Pause, Vorrang,
+  Arbeitsbereich, Besatzung, Lager, Markt, Werft, Kriegswerkstatt), `EconomyCommands` (Verteilung, Transport, Schmiede, Berufe, Rekrutierung,
+  Aufwertung), `ChatCommands` (`Say`, `AiReply` für den KI-Chat, `Cheat`). Wartende Befehle stehen im Spielstand.
 - `Persistence/`: `Snapshot` schreibt den ganzen Objektgraphen per Reflection (alle Felder, auch private, Objektidentität; Typtabelle mit
   Feldnamen – fehlende übersprungen, neue: Sammlungen/Klassen mit parameterlosem Konstruktor leer, nicht-nullbare Referenzen ohne solchen → inkompatibel, sonst Standardwert (nicht der Initialisierer!); Dictionary/HashSet mit innerem Aufbau, Hashes beim Laden neu → Partie läuft
   tickgenau weiter, `SaveTests`). Delegates nur mit Zielen in eigenen Assemblies (Client-Abos werden nach dem Laden neu gesetzt);

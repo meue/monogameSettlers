@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Magic;
 using Microsoft.Xna.Framework;
@@ -131,7 +132,7 @@ public sealed class SoldiersMenu : IDisposable
         && world.Buildings.Any(b => b.Exists && b.Player == player && b.Definition.Name == world.Magic.Config.Temple && b.State == BuildingState.Finished);
 
     /// <summary>A click (panel space): upgrades, switches or plans; returns a message, or null if it hit nothing.</summary>
-    public string? Click(Vector2 panel, World world, int player, BuildingInfo names)
+    public string? Click(Vector2 panel, World world, int player, BuildingInfo names, IssueCommand issue)
     {
         var military = world.Military;
         for (int i = 0; i < Types.Length; i++)
@@ -139,20 +140,22 @@ public sealed class SoldiersMenu : IDisposable
             {
                 var type = Types[i];
                 string name = names.SoldierName(type);
-                return world.Magic.Upgrade(player, type) switch
+                issue(new UpgradeSoldiers(player, type), result => (UpgradeResult)result! switch
                 {
                     UpgradeResult.Done => $"{name}: new ones become {names.LevelName(world.Magic.SoldierLevel(player, type))}",
                     UpgradeResult.OthersFirst => "all soldier types to level 2 first",
                     UpgradeResult.NoMana => "not enough mana earned yet",
                     UpgradeResult.Highest => $"{name}: highest level already",
                     _ => "a finished small temple is needed",
-                };
+                });
+                return null;
             }
         if (SwitchButton.Contains(panel))
         {
-            military.SetManualRecruitment(player, !military.IsManualRecruitment(player));
+            bool manual = !military.IsManualRecruitment(player);
+            issue(new SetManualRecruitment(player, manual));
             UiSounds.Toggle();
-            return military.IsManualRecruitment(player) ? "manual recruitment: barracks train only the soldiers planned" : "automatic recruitment";
+            return manual ? "manual recruitment: barracks train only the soldiers planned" : "automatic recruitment";
         }
         if (!military.IsManualRecruitment(player))
             return null;
@@ -160,9 +163,10 @@ public sealed class SoldiersMenu : IDisposable
             for (int i = 0; i < ArrowSteps.Length; i++)
                 if (Arrow(row, i).Contains(panel))
                 {
-                    military.ChangePlanned(player, Types[row], ArrowSteps[i]);
+                    var type = Types[row];
+                    issue(new ChangePlanned(player, type, ArrowSteps[i]), _ => $"{names.SoldierName(type)}: {military.Planned(player, type)} planned");
                     UiSounds.Step(ArrowSteps[i] > 0);
-                    return $"{names.SoldierName(Types[row])}: {military.Planned(player, Types[row])} planned";
+                    return null;
                 }
         return null;
     }

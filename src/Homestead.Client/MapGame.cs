@@ -6,6 +6,7 @@ using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Events;
 using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
@@ -620,6 +621,7 @@ public sealed class MapGame : Game
         _manufactureMenu?.Dispose();
         _manufactureMenu = new ManufactureMenu(GraphicsDevice, _gfx, _goodsGrid);
         _buildingInfo.Spinner = _manufactureMenu.SpinnerImage;
+        _buildingInfo.Issue = IssueReported;
         _buildingInfo.LoadIcons(GraphicsDevice, _gfx);
         _spellMenu.LoadIcons(GraphicsDevice, _gfx);
         _distributionMenu = new DistributionMenu(_goodsGrid, catalog, _buildingInfo.NameOf);
@@ -1478,13 +1480,20 @@ public sealed class MapGame : Game
         while (_accumulator >= World.TickDuration)
         {
             _world.Step();
+            TakeCommandResults();
             _accumulator -= World.TickDuration;
+        }
+        // Paused: the orders still work (they take effect at once).
+        if (_paused && _world.Commands.Pending.Count > 0)
+        {
+            _world.Commands.ApplyWhilePaused(_world);
+            TakeCommandResults();
         }
         _perf.EndSimulation();
         NoteOutcome();
         NoteNews(gameTime.ElapsedGameTime);
         if (_aiChat is not null)
-            foreach (string note in _aiChat.Apply(_world))
+            foreach (string note in _aiChat.Apply(_world, IssueReported))
                 _info.Add(note, _now);
         if (_audio is not null && _world.SoundCues is { } cues)
         {
@@ -1751,10 +1760,13 @@ public sealed class MapGame : Game
             _message = "unload: everybody on board goes ashore (the ship must lie near land)";
             if (released)
             {
-                int ashore = _ships.Sum(ship => _world.Shipping.Unload(ship));
-                if (ashore > 0)
-                    PlayCommand();
-                _message = ashore > 0 ? $"{ashore} units went ashore" : "no free land near the ship";
+                Issue(new UnloadShips(0, ShipIds(_ships)), result =>
+                {
+                    int ashore = (int)result!;
+                    if (ashore > 0)
+                        PlayCommand();
+                    _message = ashore > 0 ? $"{ashore} units went ashore" : "no free land near the ship";
+                });
             }
         }
         else if (PriestsSelected)
@@ -1785,10 +1797,13 @@ public sealed class MapGame : Game
                 _message = "scouts: steal the nearest goods around them";
                 if (released)
                 {
-                    int stealing = _world.Theft.Steal(_group);
-                    if (stealing > 0)
-                        PlayCommand();
-                    _message = stealing > 0 ? $"{stealing} scouts go stealing" : "no goods to steal nearby";
+                    Issue(new Steal(0, Ids(_group)), result =>
+                    {
+                        int stealing = (int)result!;
+                        if (stealing > 0)
+                            PlayCommand();
+                        _message = stealing > 0 ? $"{stealing} scouts go stealing" : "no goods to steal nearby";
+                    });
                 }
             }
             else if (action == SelectionAction.Reload)
@@ -1796,10 +1811,13 @@ public sealed class MapGame : Game
                 _message = "war machines: drive to the nearest own works with ammunition and load";
                 if (released)
                 {
-                    int loading = _world.WarMachines.Reload(_group);
-                    if (loading > 0)
-                        PlayCommand();
-                    _message = loading > 0 ? $"{loading} war machines go to load" : "no works with ammunition";
+                    Issue(new ReloadMachines(0, Ids(_group)), result =>
+                    {
+                        int loading = (int)result!;
+                        if (loading > 0)
+                            PlayCommand();
+                        _message = loading > 0 ? $"{loading} war machines go to load" : "no works with ammunition";
+                    });
                 }
             }
             else if (action == SelectionAction.Hold)
@@ -1807,10 +1825,13 @@ public sealed class MapGame : Game
                 _message = "soldiers: hold the position, fight only enemies within reach";
                 if (released)
                 {
-                    int holding = _world.Military.Hold(_group);
-                    if (holding > 0)
-                        PlayCommand();
-                    _message = $"{holding} soldiers hold their position";
+                    Issue(new HoldPosition(0, Ids(_group)), result =>
+                    {
+                        int holding = (int)result!;
+                        if (holding > 0)
+                            PlayCommand();
+                        _message = $"{holding} soldiers hold their position";
+                    });
                 }
             }
             else
@@ -1818,10 +1839,13 @@ public sealed class MapGame : Game
                 _message = "pioneers: take the free land around them, field by field";
                 if (released)
                 {
-                    int claiming = _world.Pioneering.Claim(_group);
-                    if (claiming > 0)
-                        PlayCommand();
-                    _message = claiming > 0 ? $"{claiming} pioneers take land" : "no free land nearby";
+                    Issue(new ClaimLand(0, Ids(_group)), result =>
+                    {
+                        int claiming = (int)result!;
+                        if (claiming > 0)
+                            PlayCommand();
+                        _message = claiming > 0 ? $"{claiming} pioneers take land" : "no free land nearby";
+                    });
                 }
             }
         }
@@ -1837,22 +1861,24 @@ public sealed class MapGame : Game
                     : _world.Military.Wanted(_selectedBuilding!, type) == 0 ? $"{name}: none wanted" : $"{name}: the building must not be left empty";
                 if (released && possible)
                 {
-                    _world.Military.ChangeWanted(_selectedBuilding!, type, delta);
+                    Issue(new ChangeWanted(0, _selectedBuilding!.Id, type, delta));
                     UiSounds.Step(delta > 0);
                 }
             }
             // A production building's or construction site's stop/restart icon, a site's highest priority.
             if (onMenu && released && _buildingInfo.PauseAt(panelCursor, SidePanel.ContentHeight, _world, _selectedBuilding!, 0))
             {
-                _world.SetPaused(_selectedBuilding!, !_selectedBuilding!.IsPaused);
+                bool paused = !_selectedBuilding!.IsPaused;
+                Issue(new SetPaused(0, _selectedBuilding.Id, paused));
                 UiSounds.Toggle();
-                _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)} {(_selectedBuilding.IsPaused ? "stopped" : "restarted")}";
+                _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)} {(paused ? "stopped" : "restarted")}";
             }
             if (onMenu && released && _buildingInfo.PriorityAt(panelCursor, SidePanel.ContentHeight, _selectedBuilding!, 0))
             {
-                _world.SetPriority(_selectedBuilding!, !_selectedBuilding!.HasPriority);
+                bool priority = !_selectedBuilding!.HasPriority;
+                Issue(new SetPriority(0, _selectedBuilding.Id, priority));
                 UiSounds.Toggle();
-                _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)}: {(_selectedBuilding.HasPriority ? "highest priority" : "normal priority")}";
+                _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)}: {(priority ? "highest priority" : "normal priority")}";
             }
             // A market's route and goods.
             if (onMenu && _buildingInfo.MarketHover(panelCursor, _world, _selectedBuilding!, 0) is { } marketHover)
@@ -1885,7 +1911,7 @@ public sealed class MapGame : Game
             if (demolish)
             {
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding!.Definition)} torn down";
-                _world.RemoveBuilding(_selectedBuilding);
+                Issue(new Demolish(0, _selectedBuilding.Id));
                 _selectedBuilding = null;
             }
         }
@@ -1917,7 +1943,7 @@ public sealed class MapGame : Game
             {
                 if (_soldiersMenu!.Hover(panelCursor, _world, 0, _buildingInfo) is { } hover)
                     _message = hover;
-                if (released && _soldiersMenu.Click(panelCursor, _world, 0, _buildingInfo) is { } done)
+                if (released && _soldiersMenu.Click(panelCursor, _world, 0, _buildingInfo, IssueReported) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "tools")
@@ -1926,7 +1952,7 @@ public sealed class MapGame : Game
                     _message = hover;
                 bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_manufactureMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, 0) is { } done)
+                if (_manufactureMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, 0, IssueReported) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "distribution")
@@ -1935,14 +1961,14 @@ public sealed class MapGame : Game
                     _message = hover;
                 bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_distributionMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, 0) is { } done)
+                if (_distributionMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, 0, IssueReported) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "transport" && onMenu)
             {
                 if (_transportMenu!.Hover(panelCursor, _world, 0) is { } hover)
                     _message = hover;
-                if (released && _transportMenu.Click(panelCursor, _world, 0) is { } done)
+                if (released && _transportMenu.Click(panelCursor, _world, 0, IssueReported) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "stock" && onMenu)
@@ -1963,23 +1989,11 @@ public sealed class MapGame : Game
                     _message = hover;
                 if (released)
                 {
-                    var converted = new List<Settler>();
-                    string? done = _professionsMenu.Click(panelCursor, _world, 0, out var find, converted, CarriersByCenter());
+                    string? done = _professionsMenu.Click(panelCursor, _world, 0, IssueReported, out var find, SelectConverted, CarriersByCenter());
                     if (find is { } f)
                         Find(f.Profession, f.Mode);
                     else if (done is not null)
                         _message = done;
-                    // Converted specialists are selected at once; carriers still delivering join when they convert.
-                    if (converted.Count > 0)
-                    {
-                        ClearSelection();
-                        _group.AddRange(converted.Where(s => !s.IsCarrier));
-                        _joining.Clear();
-                        _joining.AddRange(converted.Where(s => s.IsCarrier));
-                        _selected = null;
-                        _selectedBuilding = null;
-                        _menuOverSelection = true;
-                    }
                 }
             }
         }
@@ -2102,8 +2116,12 @@ public sealed class MapGame : Game
             string line = _chat.Submit().Trim();
             if (line.StartsWith('/'))
                 RunCommand(line[1..]);
-            else if (_world.Say(0, line) is not null)
-                _aiChat?.Heard(_world);
+            else
+                Issue(new Say(0, line), said =>
+                {
+                    if (said is not null)
+                        _aiChat?.Heard(_world);
+                });
         }
         else if (Pressed(Keys.Up))
             _chat.Recall(-1);
@@ -2125,7 +2143,7 @@ public sealed class MapGame : Game
             var opponents = _world.AiPlayers.Where(ai => ai.Player != 0 && !_world.AreAllies(0, ai.Player) && _world.Goals?.IsDefeated(ai.Player) != true)
                 .ToList();
             if (opponents.Count > 0)
-                _world.Say(opponents[_random.Next(opponents.Count)].Player, Lang.T("chat.noCheats"));
+                Issue(new Say(opponents[_random.Next(opponents.Count)].Player, Lang.T("chat.noCheats")));
             return;
         }
         switch (name)
@@ -2135,14 +2153,7 @@ public sealed class MapGame : Game
                 break;
             case "attackme":
                 // Every computer opponent still in the game assaults player 1 with everything and never falls back.
-                int attackers = 0;
-                foreach (var ai in _world.AiPlayers.Where(ai => ai.Player != 0 && _world.Goals?.IsDefeated(ai.Player) != true))
-                {
-                    ai.Assault(0);
-                    if (ai.AssaultOn == 0)
-                        attackers++;
-                }
-                _info.Add(Lang.T("chat.attackMe", attackers), _now);
+                Issue(new Cheat(0, CheatKind.AttackMe), attackers => _info.Add(Lang.T("chat.attackMe", (int)attackers!), _now));
                 break;
             default:
                 _info.Add(Lang.T("chat.unknown", "/" + name, string.Join(", ", Commands.Select(c => "/" + c))), _now);
@@ -2253,8 +2264,8 @@ public sealed class MapGame : Game
         if (Pressed(Keys.F) && _world.BuildingAt(ScreenToGrid(cursorScreen)) is { } target)
         {
             // F: attack the enemy military building under the cursor with player 1's soldiers nearby.
-            int sent = _world.Military.Attack(0, target);
-            _message = sent > 0 ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building";
+            Issue(new AttackWithAll(0, target.Id), result => _message = (int)result! is > 0 and var sent
+                ? $"{sent} soldiers attack {target.Definition.Name}" : "no soldiers in range or not an enemy military building");
         }
     }
 
@@ -2281,28 +2292,24 @@ public sealed class MapGame : Game
                 _message = $"{definition.Name}: {reason}";
                 return;
             }
-            bool placed = _world.PlaceConstructionSite(definition, 0, at) is not null;
-            _message = placed ? $"{definition.Name} site placed" : "could not place";
-            // Placed: the choice is done (choose again in the build menu for another one).
-            if (placed)
-            {
-                _placing = false;
-                _buildSpotChecks.Clear();
-            }
+            // The spot was checked: the choice is done (choose again in the build menu for another one).
+            Issue(new PlaceSite(0, definition, at), result => _message = result is not null ? $"{definition.Name} site placed" : "could not place");
+            _placing = false;
+            _buildSpotChecks.Clear();
             return;
         }
 
         // A market's route button chosen: the click sets that point.
         if (_buildingInfo.AimsRoute(_selectedBuilding) && _selectedBuilding is { Exists: true } market)
         {
-            _message = _buildingInfo.MarketCommand(_world, market, ScreenToGrid(screen));
+            _buildingInfo.MarketCommand(_world, market, ScreenToGrid(screen));
             return;
         }
 
         // A shipyard's hammer chosen: the click puts the dock near it.
         if (_buildingInfo.AimsDock(_selectedBuilding) && _selectedBuilding is { Exists: true } dockyard)
         {
-            _message = _buildingInfo.DockCommand(_world, dockyard, ScreenToGrid(screen));
+            _buildingInfo.DockCommand(_world, dockyard, ScreenToGrid(screen));
             return;
         }
 
@@ -2401,7 +2408,7 @@ public sealed class MapGame : Game
             return;
         }
         var target = ScreenToGrid(screen);
-        _message = _world.WalkTo(_selected, target) ? $"walking to {target.X},{target.Y}" : "unreachable";
+        Issue(new WalkSettlers(0, [_selected.Id], target), result => _message = (int)result! > 0 ? $"walking to {target.X},{target.Y}" : "unreachable");
     }
 
     /// <summary>Half the width and the height of a ship's body around which a click or a box picks it.</summary>
@@ -2640,6 +2647,58 @@ public sealed class MapGame : Game
 
     private List<Settler> SelectedMachines() => _group.Where(s => s.Profession == Profession.WarMachine).ToList();
 
+    /// <summary>What to do with the results of the own commands not yet applied, by sequence number.</summary>
+    private readonly Dictionary<long, Action<object?>> _awaiting = new();
+
+    /// <summary>
+    /// Gives an order: the client changes the world only by commands (lockstep-ready, see <see cref="GameCommand"/>).
+    /// It takes effect on the next tick; <paramref name="then"/> gets its result (messages, sounds, selection).
+    /// </summary>
+    private void Issue(GameCommand command, Action<object?>? then = null)
+    {
+        _world.Commands.Issue(command);
+        if (then is not null)
+            _awaiting[command.Sequence] = then;
+    }
+
+    /// <summary>The results of the commands the last step applied go to whoever issued them.</summary>
+    private void TakeCommandResults()
+    {
+        if (_awaiting.Count == 0)
+            return;
+        foreach (var (command, result) in _world.Commands.Applied)
+            if (_awaiting.Remove(command.Sequence, out var then))
+                then(result);
+    }
+
+    /// <summary><see cref="Issue"/> for the menus: the result's message, if any, is shown.</summary>
+    private void IssueReported(GameCommand command, Func<object?, string?>? report = null) =>
+        Issue(command, report is null ? null : result =>
+        {
+            if (report(result) is { } text)
+                _message = text;
+        });
+
+    /// <summary>Converted specialists are selected at once; carriers still delivering join when they convert.</summary>
+    private void SelectConverted(int[] ids)
+    {
+        if (ids.Length == 0)
+            return;
+        var wanted = ids.ToHashSet();
+        var converted = _world.Settlers.Where(s => wanted.Contains(s.Id)).ToList();
+        ClearSelection();
+        _group.AddRange(converted.Where(s => !s.IsCarrier));
+        _joining.Clear();
+        _joining.AddRange(converted.Where(s => s.IsCarrier));
+        _selected = null;
+        _selectedBuilding = null;
+        _menuOverSelection = true;
+    }
+
+    private static int[] Ids(IEnumerable<Settler> settlers) => settlers.Select(s => s.Id).ToArray();
+
+    private static int[] ShipIds(IEnumerable<Simulation.Economy.Ship> ships) => ships.Select(s => s.Id).ToArray();
+
     /// <summary>A building is selected: the menu at the left shows what there is to know about it.</summary>
     private bool ShowsBuildingInfo => _selectedBuilding is { Exists: true } && !_placing && !PriestsSelected;
 
@@ -2648,33 +2707,22 @@ public sealed class MapGame : Game
     private void AddCheats()
     {
         GridPoint Center() => ScreenToGrid(new Vector2(GraphicsDevice.Viewport.Width / 2f, GraphicsDevice.Viewport.Height / 2f));
-        void Units(string key, int count, Func<GridPoint, Settler?> spawn) => _cheats.Add($"{count} {Lang.T("cheats." + key)}", () =>
-        {
-            int made = Enumerable.Range(0, count).Count(_ => spawn(Center()) is not null);
-            _message = $"cheat: {made} {key}";
-        });
-        foreach (var type in new[] { SoldierType.Swordsman, SoldierType.Bowman, SoldierType.Pikeman })
-            Units(type.ToString().ToLowerInvariant(), 5, at => _world.SpawnSoldier(at, type, _world.Magic.SoldierLevel(0, type)));
-        Units("priests", 1, at => _world.Magic.SpawnPriest(at, 0));
-        Units("geologists", 2, at => _world.Spawn(at, Profession.Geologist));
-        Units("scouts", 2, at => _world.Spawn(at, Profession.Scout));
-        Units("pioneers", 2, at => _world.Spawn(at, Profession.Pioneer));
-        Units("carriers", 5, at => _world.Spawn(at, Profession.Carrier));
-        Units("warMachines", 2, at => _world.WarMachines.Spawn(at, 0, _world.PeopleOf(0)));
-        _cheats.Add("+50 Mana", () =>
-        {
-            _world.Magic.AddMana(0, 50);
-            _message = $"cheat: mana {_world.Magic.Mana(0)}";
-        });
-        void Decide(string key, MissionOutcome outcome) => _cheats.Add(Lang.T("cheats." + key), () =>
-        {
-            if (_world.Goals is null)
-                _message = "cheat: no goals in this game";
-            else
-                _world.Goals.Decide(outcome, _world.Tick);
-        });
-        Decide("missionWon", MissionOutcome.Won);
-        Decide("missionLost", MissionOutcome.Lost);
+        void Units(string key, int count, CheatKind kind) => _cheats.Add($"{count} {Lang.T("cheats." + key)}", () =>
+            Issue(new Cheat(0, kind, Center()), made => _message = $"cheat: {(int)made!} {key}"));
+        Units("swordsman", 5, CheatKind.Swordsmen);
+        Units("bowman", 5, CheatKind.Bowmen);
+        Units("pikeman", 5, CheatKind.Pikemen);
+        Units("priests", 1, CheatKind.Priest);
+        Units("geologists", 2, CheatKind.Geologists);
+        Units("scouts", 2, CheatKind.Scouts);
+        Units("pioneers", 2, CheatKind.Pioneers);
+        Units("carriers", 5, CheatKind.Carriers);
+        Units("warMachines", 2, CheatKind.WarMachines);
+        _cheats.Add("+50 Mana", () => Issue(new Cheat(0, CheatKind.Mana), mana => _message = $"cheat: mana {mana}"));
+        void Decide(string key, CheatKind kind) => _cheats.Add(Lang.T("cheats." + key), () =>
+            Issue(new Cheat(0, kind), decided => _message = decided is true ? "" : "cheat: no goals in this game"));
+        Decide("missionWon", CheatKind.MissionWon);
+        Decide("missionLost", CheatKind.MissionLost);
         _cheats.Add(Lang.T("cheats.fog"), () =>
         {
             _fogChosen = !_fogChosen;
@@ -2728,13 +2776,17 @@ public sealed class MapGame : Game
                 _message = "only a ferry takes units aboard";
             else if (!_world.Shipping.IsNearLand(ship))
                 _message = "the ferry is too far from land to board";
-            else if (_world.Shipping.Board(_group, ship) is > 0 and var boarding)
-            {
-                PlayCommand();
-                _message = $"{boarding} units go aboard ({ship.Passengers.Count}/{_world.Shipping.Capacity(ship)} on board)";
-            }
             else
-                _message = "the ferry is full (or nobody can get to it)";
+                Issue(new BoardShip(0, Ids(_group), ship.Id), result =>
+                {
+                    if ((int)result! is > 0 and var boarding)
+                    {
+                        PlayCommand();
+                        _message = $"{boarding} units go aboard ({ship.Passengers.Count}/{_world.Shipping.Capacity(ship)} on board)";
+                    }
+                    else
+                        _message = "the ferry is full (or nobody can get to it)";
+                });
             return;
         }
         Command(ScreenToGrid(screen));
@@ -2766,58 +2818,71 @@ public sealed class MapGame : Game
         // Ships: over the water to the open water nearest the click.
         if (_ships.Count > 0)
         {
-            int sailing = _world.Shipping.Move(_ships, clicked);
-            if (sailing > 0)
-                PlayCommand();
-            _message = sailing > 0 ? $"{sailing} ships to {clicked.X},{clicked.Y}" : "no way there over the water";
+            Issue(new MoveShips(0, ShipIds(_ships), clicked), result =>
+            {
+                int sailing = (int)result!;
+                if (sailing > 0)
+                    PlayCommand();
+                _message = sailing > 0 ? $"{sailing} ships to {clicked.X},{clicked.Y}" : "no way there over the water";
+            });
             return;
         }
         // A selected own building with a work area: move the work area there (at most 20 steps away, a gathering point anywhere).
         if (_selectedBuilding is { Exists: true, Player: 0, HasWorkArea: true } worksite)
         {
-            if (_world.SetWorkCenter(worksite, clicked) is { } center)
+            Issue(new SetWorkCenter(0, worksite.Id, clicked), result =>
             {
+                if (result is not GridPoint center)
+                    return;
                 UiSounds.WorkArea();
                 _message = worksite.HasGatheringPoint ? $"gathering point moved to {center.X},{center.Y}"
                     : center == clicked ? $"work area moved to {center.X},{center.Y}"
                     : $"work area moved to {center.X},{center.Y} (at most {World.MaxWorkCenterDistance} fields away)";
-            }
+            });
             return;
         }
         var priests = _group.Where(s => s.Profession == Profession.Priest && !_world.Magic.IsBusy(s)).ToList();
         if (priests.Count > 0)
         {
-            int walking = priests.Count(p => _world.CommandTarget(p, clicked) is { } to && _world.WalkTo(p, to));
-            if (walking > 0)
-                PlayCommand();
-            _message = walking > 0 ? $"{walking} priests to {clicked.X},{clicked.Y}" : "no way there";
+            Issue(new WalkSettlers(0, Ids(priests), clicked), result =>
+            {
+                int walking = (int)result!;
+                if (walking > 0)
+                    PlayCommand();
+                _message = walking > 0 ? $"{walking} priests to {clicked.X},{clicked.Y}" : "no way there";
+            });
             return;
         }
         // Alt: scouts go there and steal, pioneers go there and take land.
         var keyboard = Keyboard.GetState();
         if ((keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt)) && (ScoutsSelected || PioneersSelected))
         {
-            int stealing = _world.Theft.StealAt(_group, clicked);
-            int claiming = _world.Pioneering.ClaimAt(_group, clicked);
-            if (stealing + claiming > 0)
-                PlayCommand();
-            _message = stealing + claiming == 0 ? "no way there"
-                : claiming == 0 ? $"{stealing} scouts steal at {clicked.X},{clicked.Y}"
-                : stealing == 0 ? $"{claiming} pioneers take land at {clicked.X},{clicked.Y}"
-                : $"{stealing} scouts steal, {claiming} pioneers take land at {clicked.X},{clicked.Y}";
+            Issue(new SpecialistsWorkAt(0, Ids(_group), clicked), result =>
+            {
+                var (stealing, claiming) = ((int, int))result!;
+                if (stealing + claiming > 0)
+                    PlayCommand();
+                _message = stealing + claiming == 0 ? "no way there"
+                    : claiming == 0 ? $"{stealing} scouts steal at {clicked.X},{clicked.Y}"
+                    : stealing == 0 ? $"{claiming} pioneers take land at {clicked.X},{clicked.Y}"
+                    : $"{stealing} scouts steal, {claiming} pioneers take land at {clicked.X},{clicked.Y}";
+            });
             return;
         }
         var geologists = _group.Where(s => s.Profession is Profession.Geologist or Profession.Scout or Profession.Pioneer).ToList();
         if (geologists.Count > 0)
         {
-            int sent = _world.Geology.Send(geologists, clicked);
-            if (sent > 0)
-                PlayCommand();
             string name = geologists.All(s => s.Profession == Profession.Scout) ? "scouts"
                 : geologists.All(s => s.Profession == Profession.Pioneer) ? "pioneers" : "geologists";
-            _message = sent == 0 ? "no way there"
-                : name == "geologists" && _world.Geology.IsSearchable(clicked) ? $"{sent} geologists search around {clicked.X},{clicked.Y}"
-                : $"{sent} {name} to {clicked.X},{clicked.Y}";
+            Issue(new SendSpecialists(0, Ids(geologists), clicked), result =>
+            {
+                int sent = (int)result!;
+                if (sent > 0)
+                    PlayCommand();
+                _message = sent == 0 ? "no way there"
+                    : name == "geologists" && _world.Geology.IsSearchable(clicked) ? $"{sent} geologists search around {clicked.X},{clicked.Y}"
+                    : $"{sent} {name} to {clicked.X},{clicked.Y}";
+            });
             return;
         }
         var soldiers = SelectedSoldiers();
@@ -2829,7 +2894,7 @@ public sealed class MapGame : Game
         // Alt: soldiers patrol between where they stand and the point.
         if (AltDown(keys) && soldiers.Count > 0)
         {
-            _world.Military.Patrol(soldiers, clicked);
+            Issue(new PatrolUnits(0, Ids(soldiers), clicked));
             PlayCommand();
             _message = $"{soldiers.Count} soldiers patrol to {clicked.X},{clicked.Y}";
             return;
@@ -2837,27 +2902,22 @@ public sealed class MapGame : Game
         // Shift: a waypoint after the current order (Ctrl too: forced).
         if (ShiftDown(keys) && soldiers.Count > 0)
         {
-            _world.Military.AddWaypoint(soldiers, clicked, control);
+            Issue(new AddWaypoint(0, Ids(soldiers), clicked, control));
             PlayCommand();
             _message = $"{soldiers.Count} soldiers: waypoint {clicked.X},{clicked.Y}{(control ? " (forced)" : "")}";
             return;
         }
-        // Bowmen do not attack buildings: they keep their order (alone: they walk there). War machines fire at military buildings.
-        if (!control && _world.BuildingAt(clicked) is { } attacked && attacked.Player != 0
-            && (soldiers.Count > 0 ? _world.Military.Attack(soldiers, attacked) : 0) + _world.WarMachines.Attack(machines, attacked) is > 0 and var attacking)
-        {
-            PlayCommand();
-            _message = $"{attacking} units attack {attacked.Definition.Name}";
-            return;
-        }
-        // Ctrl: forced order, they walk there without stopping to fight.
+        // On an enemy building they attack it (bowmen do not attack buildings; war machines fire at military buildings),
+        // otherwise they walk there; Ctrl: forced order, they walk there without stopping to fight.
         bool forced = control;
-        if (soldiers.Count > 0)
-            _world.Military.Move(soldiers, clicked, forced);
-        if (machines.Count > 0)
-            _world.WarMachines.Move(machines, clicked);
+        var attacked = _world.BuildingAt(clicked);
         PlayCommand();
-        _message = $"{soldiers.Count + machines.Count} units to {clicked.X},{clicked.Y}{(forced ? " (forced)" : "")}";
+        Issue(new MoveUnits(0, Ids(soldiers.Concat(machines)), clicked, forced), result =>
+        {
+            var (count, attacking) = ((int, bool))result!;
+            _message = attacking ? $"{count} units attack {attacked?.Definition.Name}"
+                : $"{count} units to {clicked.X},{clicked.Y}{(forced ? " (forced)" : "")}";
+        });
     }
 
     /// <summary>
@@ -3445,18 +3505,22 @@ public sealed class MapGame : Game
     /// <summary>The chosen priests cast <see cref="_aimSpell"/> at the point.</summary>
     private void CastSpell(GridPoint aimedAt)
     {
-        var cast = _world.Magic.Cast(_group, aimedAt, _aimSpell);
-        if (cast == CastResult.Started)
-            PlayCommand();
-        _message = cast switch
+        var spell = _aimSpell;
+        Issue(new Simulation.Commands.CastSpell(0, Ids(_group), aimedAt, spell), result =>
         {
-            CastResult.Started => $"casting {_aimSpell?.Name} at {aimedAt.X},{aimedAt.Y}",
-            CastResult.NoMana => "not enough mana",
-            CastResult.NoTarget => "nothing there this spell works on",
-            CastResult.Unreachable => "no way there",
-            CastResult.NoPriest => "all priests are busy",
-            _ => "this people knows no spell",
-        };
+            var cast = (CastResult)result!;
+            if (cast == CastResult.Started)
+                PlayCommand();
+            _message = cast switch
+            {
+                CastResult.Started => $"casting {spell?.Name} at {aimedAt.X},{aimedAt.Y}",
+                CastResult.NoMana => "not enough mana",
+                CastResult.NoTarget => "nothing there this spell works on",
+                CastResult.Unreachable => "no way there",
+                CastResult.NoPriest => "all priests are busy",
+                _ => "this people knows no spell",
+            };
+        });
     }
 
     private void DrawMagic(float alpha)

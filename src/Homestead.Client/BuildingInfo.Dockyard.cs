@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
@@ -108,7 +109,7 @@ public sealed partial class BuildingInfo
                 return "set a dock first (the hammer)";
             if (world.Shipping.Building(building) is { } onStocks)
                 return $"{onStocks} on the stocks: {Math.Round(world.Shipping.Progress(building) * 100 ?? 0)}% built";
-            world.Shipping.Order(building, kind);
+            Issue!(new OrderShip(ownPlayer, building.Id, kind));
             UiSounds.Toggle();
             return $"{kind} ordered: carriers bring its material";
         }
@@ -136,15 +137,17 @@ public sealed partial class BuildingInfo
     }
 
     /// <summary>A left click on the map while aiming (<see cref="AimsDock"/>): puts the dock at the best place near it. Returns a message.</summary>
-    public string DockCommand(World world, Building dockyard, GridPoint clicked)
-    {
-        if (!world.Shipping.PlaceDock(dockyard, clicked))
-            return "no place for a dock there (open water on own land near the building)";
-        _dockAiming = null;
-        UiSounds.WorkArea();
-        var dock = world.Shipping.DockOf(dockyard)!.Value;
-        return $"dock at {dock.Land.X},{dock.Land.Y}";
-    }
+    public void DockCommand(World world, Building dockyard, GridPoint clicked) =>
+        Issue!(new PlaceDock(dockyard.Player, dockyard.Id, clicked), result =>
+        {
+            if (result is not true)
+                return "no place for a dock there (open water on own land near the building)";
+            if (_dockAiming == dockyard)
+                _dockAiming = null;
+            UiSounds.WorkArea();
+            var dock = world.Shipping.DockOf(dockyard)!.Value;
+            return $"dock at {dock.Land.X},{dock.Land.Y}";
+        });
 
     /// <summary>
     /// The selected ships in the panel: per kind its button image, its name and how many, for ferries also how many are

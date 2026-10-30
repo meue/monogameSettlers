@@ -149,6 +149,10 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Leerzeichen um (zu lange Wörter werden geteilt), Folgezeilen weiter eingerückt (`Hang`, 1,25 × Zeilenhöhe); Umbruch je Notiz gecacht.
 - **Textbuttons** (`TextButton`): Steinknöpfe aus den Menüs vor dem Spiel (`textButton` in `ui.json`, Datei 02 GUI 0, 9-Slice), z. B. Abreißen,
   Anhalten, Ja/Nein, Rekrutierung, Statistik. Besatzung ±: Auf/Ab-Spinner wie in der Herstellung.
+- **Befehle an die Welt** (Lockstep-Vorbereitung): der Client ändert die Simulation nur über `GameCommand`s – `MapGame.Issue(befehl, danach)`
+  (Ergebnis nach dem Anwenden an `danach`: Meldung, Klang, Auswahl; `TakeCommandResults` nach jedem `Step`), Menüs/Panel/KI-Chat über den Delegaten
+  `IssueCommand` (`IssueReported`: Ergebnis → Meldung). Ausnahmen: Spielaufbau, Capture-/Demo-Code, eigene KI (Taste I, nur Einzelspieler),
+  Statistik-Messpunkt beim Öffnen und Kalender-Ereignisse (beides liest die Spiellogik nicht).
 - **Auswahl/Befehle**: Rahmen oder Klick wählt eigene Figuren, Vorrang Soldaten > Kriegsmaschinen (nie zusammen) > Priester > Geologen > Späher > Pioniere,
   Träger und andere Berufe nie (Rahmen ohne solche Figuren: das der Mitte nächste Gebäude; Gebäude: weißer Eckrahmen 3 px). Shift fügt hinzu,
   Strg+Klick alle eigenen dieses Berufs im Bild (Soldaten: alle), Alt+Klick dieses Typs im Bild (Soldaten: Typ, Rang egal). Ausgewählte wie im Original: zwei weiße Eckklammern über dem Kopf, dazwischen

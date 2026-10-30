@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
@@ -173,7 +174,7 @@ public sealed partial class BuildingInfo
                 // The chosen stop once more: cleared.
                 if (i == RouteSlot && AimsRoute(building) && i < Trade.Stops && trade.StopOf(building, i) is not null)
                 {
-                    trade.SetStop(building, i, null);
+                    Issue!(new SetTradeRoute(ownPlayer, building.Id, i, null));
                     _routeAiming = null;
                     UiSounds.Toggle();
                     return $"stop {i + 1} cleared";
@@ -196,16 +197,17 @@ public sealed partial class BuildingInfo
         if (AllButton.Contains(panel) || NoneButton.Contains(panel))
         {
             bool all = AllButton.Contains(panel);
-            trade.SetRemaining(building, TradeGood, all ? Trade.Unlimited : 0);
+            Issue!(new SetTradeAmount(ownPlayer, building.Id, TradeGood, all ? Trade.Unlimited : 0));
             UiSounds.Step(all);
             return all ? $"{name}: send all there is" : $"{name}: send none";
         }
         for (int i = 0; i < _tradeArrows.Length; i++)
             if (TradeArrow(i).Contains(panel))
             {
-                trade.ChangeRemaining(building, TradeGood, TradeSteps[i]);
+                var sent = TradeGood;
+                Issue!(new ChangeTradeAmount(ownPlayer, building.Id, sent, TradeSteps[i]), _ => $"{name}: {AmountText(trade.Remaining(building, sent))} to send");
                 UiSounds.Step(TradeSteps[i] > 0);
-                return $"{name}: {AmountText(trade.Remaining(building, TradeGood))} to send";
+                return null;
             }
         return null;
     }
@@ -244,17 +246,22 @@ public sealed partial class BuildingInfo
     /// A left click on the map while aiming (<see cref="AimsRoute"/>): sets the chosen stop or the destination there, where a
     /// donkey can get from the market. Returns a message.
     /// </summary>
-    public string MarketCommand(World world, Building market, GridPoint clicked)
+    public void MarketCommand(World world, Building market, GridPoint clicked)
     {
         var trade = world.Trade;
-        bool destination = RouteSlot == Trade.Stops;
-        if (!(destination ? trade.SetDestination(market, clicked) : trade.SetStop(market, RouteSlot, clicked)))
-            return trade.IsHarbor(market) ? "no open water there the trade ships get to (the destination needs a beach near)"
-                : "no way there for donkeys (water or cut off)";
-        _routeAiming = null;
-        UiSounds.WorkArea();
-        var at = destination ? trade.DestinationOf(market)!.Value : trade.StopOf(market, RouteSlot)!.Value;
-        return destination ? $"destination at {at.X},{at.Y}" : $"stop {RouteSlot + 1} at {at.X},{at.Y}";
+        int slot = RouteSlot;
+        bool destination = slot == Trade.Stops;
+        Issue!(new SetTradeRoute(market.Player, market.Id, destination ? null : slot, clicked), result =>
+        {
+            if (result is not true)
+                return trade.IsHarbor(market) ? "no open water there the trade ships get to (the destination needs a beach near)"
+                    : "no way there for donkeys (water or cut off)";
+            if (_routeAiming == market && RouteSlot == slot)
+                _routeAiming = null;
+            UiSounds.WorkArea();
+            var at = destination ? trade.DestinationOf(market)!.Value : trade.StopOf(market, slot)!.Value;
+            return destination ? $"destination at {at.X},{at.Y}" : $"stop {slot + 1} at {at.X},{at.Y}";
+        });
     }
 
     private static string AmountText(int amount) => amount == Trade.Unlimited ? "all" : amount.ToString();

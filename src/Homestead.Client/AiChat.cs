@@ -5,6 +5,7 @@ using Anthropic.Exceptions;
 using Anthropic.Models.Messages;
 using Homestead.Assets;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 
@@ -92,8 +93,11 @@ public sealed partial class AiChat
         Ask(world, said: true);
     }
 
-    /// <summary>Once a frame on the game's thread: applies the answers come in; returns lines for the info feed (failures).</summary>
-    public IEnumerable<string> Apply(World world)
+    /// <summary>
+    /// Once a frame on the game's thread: turns the answers come in into commands (the computer players' lines and
+    /// actions, see <see cref="Say"/> and <see cref="AiReply"/>); returns lines for the info feed (failures).
+    /// </summary>
+    public IEnumerable<string> Apply(World world, IssueCommand issue)
     {
         Watch(world);
         Notice(world);
@@ -102,7 +106,7 @@ public sealed partial class AiChat
             switch (_asked == world ? answer : null)
             {
                 case Said said when IsVoice(world, said.Player):
-                    world.Say(said.Player, Unescape(said.Text));
+                    issue(new Say(said.Player, Unescape(said.Text)));
                     break;
                 case Attacked attack when IsVoice(world, attack.Player) && attack.Target >= 0 && attack.Target < Math.Max(world.PlayerCount, 1)
                                           && world.Goals?.IsDefeated(attack.Target) != true:
@@ -113,27 +117,33 @@ public sealed partial class AiChat
                         Console.WriteLine($"{order}: not yet (cooldown)");
                         break;
                     }
-                    if (attack.AllIn)
-                        ai.Assault(attack.Target);
-                    else
-                        ai.Challenge(attack.Target);
-                    bool taken = ai.AssaultOn == attack.Target || ai.ChallengedBy == attack.Target;
-                    if (taken)
-                        _lastAttack[ai.Player] = world.Tick;
-                    Console.WriteLine($"{order}: {(taken ? "ordered" : "refused (ally, or a campaign or assault under way)")}");
+                    _lastAttack[ai.Player] = world.Tick;
+                    issue(new AiReply(ai.Player, attack.AllIn ? AiReplyKind.Assault : AiReplyKind.Challenge, attack.Target), result =>
+                    {
+                        bool taken = result is true;
+                        if (!taken)
+                            _lastAttack.Remove(ai.Player);
+                        Console.WriteLine($"{order}: {(taken ? "ordered" : "refused (ally, or a campaign or assault under way)")}");
+                        return null;
+                    });
                     break;
                 case Truced truce when IsVoice(world, truce.Player) && IsPlayer(world, truce.Target):
                     int truceMinutes = Math.Clamp(truce.Minutes, 1, _truceMaxMinutes);
-                    bool agreed = world.AiPlayers.First(a => a.Player == truce.Player)
-                        .Truce(truce.Target, truceMinutes * 60L * World.TicksPerSecond);
-                    Console.WriteLine($"AI chat: player {truce.Player + 1} truce with player {truce.Target + 1} for {truceMinutes} min: " +
-                                      (agreed ? "agreed" : "refused (not an enemy)"));
+                    issue(new AiReply(truce.Player, AiReplyKind.Truce, truce.Target, truceMinutes * 60L * World.TicksPerSecond), agreed =>
+                    {
+                        Console.WriteLine($"AI chat: player {truce.Player + 1} truce with player {truce.Target + 1} for {truceMinutes} min: " +
+                                          (agreed is true ? "agreed" : "refused (not an enemy)"));
+                        return null;
+                    });
                     break;
                 case Defended help when IsVoice(world, help.Player) && IsPlayer(world, help.Ally):
                     int helpMinutes = Math.Clamp(help.Minutes, 1, _helpMaxMinutes);
-                    bool sent = world.AiPlayers.First(a => a.Player == help.Player).Help(help.Ally, helpMinutes * 60L * World.TicksPerSecond);
-                    Console.WriteLine($"AI chat: player {help.Player + 1} helps player {help.Ally + 1} for {helpMinutes} min: " +
-                                      (sent ? "sent" : "refused (no ally, no idle soldiers or already helping)"));
+                    issue(new AiReply(help.Player, AiReplyKind.Help, help.Ally, helpMinutes * 60L * World.TicksPerSecond), sent =>
+                    {
+                        Console.WriteLine($"AI chat: player {help.Player + 1} helps player {help.Ally + 1} for {helpMinutes} min: " +
+                                          (sent is true ? "sent" : "refused (no ally, no idle soldiers or already helping)"));
+                        return null;
+                    });
                     break;
                 case Failed failed:
                     notes.Add(Lang.T("chat.aiFailed", failed.Reason));
