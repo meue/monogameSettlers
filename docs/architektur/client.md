@@ -165,6 +165,10 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
   Träger umwandeln nur über Siedler › Berufe. Linksklick ins Leere wählt ab (Figuren, Gebäude, Menüs) und leert das Panel wie im Original
   (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
+- **Maus** (`SdlMouse`, überall statt `Mouse.GetState()`; `NextFrame()` als Erstes in `Update`): Tasten aus SDL-Ereignissen (Event-Watch) statt
+  aus MonoGames Abfrage je Frame – eine Taste gilt im Frame als gedrückt, wenn sie unten ist oder seit dem Frame davor gedrückt wurde (Tippen aufs
+  Trackpad geht nicht verloren; auf macOS kommt der Zwei-Finger-Klick so als rechte Taste an, Issue #6). Ohne SDL: MonoGames Zustand.
+  SDL-Bibliothek für eigene DllImports: `SdlLibrary` (auch im Plattformordner wie `osx-arm64/`).
 - **Tasten**: Enter Chat (siehe Info-Feld), Esc bricht Platzieren/Zielen ab, sonst Pause wie P; keine Cheat-Tasten (nur `/cheats`, siehe Info-Feld);
   F Angriff aufs feindliche Militärgebäude unter der Maus, Fog of War (Sicht 1×/s, `FogLayer` blendet weich,
   klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht; an/aus nur im Cheat-Menü), F11 Vollbild (nur für die Sitzung; Vorgabe in den Einstellungen),

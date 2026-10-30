@@ -39,7 +39,7 @@ public sealed class StatisticsScreen : IDisposable
     /// <summary>Text of the button that leaves the statistics (to the main menu, or on to the next mission).</summary>
     private readonly string _quitLabel;
     private readonly List<(int Player, string Name, Color Color)> _players;
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
     private KeyboardState _previousKeys = Keyboard.GetState();
     private Material _good = Material.Plank;
 
@@ -96,7 +96,7 @@ public sealed class StatisticsScreen : IDisposable
 
     public StatisticsAction Update(Rectangle bounds)
     {
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         var keys = Keyboard.GetState();
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
         bool Pressed(Keys key) => keys.IsKeyDown(key) && !_previousKeys.IsKeyDown(key);
@@ -134,7 +134,7 @@ public sealed class StatisticsScreen : IDisposable
         var size = new Point((int)(_background.Width * scale), (int)(_background.Height * scale));
         batch.Draw(_background, new Rectangle(bounds.Center.X - size.X / 2, bounds.Center.Y - size.Y / 2, size.X, size.Y), Color.White);
 
-        var cursor = Mouse.GetState().Position.ToVector2();
+        var cursor = SdlMouse.GetState().Position.ToVector2();
         long minutes = _world.Tick / World.TicksPerSecond / 60;
         Charts.Write(batch, font, Lang.T("statistics.title"), new Vector2(bounds.X + Margin, bounds.Y + 14), new Color(255, 215, 90), 30);
         Charts.Write(batch, font, Lang.T("statistics.subtitle", _mapName, $"{minutes / 60}:{minutes % 60:00}", _players.Count),

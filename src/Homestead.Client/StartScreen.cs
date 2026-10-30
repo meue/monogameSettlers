@@ -141,7 +141,7 @@ public sealed class StartScreen : IDisposable
     private readonly Rectangle _oval, _ovalPressed, _handle;
 
     private KeyboardState _previousKeys = Keyboard.GetState();
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="mapDirectory">Map directory of the installation; its first level of folders gives the category.</param>
     /// <param name="peoples">Preset peoples (command line): player i gets entry i modulo the count.</param>
@@ -459,7 +459,7 @@ public sealed class StartScreen : IDisposable
     {
         Fit(view);
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
         bool clicked = mouse.LeftButton == ButtonState.Pressed && _previousMouse.LeftButton == ButtonState.Released;
         bool rightClicked = mouse.RightButton == ButtonState.Pressed && _previousMouse.RightButton == ButtonState.Released;
@@ -651,7 +651,7 @@ public sealed class StartScreen : IDisposable
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view)
     {
         Fit(view);
-        var mouse = Mouse.GetState().Position;
+        var mouse = SdlMouse.GetState().Position;
         _mouse = mouse.ToVector2();
         var hover = ToLayout(mouse);
         string? hint = null;
@@ -932,7 +932,7 @@ public sealed class StartScreen : IDisposable
     private void Oval(SpriteBatch batch, UiFont font, Rectangle rect, string label, Point hover, bool selected = false, bool enabled = true)
     {
         bool over = enabled && rect.Contains(hover);
-        bool down = selected || over && Mouse.GetState().LeftButton == ButtonState.Pressed;
+        bool down = selected || over && SdlMouse.GetState().LeftButton == ButtonState.Pressed;
         batch.Draw(_sheet, ToScreen(rect), down ? _ovalPressed : _oval, enabled ? Color.White : new Color(140, 140, 140));
         int size = Measure(font, label, 13) > rect.Width - 14 ? 11 : 13;
         Centered(batch, font, label, new Rectangle(rect.X, rect.Y + (down ? 1 : 0), rect.Width, rect.Height),

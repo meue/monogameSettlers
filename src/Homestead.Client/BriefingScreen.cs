@@ -53,7 +53,7 @@ public sealed class BriefingScreen : IDisposable
     private float _scale = 1;
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="language">Language of the text table (0 German, 1 English).</param>
     public BriefingScreen(GraphicsDevice device, GfxDirectory gfx, GameInstallation installation, CampaignMission mission, int language,
@@ -146,7 +146,7 @@ public sealed class BriefingScreen : IDisposable
     {
         Fit(view);
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool Pressed(Keys key) => keys.IsKeyDown(key) && !_previousKeys.IsKeyDown(key);
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
         int wheel = mouse.ScrollWheelValue - _previousMouse.ScrollWheelValue;
@@ -217,7 +217,7 @@ public sealed class BriefingScreen : IDisposable
             Write(batch, font, hints[line], HintArea.X, HintArea.Y + line * LineHeight, Ink, TextSize);
 
         DrawPreview(batch, font);
-        var cursor = Mouse.GetState().Position.ToVector2();
+        var cursor = SdlMouse.GetState().Position.ToVector2();
         TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), cursor, size: Px(13));
         TextButton.Draw(batch, pixel, font, ToScreen(NextButton), Lang.T("campaign.next"), cursor, size: Px(13));
     }

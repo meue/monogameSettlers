@@ -135,7 +135,7 @@ public sealed class SettingsScreen : IDisposable
     private float _scale = 1;
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
 
     public SettingsScreen(GraphicsDevice device, GfxDirectory gfx)
     {
@@ -193,7 +193,7 @@ public sealed class SettingsScreen : IDisposable
     {
         Fit(view);
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool Pressed(Keys key) => keys.IsKeyDown(key) && !_previousKeys.IsKeyDown(key);
         bool escape = Pressed(Keys.Escape), enter = Pressed(Keys.Enter), tab = Pressed(Keys.Tab);
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
@@ -242,7 +242,7 @@ public sealed class SettingsScreen : IDisposable
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view)
     {
         Fit(view);
-        var mouse = Mouse.GetState().Position;
+        var mouse = SdlMouse.GetState().Position;
         var hover = ToLayout(mouse);
         var page = ToScreen(new Rectangle(0, 0, Width, Height));
         if (page.X > view.X || page.Y > view.Y)

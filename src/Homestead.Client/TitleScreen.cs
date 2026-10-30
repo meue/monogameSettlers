@@ -101,7 +101,7 @@ public sealed class TitleScreen : IDisposable
     private float _scale = 1;
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="theme">The look (<see cref="DisplaySettings.Theme"/>); normal is gold.</param>
     public TitleScreen(GraphicsDevice device, GfxDirectory gfx, Theme theme)
@@ -188,7 +188,7 @@ public sealed class TitleScreen : IDisposable
     {
         Fit(view);
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool escape = keys.IsKeyDown(Keys.Escape) && !_previousKeys.IsKeyDown(Keys.Escape);
         bool enter = keys.IsKeyDown(Keys.Enter) && !_previousKeys.IsKeyDown(Keys.Enter);
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
@@ -234,7 +234,7 @@ public sealed class TitleScreen : IDisposable
     public void Resume()
     {
         _previousKeys = Keyboard.GetState();
-        _previousMouse = Mouse.GetState();
+        _previousMouse = SdlMouse.GetState();
         _canContinue = SaveSlots.Latest() is not null;
     }
 
@@ -277,8 +277,8 @@ public sealed class TitleScreen : IDisposable
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view)
     {
         Fit(view);
-        var hover = ToLayout(Mouse.GetState().Position);
-        bool held = Mouse.GetState().LeftButton == ButtonState.Pressed;
+        var hover = ToLayout(SdlMouse.GetState().Position);
+        bool held = SdlMouse.GetState().LeftButton == ButtonState.Pressed;
         batch.Draw(_plain, view, _plainStrip, Color.White);
         batch.Draw(_backgrounds[Lang.Current], ToScreen(new Rectangle(0, 0, Width, Height)), Color.White);
 
@@ -308,7 +308,7 @@ public sealed class TitleScreen : IDisposable
             y += 16;
         }
         Write(batch, font, Lang.T("title.loadFailed.code", failure.Code), PopupText.X, y + 8, HoverText, 12);
-        TextButton.Draw(batch, pixel, font, ToScreen(OkButton), Lang.T("common.ok"), Mouse.GetState().Position.ToVector2(), size: Px(12));
+        TextButton.Draw(batch, pixel, font, ToScreen(OkButton), Lang.T("common.ok"), SdlMouse.GetState().Position.ToVector2(), size: Px(12));
     }
 
     /// <summary>The popup over a dimmed screen: the text, the address and what happens, then the two buttons.</summary>
@@ -332,7 +332,7 @@ public sealed class TitleScreen : IDisposable
             : Lang.T("title.popup.willOpen"), Text, 12);
         Paragraph(link.Url, HoverText, 10);
 
-        var cursor = Mouse.GetState().Position.ToVector2();
+        var cursor = SdlMouse.GetState().Position.ToVector2();
         TextButton.Draw(batch, pixel, font, ToScreen(OpenButton), Lang.T("title.popup.open"), cursor, size: Px(12));
         TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), Lang.T("common.cancel"), cursor, size: Px(12));
     }

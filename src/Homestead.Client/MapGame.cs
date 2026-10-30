@@ -555,7 +555,7 @@ public sealed class MapGame : Game
         if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
             ToggleFullScreen();
         _previousKeys = Keyboard.GetState();
-        _previousMouse = Mouse.GetState();
+        _previousMouse = SdlMouse.GetState();
         if (choice is null)
             return;
         _startScreen.Dispose();
@@ -1110,7 +1110,7 @@ public sealed class MapGame : Game
                     break;
             }
             _previousKeys = Keyboard.GetState();
-            _previousMouse = Mouse.GetState();
+            _previousMouse = SdlMouse.GetState();
             return;
         }
         if (_video is not null)
@@ -1126,7 +1126,7 @@ public sealed class MapGame : Game
                 after?.Invoke();
             }
             _previousKeys = Keyboard.GetState();
-            _previousMouse = Mouse.GetState();
+            _previousMouse = SdlMouse.GetState();
             return;
         }
         if (_missionSelect is not null)
@@ -1144,7 +1144,7 @@ public sealed class MapGame : Game
                 PlayVideo(video == MissionSelectScreen.Video.Intro ? Side.Intro : Side.Outro, () => _missionSelect?.Resume());
             }
             _previousKeys = Keyboard.GetState();
-            _previousMouse = Mouse.GetState();
+            _previousMouse = SdlMouse.GetState();
             return;
         }
         if (_loadList is not null)
@@ -1158,7 +1158,7 @@ public sealed class MapGame : Game
                 return;
             }
             _previousKeys = Keyboard.GetState();
-            _previousMouse = Mouse.GetState();
+            _previousMouse = SdlMouse.GetState();
             return;
         }
         if (_campaignScreen is not null)
@@ -1172,7 +1172,7 @@ public sealed class MapGame : Game
             else if (_campaignScreen.Chosen is { } side)
                 ChooseSide(side);
             _previousKeys = Keyboard.GetState();
-            _previousMouse = Mouse.GetState();
+            _previousMouse = SdlMouse.GetState();
             return;
         }
         if (_settingsScreen is not null)
@@ -1194,14 +1194,14 @@ public sealed class MapGame : Game
                 _title!.Resume();
             }
             _previousKeys = Keyboard.GetState();
-            _previousMouse = Mouse.GetState();
+            _previousMouse = SdlMouse.GetState();
             return;
         }
         var action = _title!.Update(GraphicsDevice.Viewport.Bounds);
         if (Keyboard.GetState().IsKeyDown(Keys.F11) && !_previousKeys.IsKeyDown(Keys.F11))
             ToggleFullScreen();
         _previousKeys = Keyboard.GetState();
-        _previousMouse = Mouse.GetState();
+        _previousMouse = SdlMouse.GetState();
         if (action == TitleAction.Quit)
             Exit();
         else if (action == TitleAction.Continue && SaveSlots.Latest() is { } latest)
@@ -1398,6 +1398,7 @@ public sealed class MapGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        SdlMouse.NextFrame();
         _now = gameTime.TotalGameTime.TotalSeconds;
         if (_audio is not null)
         {
@@ -1420,7 +1421,7 @@ public sealed class MapGame : Game
                 _loading.MarkLoaded();
             }
             _previousKeys = Keyboard.GetState();
-            _previousMouse = Mouse.GetState();
+            _previousMouse = SdlMouse.GetState();
             base.Update(gameTime);
             return;
         }
@@ -1448,7 +1449,7 @@ public sealed class MapGame : Game
                     _statistics = null;
                     // The key or click that closed it must not act in the game too.
                     _previousKeys = Keyboard.GetState();
-                    _previousMouse = Mouse.GetState();
+                    _previousMouse = SdlMouse.GetState();
                     break;
                 case StatisticsAction.Quit:
                     LeaveStatistics();
@@ -1514,13 +1515,13 @@ public sealed class MapGame : Game
         }
         _fog!.Advance((float)elapsed.TotalSeconds);
 
-        var cursor = ScreenToGrid(Mouse.GetState().Position.ToVector2());
+        var cursor = ScreenToGrid(SdlMouse.GetState().Position.ToVector2());
         var logistics = _world.Logistics;
         if (_placing)
         {
             var definition = _placeable[_placeIndex];
             string reason = "";
-            if (BuildSpotNear(Mouse.GetState().Position.ToVector2()) is null)
+            if (BuildSpotNear(SdlMouse.GetState().Position.ToVector2()) is null)
                 _world.CanPlace(definition, cursor, out reason);
             _message = $"placing {definition.Name} (Q/E change, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
         }
@@ -1612,7 +1613,7 @@ public sealed class MapGame : Game
         var typed = Keyboard.GetState();
         // While the chat line is open the keys type into it, the game sees none (the mouse still works).
         var keys = HandleChat(typed) ? new KeyboardState() : typed;
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool Pressed(Keys k) => keys.IsKeyDown(k) && !_previousKeys.IsKeyDown(k);
         var cursorScreen = mouse.Position.ToVector2();
 
@@ -3202,7 +3203,7 @@ public sealed class MapGame : Game
         foreach (var ship in _ships)
             DrawSelectionMarker(ShipCenter(ship) - new Vector2(0, 34 - SelectionMarkerTop), 1);
         if (_dragStart is { } boxStart && !_placing)
-            DrawSelectionBox(boxStart, Mouse.GetState().Position.ToVector2());
+            DrawSelectionBox(boxStart, SdlMouse.GetState().Position.ToVector2());
         DrawMagic(alpha);
         DrawEventArrows(alpha);
         if (_placing)
@@ -3213,8 +3214,8 @@ public sealed class MapGame : Game
                 var position = ToWorld(spot);
                 DrawDot((int)position.X - 2, (int)position.Y - 2, HealthColor(1 - share));
             }
-            if (!SidePanel.Contains(Mouse.GetState().Position.ToVector2(), viewport.Height)
-                && BuildSpotNear(Mouse.GetState().Position.ToVector2()) is { } at)
+            if (!SidePanel.Contains(SdlMouse.GetState().Position.ToVector2(), viewport.Height)
+                && BuildSpotNear(SdlMouse.GetState().Position.ToVector2()) is { } at)
                 _economyRenderer.DrawPreview(_spriteBatch, _placeable[_placeIndex], at, _terrain, PlayerColors.Of(0));
         }
         // Debug overlay on top of everything, so markers are not hidden behind trees.
@@ -3226,7 +3227,7 @@ public sealed class MapGame : Game
         // Side panel: minimap and blue panel scaled to the window height, the menus inside in panel space.
         _sidePanel.Draw(_spriteBatch, _pixel, _minimap?.Texture, _gameMap.Size, visible, MinimapDots());
         SidePanel.Begin(_spriteBatch, viewport.Height);
-        var panelMouse = SidePanel.ToPanel(Mouse.GetState().Position.ToVector2(), viewport.Height);
+        var panelMouse = SidePanel.ToPanel(SdlMouse.GetState().Position.ToVector2(), viewport.Height);
         if (ShowsBuildingInfo)
             _buildingInfo.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, 0,
                 panelMouse);
@@ -3280,9 +3281,9 @@ public sealed class MapGame : Game
 
         _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
         _controlGroups.Draw(_spriteBatch, _pixel, viewport.Width, SidePanel.Scale(viewport.Height), _font, _settlerRenderer, PortraitsOf, _group,
-            _ships, Mouse.GetState().Position.ToVector2());
-        _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, Mouse.GetState().Position.ToVector2());
-        _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, Mouse.GetState().Position.ToVector2(), viewport.Bounds,
+            _ships, SdlMouse.GetState().Position.ToVector2());
+        _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, SdlMouse.GetState().Position.ToVector2());
+        _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
             SidePanel.Scale(viewport.Height), _now);
         DrawOutcome(viewport);
         float infoLeft = SidePanel.Width * SidePanel.Scale(viewport.Height) + 12;
@@ -3441,23 +3442,23 @@ public sealed class MapGame : Game
     private void DrawMagic(float alpha)
     {
         // Setting a market's route point: a flag where the click would put it.
-        if (_buildingInfo.AimsRoute(_selectedBuilding) && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height)
-            && _world.Trade.Reachable(_selectedBuilding!, ScreenToGrid(Mouse.GetState().Position.ToVector2()),
+        if (_buildingInfo.AimsRoute(_selectedBuilding) && !SidePanel.Contains(SdlMouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height)
+            && _world.Trade.Reachable(_selectedBuilding!, ScreenToGrid(SdlMouse.GetState().Position.ToVector2()),
                 destination: _buildingInfo.RouteSlot == Simulation.Economy.Trade.Stops) is { } routePoint)
             _economyRenderer.DrawGatheringFlag(_spriteBatch, routePoint, _terrain, PlayerColors.Of(0), _time);
         // Setting a shipyard's dock: the pier, faint, where the click would put it.
-        if (_buildingInfo.AimsDock(_selectedBuilding) && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
+        if (_buildingInfo.AimsDock(_selectedBuilding) && !SidePanel.Contains(SdlMouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
         {
-            var under = ScreenToGrid(Mouse.GetState().Position.ToVector2());
+            var under = ScreenToGrid(SdlMouse.GetState().Position.ToVector2());
             if (_dockPreview.Building != _selectedBuilding || _dockPreview.At != under)
                 _dockPreview = (_selectedBuilding, under, _world.Shipping.DockSpot(_selectedBuilding!, under));
             if (_dockPreview.Dock is { } dock)
                 foreach (var p in dock.Pier)
                     _objects.DrawCode(_spriteBatch, p.X, p.Y, MapObjectCodes.Dock, Color.White * 0.6f);
         }
-        if (_aiming && !SidePanel.Contains(Mouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
+        if (_aiming && !SidePanel.Contains(SdlMouse.GetState().Position.ToVector2(), GraphicsDevice.Viewport.Height))
         {
-            var target = ScreenToGrid(Mouse.GetState().Position.ToVector2());
+            var target = ScreenToGrid(SdlMouse.GetState().Position.ToVector2());
             if (_aimSpell is { } spell)
                 DrawRing(target, Math.Max(1, spell.Radius > 0 ? spell.Radius : Homestead.Simulation.Magic.Magic.SummonSpread),
                     _world.Magic.HasTargets(spell, 0, target) ? Color.White : Color.Red);
@@ -4335,7 +4336,7 @@ public sealed class MapGame : Game
         {
             GraphicsDevice.SetRenderTarget(null);
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            _cursor.Draw(_spriteBatch, Mouse.GetState().Position, GraphicsDevice.Viewport.Height);
+            _cursor.Draw(_spriteBatch, SdlMouse.GetState().Position, GraphicsDevice.Viewport.Height);
             _spriteBatch.End();
         }
         base.EndDraw();
