@@ -1,6 +1,7 @@
 # Build, test and package monoSettlers for Linux, Windows and macOS.
 #
 # - Every push to main and every pull request: build and tests; the packages are kept as workflow artifacts.
+# - The determinism check: the same AI game on Linux, Windows and macOS (ARM) must give the same checksums (lockstep).
 # - A tag vX.Y.Z (docs/VERSIONING.md): the same, plus a GitHub release with both packages
 #   (a pre-release when the version has a suffix, e.g. v0.3.0-beta.1).
 #
@@ -39,6 +40,51 @@ jobs:
       # Tests with the original maps pass unchecked without an installation.
       - name: Test
         run: dotnet test Homestead.sln -c Release --no-build
+
+  # Lockstep multiplayer needs every machine to simulate exactly alike: the same AI game on Linux and Windows (x64)
+  # and macOS (ARM) must give the same checksum after every game minute (DeterminismTests).
+  determinism:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Checksums
+        shell: bash
+        env:
+          HOMESTEAD_CHECKSUM_FILE: ${{ github.workspace }}/checksums-${{ matrix.os }}.txt
+        run: dotnet test tests/Homestead.Simulation.Tests -c Release --filter "FullyQualifiedName~DeterminismTests"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checksums-${{ matrix.os }}
+          path: checksums-${{ matrix.os }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  determinism-compare:
+    needs: determinism
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: checksums-*
+          merge-multiple: true
+      - name: Compare
+        run: |
+          for file in checksums-*.txt; do echo "$file: $(tail -n 1 "$file")"; done
+          for file in checksums-*.txt; do
+            if ! diff -q checksums-ubuntu-latest.txt "$file" > /dev/null; then
+              echo "::error::$file differs from Linux, first at minute $(diff checksums-ubuntu-latest.txt "$file" | grep -m1 '^>' | cut -d' ' -f2)"
+              exit 1
+            fi
+          done
+          echo "All platforms simulate alike."
 
   package:
     needs: test

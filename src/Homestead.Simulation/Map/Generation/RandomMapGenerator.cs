@@ -186,7 +186,7 @@ public sealed class RandomMapGenerator
     {
         var (u, v) = Uv(i);
         double du = u - _centerU, dv = v - _centerV;
-        return (Math.Sqrt(du * du + dv * dv), Math.Atan2(dv, du));
+        return (Math.Sqrt(du * du + dv * dv), DeterministicMath.Atan2(dv, du));
     }
 
     private int Distance(int a, int b) => PathFinder.Distance(new GridPoint(X(a), Y(a)), new GridPoint(X(b), Y(b)));
@@ -272,7 +272,7 @@ public sealed class RandomMapGenerator
         {
             double angle = first + p * 2 * Math.PI / players + (jitter ? (_random.NextDouble() - 0.5) * 0.5 * Math.PI / players : 0);
             double radius = _landRadius * _config.StartDistance * (jitter ? 0.92 + _random.NextDouble() * 0.16 : 1);
-            _starts[p] = FromUv(_centerU + radius * Math.Cos(angle), _centerV + radius * Math.Sin(angle));
+            _starts[p] = FromUv(_centerU + radius * DeterministicMath.Cos(angle), _centerV + radius * DeterministicMath.Sin(angle));
         }
 
         _canonical = new int[Count];
@@ -296,7 +296,7 @@ public sealed class RandomMapGenerator
         double t = ((angle - _axis) % (2 * wedge) + 2 * wedge) % (2 * wedge);
         if (t > wedge)
             t = 2 * wedge - t;
-        return FromUv(_centerU + r * Math.Cos(t + _axis), _centerV + r * Math.Sin(t + _axis));
+        return FromUv(_centerU + r * DeterministicMath.Cos(t + _axis), _centerV + r * DeterministicMath.Sin(t + _axis));
     }
 
     /// <summary>Whether the field is generated (with mirroring only the first wedge is, the rest is copied).</summary>
@@ -555,7 +555,7 @@ public sealed class RandomMapGenerator
         {
             double angle = _random.NextDouble() * 2 * Math.PI;
             double r = min + _random.NextDouble() * (max - min);
-            int i = FromUv(u + r * Math.Cos(angle), v + r * Math.Sin(angle));
+            int i = FromUv(u + r * DeterministicMath.Cos(angle), v + r * DeterministicMath.Sin(angle));
             if (i >= 0 && InDomain(i) && fits(i))
                 return i;
         }
@@ -657,7 +657,7 @@ public sealed class RandomMapGenerator
             // Halfway between two passes, inside the ring.
             double next = k + 1 < passes.Length ? passes[k + 1] : passes[0] + 2 * Math.PI;
             double angle = (passes[k] + next) / 2;
-            int center = FromUv(_centerU + king.MountainDistance * Math.Cos(angle), _centerV + king.MountainDistance * Math.Sin(angle));
+            int center = FromUv(_centerU + king.MountainDistance * DeterministicMath.Cos(angle), _centerV + king.MountainDistance * DeterministicMath.Sin(angle));
             if (center < 0)
                 continue;
             var fields = Blob(center, king.MountainRadius, Ground.Mountain,
@@ -767,7 +767,7 @@ public sealed class RandomMapGenerator
             for (int k = 0; k < 24; k++)
             {
                 double angle = heading + Wrap(k * Math.PI / 12);
-                int n = FromUv(u + look * Math.Cos(angle), v + look * Math.Sin(angle));
+                int n = FromUv(u + look * DeterministicMath.Cos(angle), v + look * DeterministicMath.Sin(angle));
                 if (Blocked(n))
                     continue;
                 double score = target[n] + 0.8 * Math.Abs(Wrap(angle - heading));
@@ -794,17 +794,17 @@ public sealed class RandomMapGenerator
             // Meanders: the noise swings the wanted direction by up to about 50° either way.
             double wanted = down + 0.9 * _noise.Fbm(u / 24 + offset, v / 24 - offset, 2);
             double turned = heading + Math.Clamp(Wrap(wanted - heading), -maxTurn, maxTurn);
-            int next = FromUv(u + step * Math.Cos(turned), v + step * Math.Sin(turned));
+            int next = FromUv(u + step * DeterministicMath.Cos(turned), v + step * DeterministicMath.Sin(turned));
             if (Blocked(next))
             {
                 // Steer straight downhill to get around; stop if that is blocked too.
                 turned = heading + Math.Clamp(Wrap(down - heading), -3 * maxTurn, 3 * maxTurn);
-                next = FromUv(u + step * Math.Cos(turned), v + step * Math.Sin(turned));
+                next = FromUv(u + step * DeterministicMath.Cos(turned), v + step * DeterministicMath.Sin(turned));
                 if (Blocked(next))
                     break;
             }
             heading = turned;
-            (u, v) = (u + step * Math.Cos(heading), v + step * Math.Sin(heading));
+            (u, v) = (u + step * DeterministicMath.Cos(heading), v + step * DeterministicMath.Sin(heading));
         }
         if (course.Count < 8)
             return;

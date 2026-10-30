@@ -2,6 +2,12 @@
 
 Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](ki.md).
 
+**Determinismus** (Lockstep-Mehrspieler: jeder Rechner simuliert gleich): Zufall nur `new Random(… + World.Seed)`, keine Uhr, keine Threads,
+kein `GetHashCode` in der Logik; Winkelfunktionen nur über `DeterministicMath` (Sin/Cos/Atan2 aus Grundrechenarten – `Math.Sin` & Co. kommen aus
+der C-Bibliothek der Plattform), Grundrechenarten und `Math.Sqrt` sind nach IEEE überall gleich. `WorldChecksum.Of` (FNV-1a über Tick, Siedler,
+Gebäude, Stapel, Karte, Mana) für Desync-Erkennung; `DeterminismTests` (KI-Spiel auf `random:4:mirror:11`, 25 min, Prüfsumme je Minute) läuft im Build
+auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
+
 - `Map/GameMap`: Gelände, Objekte, Begehbarkeit, Bodenschätze (`ResourceAt`).
   `Map/Vision`: Fog of War je Spieler – Sicht eigener Figuren draußen (Soldaten `Sight`, Späher `scouts.sight` 26, Esel `trade.sight` 3
   – keine Späher –, sonst `SettlerSight`) und Gebäude (`Military.SightOfBuilding`: fertige mit `buildingSight` in `military.json`,
