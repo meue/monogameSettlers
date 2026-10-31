@@ -7,11 +7,23 @@ using Homestead.Simulation.Magic;
 
 namespace Homestead.Simulation.Lockstep;
 
-/// <summary>A player's commands for a turn, sent to the server (also none: the others must know there are none).</summary>
-public sealed record TurnInput(int Player, long Turn, IReadOnlyList<GameCommand> Commands);
+/// <summary>The world's checksums when a turn began (before its commands), to compare between the computers.</summary>
+public sealed record StateCheck(long Turn, WorldChecksums Checksums);
 
-/// <summary>Every player's commands for a turn, from the server: by player, each player's in the order issued.</summary>
-public sealed record TurnBundle(long Turn, IReadOnlyList<GameCommand> Commands);
+/// <summary>
+/// A player's commands for a turn, sent to the server (also none: the others must know there are none); now and then with
+/// the checksums of the turn it was sent in (<see cref="LockstepOptions.CheckTurns"/>).
+/// </summary>
+public sealed record TurnInput(int Player, long Turn, IReadOnlyList<GameCommand> Commands, StateCheck? Check = null);
+
+/// <summary>A player's <see cref="StateCheck"/>, handed on by the server.</summary>
+public sealed record PlayerCheck(int Player, StateCheck Check);
+
+/// <summary>
+/// Every player's commands for a turn, from the server: by player, each player's in the order issued; with the checks the
+/// turn's inputs carried, by player.
+/// </summary>
+public sealed record TurnBundle(long Turn, IReadOnlyList<GameCommand> Commands, IReadOnlyList<PlayerCheck>? Checks = null);
 
 /// <summary>
 /// The network format of commands (JSON): every <see cref="GameCommand"/> type by its name in <c>$type</c>, found by

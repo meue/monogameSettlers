@@ -8,19 +8,26 @@ namespace Homestead.Simulation.Lockstep;
 /// sent. It reads the commands only as JSON (no game logic; a server in another language does the same): commands that
 /// claim another player than their sender are dropped, a second input of a player for a turn and inputs for turns handed
 /// out already are ignored. Turns before <paramref name="firstTurn"/> have no inputs (see <see cref="LockstepSession"/>).
+/// The inputs' <see cref="StateCheck"/>s go along in the bundle (every computer compares them with its own); the relay compares
+/// them too and notes the turns whose worlds differ (<see cref="DesyncedTurns"/>, for the server's log).
 /// </summary>
 public sealed class TurnRelay(IEnumerable<int> players, long firstTurn)
 {
     private readonly int[] _players = players.Distinct().Order().ToArray();
 
-    /// <summary>Per turn not yet handed out: each player's commands (JSON array) received so far.</summary>
-    private readonly SortedDictionary<long, SortedDictionary<int, JsonArray>> _inputs = new();
+    /// <summary>Per turn not yet handed out: each player's commands (JSON array) and check received so far.</summary>
+    private readonly SortedDictionary<long, SortedDictionary<int, (JsonArray Commands, JsonObject? Check)>> _inputs = new();
+
+    private readonly List<long> _desynced = new();
 
     /// <summary>The next turn to hand out.</summary>
     public long NextTurn { get; private set; } = firstTurn;
 
     /// <summary>Commands dropped because they claimed another player than their sender.</summary>
     public int Dropped { get; private set; }
+
+    /// <summary>The turns whose checks differed between the players.</summary>
+    public IReadOnlyList<long> DesyncedTurns => _desynced;
 
     /// <summary>
     /// A player's input (JSON of a <see cref="TurnInput"/>, from <paramref name="sender"/>'s connection); returns the bundles
@@ -45,7 +52,7 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn)
         if (!_players.Contains(sender) || turn < NextTurn)
             return [];
         if (!_inputs.TryGetValue(turn, out var byPlayer))
-            _inputs[turn] = byPlayer = new SortedDictionary<int, JsonArray>();
+            _inputs[turn] = byPlayer = new SortedDictionary<int, (JsonArray, JsonObject?)>();
         if (byPlayer.ContainsKey(sender))
             return [];
         var commands = new JsonArray();
@@ -54,16 +61,27 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn)
                 commands.Add(command.DeepClone());
             else
                 Dropped++;
-        byPlayer[sender] = commands;
+        byPlayer[sender] = (commands, node["check"] as JsonObject);
 
         var bundles = new List<string>();
         while (_inputs.TryGetValue(NextTurn, out var complete) && complete.Count == _players.Length)
         {
             var all = new JsonArray();
-            foreach (var (_, own) in complete)
+            var checks = new JsonArray();
+            foreach (var (player, (own, check)) in complete)
+            {
                 foreach (var command in own)
                     all.Add(command!.DeepClone());
-            bundles.Add(new JsonObject { ["turn"] = NextTurn, ["commands"] = all }.ToJsonString());
+                if (check is not null)
+                    checks.Add(new JsonObject { ["player"] = player, ["check"] = check.DeepClone() });
+            }
+            foreach (var sameTurn in complete.Values.Select(i => i.Check).OfType<JsonObject>().GroupBy(c => c["turn"]?.ToJsonString()))
+                if (sameTurn.Select(c => c["checksums"]?.ToJsonString()).Distinct().Count() > 1 && long.TryParse(sameTurn.Key, out long checkedTurn))
+                    _desynced.Add(checkedTurn);
+            var bundle = new JsonObject { ["turn"] = NextTurn, ["commands"] = all };
+            if (checks.Count > 0)
+                bundle["checks"] = checks;
+            bundles.Add(bundle.ToJsonString());
             _inputs.Remove(NextTurn);
             NextTurn++;
         }

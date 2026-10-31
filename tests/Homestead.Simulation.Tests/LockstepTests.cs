@@ -1,5 +1,6 @@
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Commands;
+using Homestead.Simulation.Economy;
 using Homestead.Simulation.Lockstep;
 using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map.Generation;
@@ -178,6 +179,13 @@ public class LockstepTests
         // begins, for turn 19 + 2 = 21, so applied at tick 42 – on both computers.
         Assert.Equal(computers[0].Checksums, computers[1].Checksums);
         Assert.Equal(Ticks / World.TicksPerSecond, computers[0].Checksums.Count);
+        // The computers compared their checksums every second themselves, and found nothing.
+        foreach (var computer in computers)
+        {
+            Assert.Null(computer.Session.Desync);
+            Assert.InRange(computer.Session.ChecksCompared, Ticks / World.TicksPerSecond - 3, Ticks / World.TicksPerSecond);
+        }
+        Assert.Empty(relay.DesyncedTurns);
         var chats = computers.Select(c => c.World.Chat.Messages.Select(m => (m.Tick, m.Player, m.Text)).ToList()).ToArray();
         Assert.Equal(chats[0], chats[1]);
         Assert.Equal([(42L, 0, "hello from 1"), (142L, 1, "hello from 2")], chats[0]);
@@ -201,6 +209,52 @@ public class LockstepTests
                         return (definition, at);
                 }
         return null;
+    }
+
+    [Fact]
+    public void A_world_going_its_own_way_is_noticed_by_everybody_and_the_game_stops()
+    {
+        var setup = new GameSetup
+        {
+            Map = MapChoice.Generated(new RandomMapSettings(Players: 2), 2),
+            Players = [new PlayerSetup(Human: true), new PlayerSetup(Human: true)],
+        };
+        var options = new LockstepOptions(TurnTicks: 2, DelayTurns: 2, CheckTurns: 10);
+        var relay = new LocalRelay([0, 1], firstTurn: options.DelayTurns);
+        var computers = Enumerable.Range(0, 2).Select(player =>
+        {
+            var start = setup.Start(setup.Map.Open(""));
+            return new Computer(start.World, new LockstepSession(start.World, player, new CommandCodec(start.Report.Catalogs), relay.LinkOf(player), options));
+        }).ToArray();
+
+        for (int round = 0; round < 1000 && computers.Any(c => c.Session.Desync is null); round++)
+            foreach (var computer in computers)
+            {
+                computer.Session.TryStep();
+                // Something on the second computer only, between ticks 99 and 100 (in turn 49, checked when turn 50 begins).
+                if (computer == computers[1] && computer.World.Tick == 100)
+                {
+                    var door = computer.World.Buildings.First().Door;
+                    Assert.NotNull(Enumerable.Range(2, 10).Select(d => computer.World.AddLooseGoods(new GridPoint(door.X + d, door.Y + d), Material.Plank, 3))
+                        .FirstOrDefault(p => p is not null));
+                }
+            }
+
+        for (int player = 0; player < 2; player++)
+        {
+            var desync = computers[player].Session.Desync;
+            Assert.NotNull(desync);
+            Assert.Equal((50L, 100L), (desync.Turn, desync.Tick));
+            var other = Assert.Single(desync.Players);
+            Assert.Equal(1 - player, other.Player);
+            Assert.Equal(["piles"], other.Parts);
+            // The game stands still once noticed (two turns' delay later), for good.
+            long tick = computers[player].World.Tick;
+            Assert.InRange(tick, 100, 100 + (options.DelayTurns + 1) * options.TurnTicks);
+            Assert.False(computers[player].Session.TryStep());
+            Assert.Equal(tick, computers[player].World.Tick);
+        }
+        Assert.Equal([50L], relay.Relay.DesyncedTurns);
     }
 
     [Fact]

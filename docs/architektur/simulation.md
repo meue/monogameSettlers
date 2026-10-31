@@ -4,7 +4,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
 
 **Determinismus** (Lockstep-Mehrspieler: jeder Rechner simuliert gleich): Zufall nur `new Random(… + World.Seed)`, keine Uhr, keine Threads,
 kein `GetHashCode` in der Logik; Winkelfunktionen nur über `DeterministicMath` (Sin/Cos/Atan2 aus Grundrechenarten – `Math.Sin` & Co. kommen aus
-der C-Bibliothek der Plattform), Grundrechenarten und `Math.Sqrt` sind nach IEEE überall gleich. `WorldChecksum.Of` (FNV-1a über Tick, Siedler,
+der C-Bibliothek der Plattform), Grundrechenarten und `Math.Sqrt` sind nach IEEE überall gleich. `WorldChecksum.Of` (FNV-1a auf 64-Bit-Wörtern, je Teil `Parts`, über Tick, Siedler,
 Gebäude, Stapel, Karte, Mana) für Desync-Erkennung; `DeterminismTests` (KI-Spiel auf `random:4:mirror:11`, 25 min, Prüfsumme je Minute) läuft im Build
 auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
 
@@ -221,7 +221,7 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
 - `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
   Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
   (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
-- `Lockstep/`: `LockstepSession` (Befehle für Zug jetzt + Verzögerung, wartet aufs Bündel), `TurnRelay` (Server-Logik), `CommandCodec`
+- `Lockstep/`: `LockstepSession` (Befehle für Zug jetzt + Verzögerung, wartet aufs Bündel, vergleicht Prüfsummen → `Desync`), `TurnRelay` (Server-Logik), `CommandCodec`
   (JSON-Netzwerkformat), `LocalRelay`, `GameFingerprint` (Protokoll, Version, Datenhashes; Details: `docs/MULTIPLAYER.md`).
 - `GameSetup` (`MapChoice`, `PlayerSetup`): Spielaufbau als Daten (JSON) – Karte per Seed bzw. Hash, Spieler, Startplätze, Spielwerte, ein Seed für
   alle Ziehungen; `Start` → Welt mit KIs (Details: `docs/MULTIPLAYER.md`).

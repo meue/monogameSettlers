@@ -21,7 +21,7 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
   keine kulturabhängige Sortierung, kein SIMD/FMA. Grundrechenarten und `Math.Sqrt` sind nach IEEE überall gleich.
 - Einziges Risiko waren `Math.Sin/Cos/Atan2` (C-Bibliothek der Plattform) im Zufallskartengenerator und in `PincerTrait`:
   ersetzt durch `DeterministicMath` (nur Grundrechenarten, ~1e-12 genau). Neue Winkelfunktionen in der Simulation nur darüber.
-- `WorldChecksum.Of(world)`: FNV-1a über Tick, Siedler, Gebäude, Stapel, Karte, Mana – für die Desync-Erkennung.
+- `WorldChecksum.Of(world)`: Prüfsumme über Tick, Siedler, Gebäude, Stapel, Karte, Mana – für die Desync-Erkennung.
 - `DeterminismTests`: KI-Spiel auf `random:4:mirror:11`, 25 min, Prüfsumme je Minute. Build-Job `determinism` rechnet es auf
   Linux x64, Windows x64 und macOS ARM, `determinism-compare` vergleicht. **Ergebnis: alle drei bitgenau gleich.**
   Der Build läuft auf Branches nur manuell (Actions → Build → Run workflow).
@@ -91,6 +91,21 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
   Abweichungen ab (Meldung im Client übersetzt).
 - Tests `GameFingerprintTests`.
 
+### Desync-Erkennung
+- `WorldChecksum.Parts(world)` → `WorldChecksums` (Tick, Siedler, Gebäude, Stapel, Karte, Mana je eigene Prüfsumme; `Total`, `Of` = Total;
+  `Differences` nennt die abweichenden Teile). Hash: FNV-1a auf ganzen 64-Bit-Wörtern statt Bytes, nachgemischt, Karte ein Schritt je Feld –
+  größte Karte (512², 6 Spieler) in Release 0,57 ms statt 7,5 ms (ein Simulationsschritt dort ≈ 1,5 ms).
+- Alle `LockstepOptions.CheckTurns` Züge (Vorgabe 10 = 1 s) trägt die Eingabe, die zu Zugbeginn T rausgeht, `StateCheck(T, Prüfsummen)` –
+  der Stand am Zugbeginn vor dessen Befehlen, auf jedem Rechner derselbe Moment. Der Server legt die Prüfungen ins Bündel (`checks`,
+  je Spieler) und vergleicht selbst mit (`TurnRelay.DesyncedTurns`, für sein Log).
+- `LockstepSession` vergleicht beim Empfang die fremden mit den eigenen (`ChecksCompared`); erste Abweichung → `Desync`
+  (`DesyncReport`: Zug, Tick, je abweichendem Spieler die Teile, z. B. `piles`), danach steht das Spiel endgültig (`TryStep` false).
+  Bemerkt wird ein Desync spätestens `CheckTurns` + `DelayTurns` Züge nach dem Entstehen (Vorgabe ≈ 1,2 s).
+- Bei drei und mehr Spielern zeigt der Bericht, wer von allen abweicht (Mehrheit). Später: Meldung im Client, Spielstand beim Desync für
+  den Vergleich speichern, danach Zustand des Hosts übernehmen.
+- Tests: `LockstepTests` (Laggy-Netz: jede Sekunde verglichen, keine Abweichung; absichtlich veränderte Welt → beide Rechner melden Zug 50,
+  Teil `piles`, und halten an).
+
 ## Offen – Reihenfolge
 
 ### 1. Client (vor dem Server)
@@ -98,8 +113,7 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
 2. ~~Gemeinsamer Spielaufbau~~ – erledigt (siehe oben); verteilen tut ihn später der Server.
 3. ~~Befehle für einen Ziel-Tick~~ – erledigt als Ziel-Zug (siehe oben).
 4. ~~Versions- und Datenprüfung~~ – erledigt (siehe oben); den Abgleich beim Verbinden macht später der Server.
-5. **Desync-Erkennung**: alle paar Sekunden `WorldChecksum` vergleichen; bei Abweichung anhalten und melden (später: Zustand des Hosts
-   übernehmen).
+5. ~~Desync-Erkennung~~ – erledigt (siehe oben); Meldung im Client und Übernahme des Host-Zustands später.
 6. **Im Mehrspieler sperren**: Taste I, KI-Chat, F12, Cheats; Pause und Speichern gelten für alle (als Befehl/über den Server).
 
 ### 2. Server

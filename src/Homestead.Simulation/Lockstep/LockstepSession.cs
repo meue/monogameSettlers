@@ -13,9 +13,20 @@ public interface ILockstepLink
 
 /// <summary>
 /// How a lockstep game runs: a turn is <paramref name="TurnTicks"/> ticks; what a player orders during a turn is sent when
-/// the next one begins and applied <paramref name="DelayTurns"/> turns later – the time it has to reach everybody.
+/// the next one begins and applied <paramref name="DelayTurns"/> turns later – the time it has to reach everybody. Every
+/// <paramref name="CheckTurns"/> turns (default: a second) the input carries the world's checksums, to notice a desync.
 /// </summary>
-public sealed record LockstepOptions(int TurnTicks = 2, int DelayTurns = 2);
+public sealed record LockstepOptions(int TurnTicks = 2, int DelayTurns = 2, int CheckTurns = 10);
+
+/// <summary>A player whose world differed from this computer's, and in which parts (<see cref="WorldChecksums.Differences"/>).</summary>
+public sealed record DesyncedPlayer(int Player, IReadOnlyList<string> Parts);
+
+/// <summary>
+/// The worlds went apart: when <paramref name="Turn"/> began (tick <paramref name="Tick"/>), these players' checksums differed
+/// from this computer's. With three or more players, the one differing from everybody else is likely the odd one – this one,
+/// if every other player is listed.
+/// </summary>
+public sealed record DesyncReport(long Turn, long Tick, IReadOnlyList<DesyncedPlayer> Players);
 
 /// <summary>
 /// One computer's side of a lockstep game: every computer simulates the whole world; only the human players' commands go
@@ -35,11 +46,13 @@ public sealed class LockstepSession
     private long _sequence;
     /// <summary>The last turn this computer has sent its input for.</summary>
     private long _sentThrough;
+    /// <summary>This computer's checksums sent, by turn, until the others' come back to compare.</summary>
+    private readonly Dictionary<long, WorldChecksums> _ownChecks = new();
 
     public LockstepSession(World world, int localPlayer, CommandCodec codec, ILockstepLink link, LockstepOptions? options = null)
     {
         Options = options ?? new LockstepOptions();
-        if (Options.TurnTicks < 1 || Options.DelayTurns < 0)
+        if (Options.TurnTicks < 1 || Options.DelayTurns < 0 || Options.CheckTurns < 1)
             throw new ArgumentException("a turn takes a tick at least, the delay is never negative", nameof(options));
         if (world.Tick % Options.TurnTicks != 0)
             throw new ArgumentException("the game starts at a turn's beginning", nameof(world));
@@ -64,6 +77,12 @@ public sealed class LockstepSession
     /// <summary>The last <see cref="TryStep"/> stood still: the turn's bundle has not come yet.</summary>
     public bool Waiting { get; private set; }
 
+    /// <summary>The worlds went apart: the game stops for good (<see cref="TryStep"/> returns false).</summary>
+    public DesyncReport? Desync { get; private set; }
+
+    /// <summary>How many turns' checksums were compared with the other players' (and agreed, as long as there is no <see cref="Desync"/>).</summary>
+    public int ChecksCompared { get; private set; }
+
     /// <summary>Queues an order of the local player for the next input sent; returns it with its number (to know its result again).</summary>
     public GameCommand Issue(GameCommand command)
     {
@@ -75,8 +94,9 @@ public sealed class LockstepSession
     }
 
     /// <summary>
-    /// One tick, if its turn's commands are known: at a turn's beginning this computer's input for turn + delay goes out,
-    /// then the turn's bundle goes into <see cref="World.Commands"/> and the world steps. False: still waiting for the bundle.
+    /// One tick, if its turn's commands are known: at a turn's beginning this computer's input for turn + delay goes out
+    /// (now and then with the world's checksums), then the turn's bundle goes into <see cref="World.Commands"/> and the world
+    /// steps. False: still waiting for the bundle, or the worlds went apart (<see cref="Desync"/>).
     /// </summary>
     public bool TryStep()
     {
@@ -84,6 +104,12 @@ public sealed class LockstepSession
         {
             var bundle = _codec.DecodeBundle(message);
             _bundles[bundle.Turn] = bundle.Commands;
+            Compare(bundle.Checks ?? []);
+        }
+        if (Desync is not null)
+        {
+            Waiting = false;
+            return false;
         }
         if (_world.Tick % Options.TurnTicks == 0)
         {
@@ -91,7 +117,14 @@ public sealed class LockstepSession
             if (_sentThrough < turn + Options.DelayTurns)
             {
                 _sentThrough = turn + Options.DelayTurns;
-                _link.Send(_codec.Encode(new TurnInput(LocalPlayer, _sentThrough, _outgoing.ToList())));
+                StateCheck? check = null;
+                if (turn % Options.CheckTurns == 0)
+                {
+                    var checksums = WorldChecksum.Parts(_world);
+                    _ownChecks[turn] = checksums;
+                    check = new StateCheck(turn, checksums);
+                }
+                _link.Send(_codec.Encode(new TurnInput(LocalPlayer, _sentThrough, _outgoing.ToList(), check)));
                 _outgoing.Clear();
             }
             if (turn >= FirstTurn)
@@ -107,5 +140,23 @@ public sealed class LockstepSession
         Waiting = false;
         _world.Step();
         return true;
+    }
+
+    /// <summary>The other players' checksums against this computer's of the same turn; the first difference is the <see cref="Desync"/>.</summary>
+    private void Compare(IReadOnlyList<PlayerCheck> checks)
+    {
+        foreach (var turn in checks.Select(c => c.Check.Turn).Distinct())
+        {
+            if (!_ownChecks.Remove(turn, out var own))
+                continue;
+            ChecksCompared++;
+            var differing = checks
+                .Where(c => c.Check.Turn == turn && c.Player != LocalPlayer)
+                .Select(c => new DesyncedPlayer(c.Player, own.Differences(c.Check.Checksums)))
+                .Where(d => d.Parts.Count > 0)
+                .ToArray();
+            if (differing.Length > 0)
+                Desync ??= new DesyncReport(turn, own.Tick, differing);
+        }
     }
 }
