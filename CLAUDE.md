@@ -19,6 +19,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 ## Aufbau
 - `src/Homestead.Assets` – Parser für Originaldateien (GFX, Karten, `Sound/SoundFile`: `SND/Siedler3_00.dat`), ohne MonoGame. Formatdoku: `docs/formate/`.
 - `src/Homestead.AssetViewer` – MonoGame-Viewer (DesktopGL), ohne Content-Pipeline.
+- `src/Homestead.Server` – Mehrspieler-Server (ASP.NET Core, WebSocket, Docker), Details: `docs/MULTIPLAYER.md`.
 - `data/` – Spieldaten (keine Original-Assets), neben jedes Programm kopiert. `production.json`: eigenes Balancing
   (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration, `depletion`: Verbrauch von Steinen/Bergen/Fisch in %, 0 = unendlich;
   im Spiel über die Einstellungen überschreibbar).

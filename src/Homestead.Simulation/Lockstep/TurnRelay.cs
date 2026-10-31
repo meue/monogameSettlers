@@ -10,8 +10,10 @@ namespace Homestead.Simulation.Lockstep;
 /// out already are ignored. Turns before <paramref name="firstTurn"/> have no inputs (see <see cref="LockstepSession"/>).
 /// The inputs' <see cref="StateCheck"/>s go along in the bundle (every computer compares them with its own); the relay compares
 /// them too and notes the turns whose worlds differ (<see cref="DesyncedTurns"/>, for the server's log).
+/// Against flooding: inputs for turns more than <paramref name="maxAhead"/> beyond the next one handed out, or with more than
+/// <paramref name="maxCommands"/> commands, are refused (<see cref="Refused"/>; the server may drop such a connection).
 /// </summary>
-public sealed class TurnRelay(IEnumerable<int> players, long firstTurn)
+public sealed class TurnRelay(IEnumerable<int> players, long firstTurn, int maxAhead = 100, int maxCommands = 200)
 {
     private readonly int[] _players = players.Distinct().Order().ToArray();
 
@@ -25,6 +27,9 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn)
 
     /// <summary>Commands dropped because they claimed another player than their sender.</summary>
     public int Dropped { get; private set; }
+
+    /// <summary>Inputs refused for going too far ahead or carrying too many commands.</summary>
+    public int Refused { get; private set; }
 
     /// <summary>The turns whose checks differed between the players.</summary>
     public IReadOnlyList<long> DesyncedTurns => _desynced;
@@ -51,6 +56,11 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn)
         }
         if (!_players.Contains(sender) || turn < NextTurn)
             return [];
+        if (turn > NextTurn + maxAhead || (node["commands"] as JsonArray)?.Count > maxCommands)
+        {
+            Refused++;
+            return [];
+        }
         if (!_inputs.TryGetValue(turn, out var byPlayer))
             _inputs[turn] = byPlayer = new SortedDictionary<int, (JsonArray, JsonObject?)>();
         if (byPlayer.ContainsKey(sender))

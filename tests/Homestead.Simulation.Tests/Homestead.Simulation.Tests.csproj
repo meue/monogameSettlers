@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Homestead.Simulation\Homestead.Simulation.csproj" />
     <ProjectReference Include="..\..\src\Homestead.Assets\Homestead.Assets.csproj" />
+    <ProjectReference Include="..\..\src\Homestead.Server\Homestead.Server.csproj" />
   </ItemGroup>
 
 </Project>

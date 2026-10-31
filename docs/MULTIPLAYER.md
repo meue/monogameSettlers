@@ -129,9 +129,32 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
 6. ~~Im Mehrspieler sperren~~ – erledigt (siehe oben). Offen für später: gemeinsame Pause, Speichern für alle (über den Server).
 
 ### 2. Server
-- Relay in Go (angedacht) oder C#: Lobby, Spielaufbau verteilen, Befehle je Tick sammeln und an alle schicken, Prüfsummen vergleichen.
-- Docker-Image zum Selbsthosten.
-- **Schutz gegen Flooding**: `TurnRelay` hebt heute jede Eingabe auf, deren Zug noch nicht ausgegeben ist – ein bösartiger Client kann mit
+Erledigt (erste Stufe, C# im selben Repo – teilt `TurnRelay`, `GameSetup`, `GameFingerprint` mit dem Client):
+- `src/Homestead.Server` (ASP.NET Core, WebSocket `/ws`, Statuszeile `/`): `Hub` (ein Lock für alles, je Verbindung Sende-Queue),
+  `Connection`, `Game`. Nachrichten: `ServerMessages` (Simulation, von beiden Seiten genutzt), JSON mit `type`, höchstens 256 KB.
+  - `hello` (Name, Fingerabdruck; anderes Protokoll → `refused`, Verbindung zu) → `welcome`.
+  - `create` (Name, `GameSetup`: dessen menschliche Spieler sind die Plätze; der Host nimmt den ersten, sein Fingerabdruck wird der des Spiels)
+    → `lobby` (Plätze mit Namen, Host, eigener Platz) an alle im Spiel; `list` → `games` (offene Spiele, Plätze, Datenhash);
+    `join` (Fingerabdruck muss passen, sonst `refused` mit den Abweichungen; „voll“, „gibt es nicht“); `leave` (Platz frei; Host → `closed`).
+  - `start` (nur Host, alle Plätze besetzt) → `started` an jeden: Setup mit Fingerabdruck, eigener Spieler, `LockstepOptions`
+    (Server-Konfiguration `Lockstep__TurnTicks`/`DelayTurns`/`CheckTurns`). Danach `input` → `TurnRelay` → `bundle` an alle.
+  - Verlassen eines laufenden Spiels → `left` an die anderen (die dann warten). Unlesbare Felder → `error`, Verbindung bleibt.
+- `TurnRelay` mit Flooding-Grenzen: Züge höchstens `maxAhead` (100) über dem nächsten, höchstens `maxCommands` (200) je Eingabe
+  (`Refused`, im Log); Desyncs ins Log.
+- Client-Seite: `ServerConnection` (Simulation/Lockstep, `ClientWebSocket`, Lese-/Schreib-Task, `Receive` zum Pollen aus der
+  Spielschleife, `WaitForAsync` für Werkzeuge/Tests, `Link` als `ILockstepLink` für die `LockstepSession`).
+- Docker: `src/Homestead.Server/Dockerfile` (Kontext = Repo-Wurzel wegen MinVer/.git, sonst `--build-arg VERSION=…`; aspnet-Image,
+  nicht-root, Port 8080, ≈ 230 MB): `docker build -f src/Homestead.Server/Dockerfile -t homestead-server .`, `docker run -p 8080:8080 homestead-server`.
+- Tests `ServerTests` (echter Server auf freiem Port): Lobby → Start → zwei Welten 40 s über WebSockets, gleiche Prüfsumme/Chat, `left`;
+  Protokoll abgelehnt; Beitritt mit anderen Daten/anderer Version abgelehnt, Start nur voll, Host weg → `closed`; kaputte Nachricht; Status.
+
+Offen:
+- Client: Mehrspieler-Menü (Serveradresse, Spiele, Lobby), `MapGame` mit `LockstepSession` statt direkter Queue, Meldungen (Desync,
+  abgelehnt, Spieler weg), gemeinsame Pause, Speichern für alle.
+- Spieler weg im laufenden Spiel: Platz an eine KI (auf allen Rechnern zum selben Zug) statt Warten; Neuverbinden.
+- Rate-Limit je Verbindung, Obergrenze für Spiele/Verbindungen; CI-Job, der das Image baut (und bei Tags nach ghcr.io schiebt);
+  ggf. Native AOT für ein kleineres Image.
+- **Schutz gegen Flooding** (Grenzen für Vorlauf und Befehlszahl erledigt, Rate-Limit offen): `TurnRelay` hob jede Eingabe auf, deren Zug noch nicht ausgegeben ist – ein bösartiger Client kann mit
   Eingaben für Züge weit in der Zukunft (oder sehr vielen bzw. sehr großen Befehlen) den Speicher füllen. Nötig: nur Züge bis
   `NextTurn` + Verzögerung + kleiner Puffer annehmen, Obergrenze für Befehle je Eingabe und Nachrichtengröße, Rate-Limit je Verbindung;
   wer dagegen verstößt, fliegt.
