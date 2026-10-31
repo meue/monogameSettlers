@@ -2698,8 +2698,9 @@ public sealed class MapGame : Game
     {
         if (_awaiting.Count == 0)
             return;
+        // Only the own commands: in a lockstep game the others' carry their own numbers.
         foreach (var (command, result) in _world.Commands.Applied)
-            if (_awaiting.Remove(command.Sequence, out var then))
+            if (command.Player == _local && _awaiting.Remove(command.Sequence, out var then))
                 then(result);
     }
 

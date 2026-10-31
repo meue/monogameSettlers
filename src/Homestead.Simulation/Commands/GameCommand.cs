@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 
@@ -11,7 +12,11 @@ namespace Homestead.Simulation.Commands;
 /// </summary>
 public abstract record GameCommand(int Player)
 {
-    /// <summary>Where the command stands among all commands issued (set when issued; applied in this order).</summary>
+    /// <summary>
+    /// Where the command stands among those issued (set when issued: alone among all, in a lockstep game among its player's;
+    /// sent along, so the client knows the result of its own command again).
+    /// </summary>
+    [JsonInclude]
     public long Sequence { get; internal set; }
 
     /// <summary>Applies the command; the result (counts, outcomes) goes back to the client that issued it.</summary>
@@ -41,8 +46,8 @@ public abstract record GameCommand(int Player)
 
 /// <summary>
 /// Commands waiting for the next tick. <see cref="World.Step"/> applies them first, in the order they were issued;
-/// their results stay readable until the following step. In a lockstep game the network layer feeds this queue with
-/// the commands of every player for the tick.
+/// their results stay readable until the following step. In a lockstep game <see cref="Lockstep.LockstepSession"/> feeds
+/// it with every player's commands of a turn (<see cref="Enqueue"/>), right before the turn's first tick.
 /// </summary>
 public sealed class CommandQueue
 {
@@ -65,6 +70,11 @@ public sealed class CommandQueue
         _pending.Add(command);
         return command;
     }
+
+    /// <summary>
+    /// Queues commands decided elsewhere (a lockstep turn): as they are, numbers included, applied in this order with the next step.
+    /// </summary>
+    public void Enqueue(IEnumerable<GameCommand> commands) => _pending.AddRange(commands);
 
     /// <summary>
     /// A paused game alone (no lockstep): the orders take effect at once, as the next step would apply them. A network

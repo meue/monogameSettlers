@@ -61,14 +61,30 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
   Allein: `Seed` zufällig (Captures 0), Mensch = lokaler Spieler, Spielwerte aus den Einstellungen. Fürs Mehrspieler liefert der Server das Setup.
 - Tests: `GameSetupTests` (gleiche Welt auch nach JSON, Aufbau, getrennte Ziehungen, Karte per Hash).
 
+### Befehle für einen Ziel-Zug (`Lockstep/`)
+- Zeit in Zügen (`LockstepOptions.TurnTicks`, Vorgabe 2 Ticks = 100 ms). Was ein Spieler während Zug T befiehlt (`LockstepSession.Issue`),
+  geht zu Beginn von Zug T+1 als `TurnInput` für Zug T+1+`DelayTurns` (Vorgabe 2) an den Server – jeder Zug, auch leer. Ein Befehl wirkt so
+  nach 2–3 Zügen (≈ 100–150 ms + Takt), auf jedem Rechner am selben Tick (erster Tick des Zugs).
+- Server (`TurnRelay`, ohne Spiellogik, liest die Befehle nur als JSON): sammelt je Zug die Eingaben aller menschlichen Spieler, gibt
+  vollständige Züge der Reihe nach als `TurnBundle` an alle aus (Spieler aufsteigend, je Spieler in Sendereihenfolge). Verwirft Befehle
+  mit fremdem `player`, zweite Eingaben, Eingaben für ausgegebene Züge, Unlesbares.
+- `LockstepSession.TryStep`: zu Zugbeginn eigene Eingabe senden, dann das Bündel des Zugs in `World.Commands.Enqueue` – fehlt es, wartet
+  das Spiel (`Waiting`). Auch die eigenen Befehle wirken nur über das Bündel (dekodiert wie bei allen). Züge vor `FirstTurn` sind leer.
+- Netzwerkformat `CommandCodec` (JSON): Befehlstyp in `$type` (alle `GameCommand`-Typen per Reflection), camelCase, Enums als Text,
+  `sequence` (je Spieler, damit der Client das Ergebnis seines Befehls wiederfindet), Gebäudetyp als Volk + Name → Definition des Spiels,
+  Zauber nur als Art.
+- `LocalRelay`: Relay im selben Prozess (Tests, später Spiel ohne Netz). Client nutzt die Sitzung noch nicht (braucht Server/Lobby);
+  Ergebnisse ordnet er schon nach Spieler + Nummer zu.
+- Tests `LockstepTests`: jeder Befehlstyp hin und zurück gleich (neue Befehle ohne passendes Beispiel fallen auf), Relay-Regeln, zwei Rechner
+  über ein Netz mit 0–3 Runden Verzögerung (überholende Nachrichten, verschiedene Geschwindigkeiten) → gleiche Prüfsumme jede Sekunde,
+  gleiche Chat-Ticks; Warten ohne Server. Gegenprobe: eine Baustelle an der Sitzung vorbei → Prüfsummen weichen ab.
+
 ## Offen – Reihenfolge
 
 ### 1. Client (vor dem Server)
 1. ~~Lokaler Spieler statt fest Spieler 0~~ – erledigt (siehe oben).
 2. ~~Gemeinsamer Spielaufbau~~ – erledigt (siehe oben); verteilen tut ihn später der Server.
-3. **Befehle für einen Ziel-Tick**: `CommandQueue` nimmt heute nur „nächster Tick“; für Lockstep Ziel-Tick = jetzt + Eingabeverzögerung,
-   der Schritt wartet, bis die Befehle aller Spieler für den Tick da sind. Netzwerkformat für die Befehle (polymorph; `BuildingDefinition`
-   als Volk + Name, Settler/Gebäude/Schiffe sind schon IDs).
+3. ~~Befehle für einen Ziel-Tick~~ – erledigt als Ziel-Zug (siehe oben).
 4. **Versions- und Datenprüfung** beim Verbinden: Hash über Programmversion und `data/` (weicht z. B. `production.json` ab, rechnet
    der Rechner sofort ein anderes Spiel).
 5. **Desync-Erkennung**: alle paar Sekunden `WorldChecksum` vergleichen; bei Abweichung anhalten und melden (später: Zustand des Hosts
@@ -78,6 +94,10 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
 ### 2. Server
 - Relay in Go (angedacht) oder C#: Lobby, Spielaufbau verteilen, Befehle je Tick sammeln und an alle schicken, Prüfsummen vergleichen.
 - Docker-Image zum Selbsthosten.
+- **Schutz gegen Flooding**: `TurnRelay` hebt heute jede Eingabe auf, deren Zug noch nicht ausgegeben ist – ein bösartiger Client kann mit
+  Eingaben für Züge weit in der Zukunft (oder sehr vielen bzw. sehr großen Befehlen) den Speicher füllen. Nötig: nur Züge bis
+  `NextTurn` + Verzögerung + kleiner Puffer annehmen, Obergrenze für Befehle je Eingabe und Nachrichtengröße, Rate-Limit je Verbindung;
+  wer dagegen verstößt, fliegt.
 
 ### 3. Später
 - Abbruch/Neuverbindung, Zuschauer, Ranglisten, Accounts (Datenschutz beachten).
@@ -92,3 +112,5 @@ das eine feste Befehlsfolge abspielt (über `World.Commands`) und diese Systeme 
   Zahlen oder ordinal.
 - Winkelfunktionen und Co. nur über `DeterministicMath` (bei Bedarf dort ergänzen, nur Grundrechenarten).
 - Alles, was ein Spieler auslöst, als `GameCommand` (neuer Record in `Commands/`), nie direkt aus dem Client.
+  Felder nur reine Daten, die JSON verlustfrei überstehen (sonst Beispielwert in `LockstepTests.Sample` ergänzen und prüfen);
+  ein Befehl darf nur Eigenes seines `Player` ändern und nichts vom Rechner lesen (Uhr, Einstellungen, Auswahl).
