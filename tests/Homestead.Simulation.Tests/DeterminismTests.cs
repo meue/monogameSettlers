@@ -18,7 +18,8 @@ public class DeterminismTests
         var second = Play();
         Assert.Equal(first, second);
         if (Environment.GetEnvironmentVariable("HOMESTEAD_CHECKSUM_FILE") is { Length: > 0 } file)
-            File.WriteAllLines(file, first.Select((checksum, minute) => $"{minute + 1} {checksum:x16}"));
+            // "\n" on every platform (WriteAllLines would end Windows' lines with "\r\n"), so the files compare as they are.
+            File.WriteAllText(file, string.Concat(first.Select((checksum, minute) => $"{minute + 1} {checksum:x16}\n")));
     }
 
     /// <summary>A random map for four, four computer players fighting it out; the checksum after every game minute.</summary>

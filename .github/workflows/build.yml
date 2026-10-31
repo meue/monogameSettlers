@@ -77,6 +77,8 @@ jobs:
           merge-multiple: true
       - name: Compare
         run: |
+          # Line endings apart (should one platform write "\r\n").
+          sed -i 's/\r$//' checksums-*.txt
           for file in checksums-*.txt; do echo "$file: $(tail -n 1 "$file")"; done
           for file in checksums-*.txt; do
             if ! diff -q checksums-ubuntu-latest.txt "$file" > /dev/null; then
