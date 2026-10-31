@@ -54,7 +54,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Ok/Enter speichert `GameSettings` (Abschnitt `game`) und `DisplaySettings` (Client, Abschnitt `display`, sofort angewandt) in
   `~/.config/homestead/settings.json` (`SettingsFile`: je Abschnitt, Rest der Datei bleibt); Abbrechen/Esc verwirft, Standard setzt den offenen
   Reiter zurück (Spielwerte: `production.json`). Hardware-Cursor aus: eigener goldener Pfeil (`SoftwareCursor`, in `EndDraw`, nicht in Captures).
-  Neue Partien: `GameSettings.Load(…).Apply(…)` → `OriginalScenario.Load(production:, magic:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
+  Neue Partien: `GameSettings.Load(…)` → `GameSetup.Settings` → `Apply(…)` in `OriginalScenario.Load(production:, magic:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
 - **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
   im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
   sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: Einstellungen (Spieler, Symmetrie, Flüsse, Rohstoffe, Steine, Wälder,
@@ -62,7 +62,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   Farbe (`PlayerColors.Palette`, nach Farbton sortiert, Kennungen `Choices`; Klick öffnet Auswahl darunter mit „?“ und allen Farben, belegte
   durchgestrichen; Spieler 1 vorbelegt mit „Bevorzugte Farbe“ der Einstellungen, Vorgabe Rot; „Zufall“ → `PlayerColors.Assign`), Team (Klick öffnet Auswahl 1–4/„-“, Vorgabe „-“ = keins; `World.Teams`,
   nach dem Laden gesetzt; `TeamOf`, `AreAllies`), Hardcore.
-  Mehrspieler-Startpositionen gelost (Vorschau schwarz „?“, Klick weist zu/zurück; `StartScreen.ResolvePositions` → `OriginalScenario.Load(positions:)`).
+  Mehrspieler-Startpositionen gelost (Vorschau schwarz „?“, Klick weist zu/zurück; `GameSetup.Positions` → `GameSetup.ResolvePositions`).
+  Jede Partie (Startscreen, `--map`, Bild↑/↓, Missionen) startet über ein `GameSetup` (`MapGame.SoloSetup` → `StartGame`, siehe `docs/MULTIPLAYER.md`).
   Hardcore (`World.HardcorePlayers`, `Hardcore`): +10 % Kampfkraft flach (auch über 100 %), +30 % Bewohner je Wohnhaus, +20 % Soldaten-LP
   (`World.MaxHealth`), −25 % Baumaterial je Stapel (gerundet, mind. 1, `World.ConstructionCost`), Arbeitszeiten × 0,9,
   Start +2 Schwertkämpfer, +5 Bretter, +5 Stämme (`OriginalScenario.Load(hardcore:)`).

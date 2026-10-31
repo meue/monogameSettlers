@@ -46,14 +46,26 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
 - Sieg/Niederlage je Spieler: `IGameGoals.OutcomeOf(spieler)`, `DecidedAt(spieler)`, `Decide(spieler, …)` (Cheat nur für den eigenen).
   Ältere Spielstände: das Ergebnis wird in der nächsten Sekunde neu bestimmt (Besiegte sind gespeichert).
 - Spielstand: Client-Wert `player` (ältere: 0). Zum Ausprobieren: `--player <n>` (1–8) für freie Partien.
-- Später im Mehrspieler: `_local` kommt vom Server, und keine KI für die übrigen menschlichen Spieler (gehört zu Punkt 2).
+- Später im Mehrspieler: `_local` kommt vom Server.
+
+### Gemeinsamer Spielaufbau
+- `GameSetup` (Simulation, reine Daten, `ToJson`/`FromJson`, Enums als Text): Karte (`MapChoice`), `Seed`, Spieler (`PlayerSetup`: Volk,
+  Farbe als Palettenindex, Team, Hardcore, `Human`, KI-Charakter; `null` = gezogen), Startplätze (je Kartenspieler der Spieler, `null` = gezogen),
+  Spielwerte (`GameSettings`; `null` = `data/`). Gleiches Setup → gleiche Welt auf jedem Rechner.
+- `MapChoice`: Zufallskarte (Einstellungen + Seed) oder Originalkarte als Pfad relativ zum Kartenordner (`/`) + SHA-256; `Locate` sucht erst
+  dort, dann jede `.map` mit dem Hash (jeder hat seine eigene Installation), sonst `FileNotFoundException`.
+- `GameSetup.Start(karte)`: zieht Völker, Startplätze und KI-Charaktere aus dem Seed – je Ziehung eigene Zufallszahlen (`RandomFor(Draw)`:
+  Völker, Startplätze, Farben, Charaktere), damit eine die andere nicht verschiebt; Weltseed = `Seed`; Teams, Hardcore, `ConquestGoals`,
+  eine KI für jeden nicht-menschlichen Spieler. Farben zieht der Client mit `RandomFor(Draw.Colors)` (`PlayerColors.Assign`).
+- Client: jede Partie über ein Setup (`MapGame.SoloSetup` → `StartGame`): Startscreen, `--map`, Bild↑/↓, Missionen (danach `MissionGoals`).
+  Allein: `Seed` zufällig (Captures 0), Mensch = lokaler Spieler, Spielwerte aus den Einstellungen. Fürs Mehrspieler liefert der Server das Setup.
+- Tests: `GameSetupTests` (gleiche Welt auch nach JSON, Aufbau, getrennte Ziehungen, Karte per Hash).
 
 ## Offen – Reihenfolge
 
 ### 1. Client (vor dem Server)
 1. ~~Lokaler Spieler statt fest Spieler 0~~ – erledigt (siehe oben).
-2. **Gemeinsamer Spielaufbau**: Karte (Seed/Hash), Seeds für die Völker- und KI-Charakter-Ziehung (heute ohne festen Seed bei jedem
-   Start anders – ohne `--peoples` wird das Volk zufällig gezogen, `MapGame._peopleDraw`), Teams, Farben, Einstellungen vom Server.
+2. ~~Gemeinsamer Spielaufbau~~ – erledigt (siehe oben); verteilen tut ihn später der Server.
 3. **Befehle für einen Ziel-Tick**: `CommandQueue` nimmt heute nur „nächster Tick“; für Lockstep Ziel-Tick = jetzt + Eingabeverzögerung,
    der Schritt wartet, bis die Befehle aller Spieler für den Tick da sind. Netzwerkformat für die Befehle (polymorph; `BuildingDefinition`
    als Volk + Name, Settler/Gebäude/Schiffe sind schon IDs).

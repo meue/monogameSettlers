@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Assets.Maps;
+using Homestead.Simulation;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Map.Generation;
 using Microsoft.Xna.Framework;
@@ -25,12 +26,6 @@ namespace Homestead.Client;
 /// </remarks>
 public sealed class StartScreen : IDisposable
 {
-    /// <summary>
-    /// One player's settings: <c>null</c> as people or color (palette index) means drawn at random; team 1–4
-    /// (0: none, against everybody).
-    /// </summary>
-    public sealed record PlayerSetup(Civilization? People, int? Color, bool Hardcore, int Team = 0);
-
     /// <summary>
     /// What was chosen: settings per player (entry 0 is the own one) and, on multiplayer maps, per start
     /// position (map player) the player taking it (<c>null</c>: drawn); <c>null</c> as a whole: as the map says.
@@ -590,35 +585,11 @@ public sealed class StartScreen : IDisposable
 
     private Choice Start()
     {
-        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(_peoples[p], _colors[p], _hardcore[p], _teams[p])).ToArray();
+        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(People: _peoples[p], Color: _colors[p], Team: _teams[p], Hardcore: _hardcore[p])).ToArray();
         var positions = RandomPositions ? _positions.ToArray() : null;
         if (_category != RandomCategory)
             return new Choice(_shown[_selected].Index, players, positions);
         return new Choice(-1, players, positions, new RandomMap(_randomSettings, _randomSeed));
-    }
-
-    /// <summary>
-    /// Start position per player: the assigned ones, the others drawn from the positions left
-    /// (entry i: the map player whose start player i takes).
-    /// </summary>
-    public static int[] ResolvePositions(IReadOnlyList<int?> chosen, Random random)
-    {
-        var positions = new int[chosen.Count];
-        var assigned = new HashSet<int>();
-        for (int position = 0; position < chosen.Count; position++)
-            if (chosen[position] is { } player && player < chosen.Count)
-            {
-                positions[player] = position;
-                assigned.Add(player);
-            }
-        var free = Enumerable.Range(0, chosen.Count).Where(p => chosen[p] is null || chosen[p] >= chosen.Count)
-            .OrderBy(_ => random.Next()).ToList();
-        foreach (int player in Enumerable.Range(0, chosen.Count).Where(p => !assigned.Contains(p)))
-        {
-            positions[player] = free[^1];
-            free.RemoveAt(free.Count - 1);
-        }
-        return positions;
     }
 
     /// <summary>Gives the start position to <paramref name="player"/> (null: random); its previous position becomes random.</summary>

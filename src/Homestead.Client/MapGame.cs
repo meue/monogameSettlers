@@ -41,15 +41,10 @@ public sealed class MapGame : Game
     private readonly string? _captureDirectory;
     private readonly Random _random = new(1);
 
-    /// <summary>Draws the peoples of players the map leaves open ("random"): a new draw every game.</summary>
-    private readonly Random _peopleDraw = new();
-    private IReadOnlyList<Civilization>? _peoples;
-    /// <summary>Players with the hardcore head start (start screen).</summary>
-    private IReadOnlySet<int> _hardcore = new HashSet<int>();
-    /// <summary>Team per player of the free game (0: none).</summary>
-    private int[] _teams = [];
-    /// <summary>Start position (map player) per player, from the start screen; null: as the map says.</summary>
-    private int[]? _positions;
+    /// <summary>Draws the character of the own player's AI (key I).</summary>
+    private readonly Random _ownAiDraw = new();
+    /// <summary>Peoples from the command line for the players the map leaves open (player i: entry i modulo the count).</summary>
+    private readonly IReadOnlyList<Civilization>? _presetPeoples;
     /// <summary>
     /// The player this computer plays (from 0): its orders, selection, fog of war, menus and statistics. Every other player of a
     /// free game is a computer player. 0 unless <c>--player</c> says otherwise; campaign missions are played as
@@ -137,10 +132,13 @@ public sealed class MapGame : Game
 
     private readonly AiNames _aiNames = new();
 
+    /// <summary>The computer character of the player from the command line; null: drawn.</summary>
+    private string? CharacterOf(int player) => player < _characters.Count && _characters[player].Length > 0 ? _characters[player] : null;
+
     private AiPlayer NewAi(int player)
     {
         var ai = new AiPlayer(_world, _playerCatalogs[player], player,
-            character: player < _characters.Count && _characters[player].Length > 0 ? _characters[player] : null, random: _peopleDraw);
+            character: CharacterOf(player), random: _ownAiDraw);
         // What the character's traits do is shown as it happens, to watch them at work.
         ai.Noted += OnAiNote;
         return ai;
@@ -376,7 +374,7 @@ public sealed class MapGame : Game
         _installation = installation;
         _mapDirectory = installation.MapDirectory;
         _gfx = gfx;
-        _peoples = peoples;
+        _presetPeoples = peoples;
         _characters = characters ?? [];
         _captureDirectory = captureDirectory;
         _fogChosen = captureDirectory is null || Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOG") == "1";
@@ -537,7 +535,7 @@ public sealed class MapGame : Game
             }
             else
             {
-                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples, _display.PreferredColor, _chosenLocal);
+                _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal);
                 if (int.TryParse(captureStart?.Split(':')[0], out int category))
                     _startScreen.ShowCategory(category);
                 if (captureStart?.EndsWith(":color") == true)
@@ -549,7 +547,7 @@ public sealed class MapGame : Game
         else if (_loadSlot is { } slot)
             LoadGame(SaveSlots.Load(slot));
         else if (_randomMap is { } random)
-            LoadMap(RandomMapGenerator.Generate(random.Settings, random.Seed));
+            StartFree(MapChoice.Generated(random.Settings, random.Seed));
         else
             LoadMap(_mapIndex);
     }
@@ -572,23 +570,48 @@ public sealed class MapGame : Game
             return;
         _startScreen.Dispose();
         _startScreen = null;
-        var players = choice.Players;
-        PlayerColors.Assign(players.Select(p => p.Color).ToArray(), _peopleDraw);
-        // Random peoples drawn per player.
-        _peoples = Enumerable.Range(0, Math.Max(8, players.Count))
-            .Select(player => (player < players.Count ? players[player].People : null)
-                              ?? Enum.GetValues<Civilization>()[_peopleDraw.Next(Enum.GetValues<Civilization>().Length)])
-            .ToArray();
-        _hardcore = Enumerable.Range(0, players.Count).Where(p => players[p].Hardcore).ToHashSet();
-        _teams = players.Select(p => p.Team).ToArray();
-        _positions = choice.Positions is { } chosen ? StartScreen.ResolvePositions(chosen, _peopleDraw) : null;
-        ShowLoading(null, () =>
+        MapChoice map;
+        if (choice.Random is { } random)
+            map = MapChoice.Generated(random.Settings, random.Seed);
+        else
         {
-            if (choice.Random is { } random)
-                LoadMap(RandomMapGenerator.Generate(random.Settings, random.Seed));
-            else
-                LoadMap(choice.MapIndex);
-        });
+            _mapIndex = choice.MapIndex;
+            map = MapChoice.Original(_mapFiles[_mapIndex], _mapDirectory);
+        }
+        int local = _chosenLocal < choice.Players.Count ? _chosenLocal : 0;
+        var setup = SoloSetup(map, choice.Players.Count, local, player => choice.Players[player]) with { Positions = choice.Positions };
+        PlayerColors.Assign(setup.Players.Select(p => p.Color).ToArray(), setup.RandomFor(GameSetup.Draw.Colors));
+        ShowLoading(null, () => StartGame(setup, setup.Map.Open(_mapDirectory), local));
+    }
+
+    /// <summary>
+    /// The setup of a game played here alone: <paramref name="local"/> is the human, every other player a computer player
+    /// (characters from the command line); per player <paramref name="chosen"/> (default: the command line's peoples), the
+    /// game values of the settings. Capture runs always draw the same.
+    /// </summary>
+    private GameSetup SoloSetup(MapChoice map, int players, int local, Func<int, PlayerSetup>? chosen = null)
+    {
+        var production = Homestead.Simulation.Economy.ProductionConfig.Load();
+        var magic = Homestead.Simulation.Magic.MagicConfig.Load();
+        return new GameSetup
+        {
+            Map = map,
+            Seed = _captureDirectory is null ? Random.Shared.Next() : 0,
+            Players = Enumerable.Range(0, players)
+                .Select(player => (chosen?.Invoke(player)
+                                   ?? new PlayerSetup(People: _presetPeoples is { Count: > 0 } preset ? preset[player % preset.Count] : null))
+                    with { Human = player == local, Character = CharacterOf(player) })
+                .ToArray(),
+            Settings = GameSettings.Load(production, magic),
+        };
+    }
+
+    /// <summary>A free game on the map, played here alone as the player chosen on the command line.</summary>
+    private void StartFree(MapChoice choice)
+    {
+        var map = choice.Open(_mapDirectory);
+        int local = _chosenLocal < map.Players.Count ? _chosenLocal : 0;
+        StartGame(SoloSetup(choice, map.Players.Count, local), map, local);
     }
 
     /// <summary>
@@ -652,11 +675,11 @@ public sealed class MapGame : Game
     private void LoadMap(int index)
     {
         _mapIndex = (index % _mapFiles.Length + _mapFiles.Length) % _mapFiles.Length;
-        LoadMap(OriginalMap.Open(_mapFiles[_mapIndex]));
+        StartFree(MapChoice.Original(_mapFiles[_mapIndex], _mapDirectory));
     }
 
-    /// <param name="local">The player to play (<see cref="_local"/>); null: the one chosen on the command line.</param>
-    private void LoadMap(OriginalMap map, int? local = null)
+    /// <summary>Starts the game of <paramref name="setup"/> on its map (opened already), played here as <paramref name="local"/>.</summary>
+    private void StartGame(GameSetup setup, OriginalMap map, int local)
     {
         _mission = null;
         _outcomeNoted = MissionOutcome.Open;
@@ -664,17 +687,10 @@ public sealed class MapGame : Game
         _map = map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
         _waves = new WaveLayer(_terrain);
-        var production = Homestead.Simulation.Economy.ProductionConfig.Load();
-        var magic = Homestead.Simulation.Magic.MagicConfig.Load();
-        var settings = GameSettings.Load(production, magic);
-        (_world, var report) = OriginalScenario.Load(_map, freeChoice: _peoples, random: _peopleDraw,
-            hardcore: _hardcore.Where(p => p < _map.Players.Count),
-            positions: _positions?.Length == _map.Players.Count ? _positions : null,
-            production: settings.Apply(production), magic: settings.Apply(magic));
-        _world.Teams.AddRange(_teams.Take(_map.Players.Count));
-        _local = (local ?? _chosenLocal) is var chosen && chosen < report.Catalogs.Count ? chosen : 0;
-        // A free game is won by defeating everybody else (a mission brings its own goals).
-        _world.Goals = new ConquestGoals();
+        var start = setup.Start(map);
+        _world = start.World;
+        var report = start.Report;
+        _local = local;
         BeginSession();
         _gameMap = _world.Map!;
         _gameMap.PointChanged += OnPointChanged;
@@ -690,21 +706,19 @@ public sealed class MapGame : Game
         _minimap.Update(_vision, all: !FogOn, _gameMap, IsAlly);
         _nextVision = _time + VisionInterval;
         _message = $"{report.Buildings} buildings, {report.Piles} piles, {report.Settlers} settlers from the map";
-        // Every other player is a computer player.
         _playerCatalogs = report.Catalogs;
         UsePeople(Own);
         _ownAi = null;
-        for (int player = 0; player < report.Catalogs.Count; player++)
+        foreach (var ai in _world.AiPlayers)
         {
-            if (player == _local)
-                continue;
-            var ai = NewAi(player);
-            _world.AiPlayers.Add(ai);
+            int player = ai.Player;
+            // What the character's traits do is shown as it happens, to watch them at work.
+            ai.Noted += OnAiNote;
             Console.WriteLine($"Spieler {player + 1} ({report.Catalogs[player].Civilization}): KI {_aiNames.Character(ai.Character.Id)} " +
                               $"({string.Join(", ", ai.Character.Traits.Select(t => _aiNames.Trait(t.Id)))})");
         }
         // The camera starts at the own start position (drawn ones included).
-        var home = _map.Players.Count > 0 ? _map.Players[_positions?.Length == _map.Players.Count ? _positions[_local] : _local] : null;
+        var home = _local < _map.Players.Count ? _map.Players[start.Positions is { } positions ? positions[_local] : _local] : null;
         _start = home is not null
             ? new GridPoint(home.StartX, home.StartY)
             : new GridPoint(_map.Area.Size / 2, _map.Area.Size / 2);
@@ -1089,7 +1103,8 @@ public sealed class MapGame : Game
     /// <summary>Starts the mission whose description is open: its map with the peoples, buildings and settlers it gives.</summary>
     private void StartMission()
     {
-        var map = OriginalMap.Open(_briefing!.MapPath);
+        string path = _briefing!.MapPath;
+        var map = OriginalMap.Open(path);
         _briefing.Dispose();
         _briefing = null;
         _campaignScreen?.Dispose();
@@ -1098,15 +1113,13 @@ public sealed class MapGame : Game
         _missionSelect = null;
         _title?.Dispose();
         _title = null;
-        PlayerColors.Assign(new int?[map.Players.Count], _peopleDraw);
-        _peoples = null;
-        _hardcore = new HashSet<int>();
-        _teams = [];
-        _positions = null;
+        var setup = SoloSetup(MapChoice.Original(path, Path.GetDirectoryName(path)!), map.Players.Count,
+            MissionGoals.Player, _ => new PlayerSetup());
+        PlayerColors.Assign(new int?[map.Players.Count], setup.RandomFor(GameSetup.Draw.Colors));
         var mission = new MissionRef(_campaign, _campaignSide, _briefingIndex);
         ShowLoading(_campaign, () =>
         {
-            LoadMap(map, local: MissionGoals.Player);
+            StartGame(setup, map, MissionGoals.Player);
             _mission = mission;
             _world.Goals = new MissionGoals();
         });
@@ -1240,7 +1253,7 @@ public sealed class MapGame : Game
         {
             _title.Dispose();
             _title = null;
-            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _peoples, _display.PreferredColor, _chosenLocal);
+            _startScreen = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples, _display.PreferredColor, _chosenLocal);
         }
     }
 

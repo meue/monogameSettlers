@@ -221,6 +221,8 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
 - `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
   Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
   (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
+- `GameSetup` (`MapChoice`, `PlayerSetup`): Spielaufbau als Daten (JSON) – Karte per Seed bzw. Hash, Spieler, Startplätze, Spielwerte, ein Seed für
+  alle Ziehungen; `Start` → Welt mit KIs (Details: `docs/MULTIPLAYER.md`).
 - `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler; Siedlertyp 23 = Späher/Dieb, 22 Geologe, 36 Priester, 40 Pionier; Besatzung der
   Militärgebäude aus der Karte sofort drin, `Military.Station`, Soll = Besatzung; ohne Angabe 1 Schwertkämpfer Stufe 1 wie im Original). Karten ohne Gebäude (Mehrspieler, auch Einzelspieler wie Beginner I/III): `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json` (Startturm will nur Infanterie, Bogenschützen warten draußen).
 - `Map/Generation/RandomMapGenerator`: Zufallskarten als `OriginalMap` (`OriginalMap.Create`), gleiche `RandomMapSettings` + Seed = gleiche Karte,
