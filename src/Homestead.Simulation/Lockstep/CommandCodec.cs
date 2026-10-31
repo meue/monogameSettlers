@@ -21,9 +21,10 @@ public sealed record PlayerCheck(int Player, StateCheck Check);
 
 /// <summary>
 /// Every player's commands for a turn, from the server: by player, each player's in the order issued; with the checks the
-/// turn's inputs carried, by player.
+/// turn's inputs carried, by player, and the furthest turn any player has sent an input for (<paramref name="Newest"/>: how
+/// far ahead the fastest computer is, so a slower one can catch up).
 /// </summary>
-public sealed record TurnBundle(long Turn, IReadOnlyList<GameCommand> Commands, IReadOnlyList<PlayerCheck>? Checks = null);
+public sealed record TurnBundle(long Turn, IReadOnlyList<GameCommand> Commands, IReadOnlyList<PlayerCheck>? Checks = null, long Newest = 0);
 
 /// <summary>
 /// The network format of commands (JSON): every <see cref="GameCommand"/> type by its name in <c>$type</c>, found by

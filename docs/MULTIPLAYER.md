@@ -135,7 +135,9 @@ Erledigt (erste Stufe, C# im selben Repo – teilt `TurnRelay`, `GameSetup`, `Ga
   - `hello` (Name, Fingerabdruck; anderes Protokoll → `refused`, Verbindung zu) → `welcome`.
   - `create` (Name, `GameSetup`: dessen menschliche Spieler sind die Plätze; der Host nimmt den ersten, sein Fingerabdruck wird der des Spiels)
     → `lobby` (Plätze mit Namen, Host, eigener Platz) an alle im Spiel; `list` → `games` (offene Spiele, Plätze, Datenhash);
-    `join` (Fingerabdruck muss passen, sonst `refused` mit den Abweichungen; „voll“, „gibt es nicht“); `leave` (Platz frei; Host → `closed`).
+    `join` (Fingerabdruck muss passen, sonst `refused` mit den Abweichungen; „voll“, „gibt es nicht“); `leave` (Platz frei, Wahl zurück
+    auf frei; Host → `closed`); `choose` (eigenes Volk und Farbe ins Setup, `null` = gelost; vergebene Farbe → `error`). `lobby` trägt je
+    Platz Name, Volk, Farbe und alle vergebenen Farben (auch feste der KIs).
   - `start` (nur Host, alle Plätze besetzt) → `started` an jeden: Setup mit Fingerabdruck, eigener Spieler, `LockstepOptions`
     (Server-Konfiguration `Lockstep__TurnTicks`/`DelayTurns`/`CheckTurns`). Danach `input` → `TurnRelay` → `bundle` an alle.
   - Verlassen eines laufenden Spiels → `left` an die anderen (die dann warten). Unlesbare Felder → `error`, Verbindung bleibt.
@@ -153,10 +155,16 @@ Erledigt (erste Stufe, C# im selben Repo – teilt `TurnRelay`, `GameSetup`, `Ga
   `settings.json`, Abschnitt `multiplayer`, `MultiplayerSettings`; Tab/Klick wechselt das Feld, Strg+V) → Verbinden (Ablehnung mit
   Gründen) → offene Spiele (Klick tritt bei, „Aktualisieren“, „Eröffnen“) → Lobby (Plätze, Gastgeber; „Starten“ nur Gastgeber und voll,
   „Verlassen“). Esc geht einen Schritt zurück.
-- „Eröffnen“: Startscreen im Mehrspieler-Modus (`StartScreen(multiplayer: true)`): Klick auf einen Spielernamen schaltet Mensch
-  (Platz für Mitspieler) / KI, der eigene ist Spieler 1; Knopf „Eröffnen“ → `GameSetup` (zufälliger Seed) an den Server.
+- „Eröffnen“: Startscreen im Mehrspieler-Modus (`StartScreen(multiplayer: true)`): alle Spieler zuerst Menschen, Klick auf einen
+  Spielernamen schaltet Mensch (Platz für Mitspieler) / KI, der eigene ist Spieler 1. Plätze anderer Menschen: Volk „Freie Wahl“, Farbe „?“,
+  nicht änderbar (Kartenvorgabe gilt weiter); Knopf „Eröffnen“ → `GameSetup` (zufälliger Seed) an den Server.
+- Lobby: je Platz Name, Volk, Farbe; beim eigenen schaltet ein Klick das Volk (Zufall → die Völker) bzw. die Farbe („?“ → freie
+  Farben) weiter (`ServerConnection.Choose`).
 - `started` → Karte öffnen (fehlt sie: Meldung, Verbindung zu), Farben aus `RandomFor(Colors)`, `StartGame`, dann `LockstepSession`
-  über `ServerConnection.Link`. `MapGame`: Schritte nur über `TryStep` (wartend bleibt die Zeit gutgeschrieben und wird aufgeholt),
+  über `ServerConnection.Link`. `MapGame`: Schritte nur über `TryStep`; wartend wird keine Zeit angestaut (sonst Sprint, dann wieder
+  Warten); wer hinter dem schnellsten liegt (`LockstepSession.Behind` aus `TurnBundle.Newest`, dem weitesten Zug, für den eine Eingabe
+  da ist; > 1 Zug), läuft mit `CatchUp` (1,5×), bis er aufgeholt hat. Bauplätze/`CanPlace` für den lokalen Spieler (Vorgabe `player = 0`
+  der Simulation beachten!);
   Befehle über `session.Issue`; Banner „Warte auf Mitspieler“ (> 1 s), „Asynchron“ (Desync, Konsole mit Teilen); Info: Spieler weg,
   Verbindung verloren. Pause (P/Esc) im Mehrspieler noch aus (Info), Statistik (Esc) hält den eigenen Rechner an → die anderen warten.
   Spiel beenden/Titel/neues Spiel schließen die Verbindung (`EndNetworkGame`).

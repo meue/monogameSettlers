@@ -258,6 +258,31 @@ public class LockstepTests
     }
 
     [Fact]
+    public void A_computer_behind_the_others_knows_how_far()
+    {
+        var options = new LockstepOptions(TurnTicks: 2, DelayTurns: 4);
+        var relay = new LocalRelay([0, 1], firstTurn: options.DelayTurns);
+        var fast = new World(new Map.GameMap(16));
+        var slow = new World(new Map.GameMap(16));
+        var ahead = new LockstepSession(fast, 0, new CommandCodec(), relay.LinkOf(0), options);
+        var behind = new LockstepSession(slow, 1, new CommandCodec(), relay.LinkOf(1), options);
+        // The first computer runs until it needs the second one's input (turn 4), having sent its inputs up to turn 8.
+        while (ahead.TryStep()) { }
+        Assert.Equal(4, ahead.Turn);
+        // The second one learns of it with its first bundle: three turns behind once at turn 1.
+        behind.TryStep();
+        behind.TryStep();
+        Assert.Equal(1, behind.Turn);
+        Assert.Equal(3, behind.Behind);
+        ahead.TryStep();
+        Assert.Equal(0, ahead.Behind);
+        // Caught up, it is behind no more.
+        while (behind.Turn < ahead.Turn)
+            behind.TryStep();
+        Assert.Equal(0, behind.Behind);
+    }
+
+    [Fact]
     public void Without_the_turn_from_the_server_the_game_waits()
     {
         var world = new World(new Map.GameMap(16));

@@ -22,6 +22,9 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn, int maxA
 
     private readonly List<long> _desynced = new();
 
+    /// <summary>The furthest turn any player has sent an input for (handed on in every bundle).</summary>
+    private long _newest;
+
     /// <summary>The next turn to hand out.</summary>
     public long NextTurn { get; private set; } = firstTurn;
 
@@ -72,6 +75,7 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn, int maxA
             else
                 Dropped++;
         byPlayer[sender] = (commands, node["check"] as JsonObject);
+        _newest = Math.Max(_newest, turn);
 
         var bundles = new List<string>();
         while (_inputs.TryGetValue(NextTurn, out var complete) && complete.Count == _players.Length)
@@ -88,7 +92,7 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn, int maxA
             foreach (var sameTurn in complete.Values.Select(i => i.Check).OfType<JsonObject>().GroupBy(c => c["turn"]?.ToJsonString()))
                 if (sameTurn.Select(c => c["checksums"]?.ToJsonString()).Distinct().Count() > 1 && long.TryParse(sameTurn.Key, out long checkedTurn))
                     _desynced.Add(checkedTurn);
-            var bundle = new JsonObject { ["turn"] = NextTurn, ["commands"] = all };
+            var bundle = new JsonObject { ["turn"] = NextTurn, ["commands"] = all, ["newest"] = _newest };
             if (checks.Count > 0)
                 bundle["checks"] = checks;
             bundles.Add(bundle.ToJsonString());

@@ -6,15 +6,16 @@ namespace Homestead.Simulation.Lockstep;
 /// The messages between a computer and the server (<c>Homestead.Server</c>), each a JSON object with its kind in <c>type</c>.
 /// To the server: <see cref="Hello"/> (name, <see cref="GameFingerprint"/>) first, then <see cref="List"/>, <see cref="Create"/>
 /// (a game name and a <see cref="GameSetup"/>: its human players are the seats), <see cref="Join"/> (a game's id),
-/// <see cref="Leave"/>, <see cref="Start"/> (the host, once every seat is taken) and in the game <see cref="Input"/> (a
+/// <see cref="Leave"/>, <see cref="Choose"/> (the own people and color in the lobby, null: free), <see cref="Start"/> (the host, once every seat is taken) and in the game <see cref="Input"/> (a
 /// <see cref="TurnInput"/>). From the server: <see cref="Welcome"/> or <see cref="Refused"/> (reasons), <see cref="Games"/>,
-/// <see cref="Lobby"/> (the game's seats, the own one), <see cref="Started"/> (the setup with the game's fingerprint, the own
+/// <see cref="Lobby"/> (the game's seats with name, people and color, the colors taken, the own seat), <see cref="Started"/> (the setup with the game's fingerprint, the own
 /// player, the <see cref="LockstepOptions"/>), <see cref="Bundle"/> (a <see cref="TurnBundle"/>), <see cref="Left"/> (a player
 /// gone), <see cref="Closed"/> (the host left the lobby) and <see cref="Error"/>.
 /// </summary>
 public static class ServerMessages
 {
-    public const string Hello = "hello", List = "list", Create = "create", Join = "join", Leave = "leave", Start = "start", Input = "input";
+    public const string Hello = "hello", List = "list", Create = "create", Join = "join", Leave = "leave", Choose = "choose", Start = "start",
+        Input = "input";
 
     public const string Welcome = "welcome", Refused = "refused", Games = "games", Lobby = "lobby", Started = "started", Bundle = "bundle",
         Left = "left", Closed = "closed", Error = "error";

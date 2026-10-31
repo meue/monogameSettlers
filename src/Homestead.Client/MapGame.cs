@@ -305,6 +305,8 @@ public sealed class MapGame : Game
     /// <summary>The game is paused (P): no ticks run, a banner says so.</summary>
     private bool _paused;
     private const int FastForward = 10;
+    /// <summary>How much faster a multiplayer computer runs while behind the fastest one (<see cref="LockstepSession.Behind"/>).</summary>
+    private const float CatchUp = 1.5f;
     private static readonly TimeSpan MaxBacklog = TimeSpan.FromSeconds(0.5);
     private TimeSpan _time;
 
@@ -505,11 +507,17 @@ public sealed class MapGame : Game
             if (captureStart?.StartsWith("loading") == true)
                 _loading = new LoadingScreen(GraphicsDevice, _gfx, captureStart.Split(':') is [_, var campaign] ? campaign : null, _display.Theme);
             else if (captureStart is null or "intro" || captureStart.StartsWith("title") || captureStart.StartsWith("settings")
-                     || captureStart == "multiplayer" || campaignCapture || CaptureServer is not null)
+                     || captureStart?.StartsWith("multiplayer") == true || campaignCapture || CaptureServer is not null)
             {
                 _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
-                if (captureStart == "multiplayer")
+                // =multiplayer: connecting; =multiplayer:create: the start screen opening a game.
+                if (captureStart?.StartsWith("multiplayer") == true)
                     _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+                if (captureStart == "multiplayer:lobby")
+                    _multiplayerScreen!.ShowSampleLobby();
+                if (captureStart == "multiplayer:create")
+                    _multiplayerCreate = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples,
+                        _display.PreferredColor, local: 0, multiplayer: true);
                 // HOMESTEAD_CAPTURE_SERVER=<ws://…/ws>: a multiplayer game against a computer player through that server.
                 if (CaptureServer is { } server)
                 {
@@ -1667,6 +1675,9 @@ public sealed class MapGame : Game
         // F12 held: the game runs at FastForward times its speed.
         if (_captureDirectory is null && !_chat.IsOpen && !_world.Multiplayer && Keyboard.GetState().IsKeyDown(Keys.F12))
             elapsed *= FastForward;
+        // A multiplayer computer behind the fastest one steps faster until it has caught up (the others wait for it otherwise).
+        if (_session is { Behind: > 1 })
+            elapsed *= CatchUp;
         // Never more than MaxBacklog behind: a slow machine would otherwise fall further back every frame.
         _accumulator = TimeSpan.FromTicks(Math.Min((_accumulator + elapsed).Ticks, MaxBacklog.Ticks));
         _time += elapsed;
@@ -1688,6 +1699,9 @@ public sealed class MapGame : Game
             TakeCommandResults();
             _accumulator -= World.TickDuration;
         }
+        // Waiting for the others owes no time: run ahead later, this computer would only have to wait again.
+        if (waiting)
+            _accumulator = TimeSpan.FromTicks(Math.Min(_accumulator.Ticks, World.TickDuration.Ticks));
         _waitingFor = waiting ? _waitingFor + gameTime.ElapsedGameTime.TotalSeconds : 0;
         NoteNetwork();
         // Paused: the orders still work (they take effect at once; alone only).
@@ -1738,7 +1752,7 @@ public sealed class MapGame : Game
             var definition = _placeable[_placeIndex];
             string reason = "";
             if (BuildSpotNear(SdlMouse.GetState().Position.ToVector2()) is null)
-                _world.CanPlace(definition, cursor, out reason);
+                _world.CanPlace(definition, cursor, out reason, _local);
             _message = $"placing {definition.Name} (Q/E change, Esc stop){(reason.Length > 0 ? ": " + reason : "")}";
         }
         if (_selectedBuilding is { } selectedBuilding && !_placing)
@@ -2502,7 +2516,7 @@ public sealed class MapGame : Game
             var definition = _placeable[_placeIndex];
             if (BuildSpotNear(screen) is not { } at)
             {
-                _world.CanPlace(definition, ScreenToGrid(screen), out string reason);
+                _world.CanPlace(definition, ScreenToGrid(screen), out string reason, _local);
                 _message = $"{definition.Name}: {reason}";
                 return;
             }
@@ -3985,7 +3999,7 @@ public sealed class MapGame : Game
         {
             if (clock.Elapsed > BuildSpotBudget)
                 break;
-            _buildSpotChecks[p] = (_world.Tick, _world.BuildSpotEffort(definition, p));
+            _buildSpotChecks[p] = (_world.Tick, _world.BuildSpotEffort(definition, p, _local));
         }
         _buildSpots.Clear();
         foreach (var p in inView)
@@ -4003,7 +4017,7 @@ public sealed class MapGame : Game
         var world = Vector2.Transform(screen, Matrix.Invert(View));
         var under = ScreenToGrid(screen);
         return Enumerable.Range(0, DirectionExtensions.Count).Select(d => under.Neighbor((Direction)d)).Prepend(under)
-            .Where(p => _gameMap.Contains(p) && _world.CanPlace(definition, p, out _))
+            .Where(p => _gameMap.Contains(p) && _world.CanPlace(definition, p, out _, _local))
             .Select(p => (GridPoint?)p)
             .MinBy(p => Vector2.DistanceSquared(world, ToWorld(p!.Value)));
     }
@@ -4084,7 +4098,7 @@ public sealed class MapGame : Game
     private void CaptureTrade(GridPoint start)
     {
         Building? Place(string name) => PathFinder.Circle(start, 30).OrderBy(p => PathFinder.Distance(start, p))
-            .Where(p => _world.CanPlace(Own[name], p, out _)).Select(p => _world.PlaceBuilding(Own[name], _local, p)).FirstOrDefault(b => b is not null);
+            .Where(p => _world.CanPlace(Own[name], p, out _, _local)).Select(p => _world.PlaceBuilding(Own[name], _local, p)).FirstOrDefault(b => b is not null);
         var market = Place("market_place");
         Place("donkey_farm");
         var stock = _world.Buildings.Where(b => b.Player == _local && b.Exists && b.Piles.Any(p => p.Role == Simulation.Economy.PileRole.Storage))
@@ -4116,7 +4130,7 @@ public sealed class MapGame : Game
     {
         var kind = _world.WarMachines.KindOf(_world.PeopleOf(_local));
         var works = kind is null ? null : PathFinder.Circle(start, 30).OrderBy(p => PathFinder.Distance(start, p))
-            .Where(p => _world.CanPlace(Own[kind.Works], p, out _)).Select(p => _world.PlaceBuilding(Own[kind.Works], _local, p)).FirstOrDefault(b => b is not null);
+            .Where(p => _world.CanPlace(Own[kind.Works], p, out _, _local)).Select(p => _world.PlaceBuilding(Own[kind.Works], _local, p)).FirstOrDefault(b => b is not null);
         if (works is not null)
         {
             if (kind!.Shots > 0)
@@ -4159,7 +4173,7 @@ public sealed class MapGame : Game
             foreach (var p in PathFinder.Circle(coast, 34).Where(_gameMap.Contains))
                 _gameMap.SetOwner(p, _local);
         var spot = sea is not { } shore ? null : PathFinder.Circle(shore, 24).Where(_gameMap.Contains).OrderBy(p => PathFinder.Distance(shore, p))
-            .Where(p => _world.CanPlace(definition, p, out _)).Cast<GridPoint?>().FirstOrDefault();
+            .Where(p => _world.CanPlace(definition, p, out _, _local)).Cast<GridPoint?>().FirstOrDefault();
         if (spot is not { } at || _world.PlaceBuilding(definition, _local, at) is not { } dockyard)
         {
             Console.WriteLine($"dock: no shipyard near the coast ({sea})");
@@ -4185,7 +4199,7 @@ public sealed class MapGame : Game
         {
             // A harbor next to it with its dock, a trade ship, goods to send and a destination along the coast; the harbor selected.
             var harborSpot = PathFinder.Circle(at, 20).Where(_gameMap.Contains).OrderBy(p => PathFinder.Distance(at, p))
-                .Where(p => _world.CanPlace(Own["harbor"], p, out _)).Cast<GridPoint?>().FirstOrDefault();
+                .Where(p => _world.CanPlace(Own["harbor"], p, out _, _local)).Cast<GridPoint?>().FirstOrDefault();
             if (harborSpot is not { } h || _world.PlaceBuilding(Own["harbor"], _local, h) is not { } harbor
                 || !_world.Shipping.PlaceDock(harbor, PathFinder.Circle(h, 14).Where(Sea).OrderBy(p => PathFinder.Distance(h, p)).First()))
             {
@@ -4461,7 +4475,7 @@ public sealed class MapGame : Game
                 // HOMESTEAD_CAPTURE_FOCUS=temple: a small temple with mana, swordsmen upgraded once (upgrade buttons).
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") == "temple"
                     && PathFinder.Circle(start, 30).OrderBy(p => PathFinder.Distance(start, p))
-                        .Any(p => _world.CanPlace(Own["temple"], p, out _) && _world.PlaceBuilding(Own["temple"], _local, p) is not null))
+                        .Any(p => _world.CanPlace(Own["temple"], p, out _, _local) && _world.PlaceBuilding(Own["temple"], _local, p) is not null))
                 {
                     _world.Magic.AddMana(_local, 30);
                     _world.Magic.Upgrade(_local, SoldierType.Swordsman);
@@ -4470,7 +4484,7 @@ public sealed class MapGame : Game
                 if (Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_FOCUS") is { } focus && Own.Find(focus) is { Occupiers.Count: > 0 } fort
                     && !_world.Buildings.Any(b => b.Definition == fort)
                     && PathFinder.Circle(start, 45).OrderBy(p => PathFinder.Distance(start, p))
-                        .Where(p => fort.Blocked.Concat(fort.Protected).All(o => _world.Map!.IsWalkable(p + o)) && !_world.CanPlace(fort, p, out var why)
+                        .Where(p => fort.Blocked.Concat(fort.Protected).All(o => _world.Map!.IsWalkable(p + o)) && !_world.CanPlace(fort, p, out var why, _local)
                                     && why == "not on own land")
                         .Select(p => _world.PlaceBuilding(fort, _local, p, force: true)).FirstOrDefault() is { } placed)
                 {

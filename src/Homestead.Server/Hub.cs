@@ -1,6 +1,7 @@
 using System.Net.WebSockets;
 using System.Text.Json.Nodes;
 using Homestead.Simulation;
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Lockstep;
 
 namespace Homestead.Server;
@@ -13,7 +14,7 @@ internal sealed class Game(string id, string name, Connection host, GameSetup se
     public Connection Host { get; } = host;
 
     /// <summary>The setup with the host's fingerprint: every computer joining must have the same program and data.</summary>
-    public GameSetup Setup { get; } = setup;
+    public GameSetup Setup { get; set; } = setup;
 
     /// <summary>The human players: one computer each.</summary>
     public int[] Seats { get; } = seats;
@@ -119,6 +120,9 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
                 break;
             case ServerMessages.Start:
                 Start(connection);
+                break;
+            case ServerMessages.Choose:
+                Choose(connection, message);
                 break;
             case ServerMessages.Input:
                 Input(connection, message["input"] as JsonObject);
@@ -236,9 +240,43 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
                 ["seats"] = new JsonArray(game.Seats.Select(s => (JsonNode)new JsonObject
                 {
                     ["player"] = s, ["name"] = game.Taken.TryGetValue(s, out var taken) ? taken.Name : null,
+                    ["people"] = game.Setup.Players[s].People?.ToString(), ["color"] = game.Setup.Players[s].Color,
                 }).ToArray()),
+                ["colors"] = new JsonArray(game.Setup.Players.Where(p => p.Color is not null).Select(p => (JsonNode)p.Color!.Value).ToArray()),
             }));
     }
+
+    /// <summary>A player's own people and color in the lobby (null: drawn at the start); a color someone has already is refused.</summary>
+    private void Choose(Connection connection, JsonObject message)
+    {
+        if (connection.Game is not { Started: false } game)
+        {
+            Error(connection, "not in a lobby");
+            return;
+        }
+        Civilization? people = message["people"] is JsonValue value && value.TryGetValue(out string? name)
+                               && Enum.TryParse<Civilization>(name, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
+        int? color = message["color"] is JsonValue number && number.TryGetValue(out int index) ? index : null;
+        if (color is < 0 or > 63)
+        {
+            Error(connection, "no such color");
+            return;
+        }
+        if (color is { } wanted && game.Setup.Players.Where((p, player) => player != connection.Seat && p.Color == wanted).Any())
+        {
+            Error(connection, "the color is taken");
+            SendLobby(game);
+            return;
+        }
+        SetChoice(game, connection.Seat, people, color);
+        SendLobby(game);
+    }
+
+    private static void SetChoice(Game game, int seat, Civilization? people, int? color) =>
+        game.Setup = game.Setup with
+        {
+            Players = game.Setup.Players.Select((p, player) => player == seat ? p with { People = people, Color = color } : p).ToArray(),
+        };
 
     private void Start(Connection connection)
     {
@@ -296,7 +334,11 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
             log.LogInformation("game {Game} closed by its host", game.Id);
         }
         else if (!game.Started)
+        {
+            // The seat is free again, with free choice for whoever takes it.
+            SetChoice(game, connection.Seat, null, null);
             SendLobby(game);
+        }
         else
         {
             foreach (var member in game.Taken.Values)

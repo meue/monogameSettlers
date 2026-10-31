@@ -257,7 +257,8 @@ public sealed class StartScreen : IDisposable
             _peoples.Add(_presetPeoples is { } preset ? preset[player % preset.Count] : player == _local ? Civilization.Roman : null);
             _colors.Add(player == _local ? _preferredColor : null);
             _hardcore.Add(false);
-            _humans.Add(player == _local);
+            // A multiplayer game is for humans first; the host makes computer players of the seats it wants.
+            _humans.Add(player == _local || _multiplayer);
             _teams.Add(0);
         }
     }
@@ -366,6 +367,9 @@ public sealed class StartScreen : IDisposable
         new(x, RowY(player) + (PlayerRow - Control) / 2, width == 0 ? Control : width, Control);
 
     private Rectangle LeftArrow(int player) => Cell(430, player);
+
+    /// <summary>Another human's seat in a multiplayer game: its people and color are that player's free choice (in the lobby).</summary>
+    private bool Joining(int player) => _multiplayer && player != _local && _humans[player];
 
     /// <summary>The player's name (in a multiplayer game a click there switches human and computer player).</summary>
     private Rectangle NameBox(int player) => Cell(340, player, 86);
@@ -565,12 +569,12 @@ public sealed class StartScreen : IDisposable
                         _positionMenu = position;
             foreach (int player in ShownRows)
             {
-                if (ColorBox(player).Contains(at))
+                if (ColorBox(player).Contains(at) && !Joining(player))
                     _colorMenu = player;
                 if (TeamBox(player).Contains(at))
                     _teamMenu = player;
                 int step = LeftArrow(player).Contains(at) ? -1 : RightArrow(player).Contains(at) ? 1 : 0;
-                if (step != 0 && FixedPeople(player) is null)
+                if (step != 0 && FixedPeople(player) is null && !Joining(player))
                     _peoples[player] = Cycle(_peoples[player], step);
                 if (HardcoreBox(player).Contains(at))
                     _hardcore[player] = !_hardcore[player];
@@ -597,7 +601,7 @@ public sealed class StartScreen : IDisposable
 
     private Choice Start()
     {
-        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(People: _peoples[p], Color: _colors[p], Team: _teams[p], Hardcore: _hardcore[p],
+        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(People: Joining(p) ? null : _peoples[p], Color: Joining(p) ? null : _colors[p], Team: _teams[p], Hardcore: _hardcore[p],
             Human: _multiplayer ? _humans[p] : p == _local)).ToArray();
         var positions = RandomPositions ? _positions.ToArray() : null;
         if (_category != RandomCategory)
@@ -840,14 +844,15 @@ public sealed class StartScreen : IDisposable
 
             var fixedPeople = FixedPeople(player);
             var people = fixedPeople ?? _peoples[player];
-            if (fixedPeople is null)
+            bool joining = Joining(player);
+            if (fixedPeople is null && !joining)
             {
                 Small(batch, pixel, font, left, "<");
                 Small(batch, pixel, font, right, ">");
             }
             var name = new Rectangle(left.Right, left.Y, right.X - left.Right, left.Height);
-            var label = NameOf(people) + (fixedPeople is null ? "" : Lang.T("start.byMap"));
-            Centered(batch, font, label, name, fixedPeople is null ? Text : Dim, Measure(font, label, size) > name.Width - 4 ? 11 : size);
+            var label = fixedPeople is null && joining ? Lang.T("start.freeChoice") : NameOf(people) + (fixedPeople is null ? "" : Lang.T("start.byMap"));
+            Centered(batch, font, label, name, fixedPeople is null && !joining ? Text : Dim, Measure(font, label, size) > name.Width - 4 ? 11 : size);
             if (fixedPeople is not null && name.Contains(hover))
                 hint = fixedHint;
 
@@ -855,8 +860,9 @@ public sealed class StartScreen : IDisposable
             var swatch = ColorBox(player);
             batch.Draw(pixel, ToScreen(new Rectangle(swatch.X - 2, swatch.Y - 2, swatch.Width + 4, swatch.Height + 4)),
                 swatch.Contains(hover) ? Gold : new Color(120, 135, 150));
-            batch.Draw(pixel, ToScreen(swatch), _colors[player] is { } color ? PlayerColors.Palette[color] : Ink);
-            if (_colors[player] is null)
+            int? shownColor = Joining(player) ? null : _colors[player];
+            batch.Draw(pixel, ToScreen(swatch), shownColor is { } color ? PlayerColors.Palette[color] : Ink);
+            if (shownColor is null)
                 Centered(batch, font, "?", swatch, Color.White, size);
             if (swatch.Contains(hover))
                 hint = Lang.T("start.colorHint");

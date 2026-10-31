@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
+using Homestead.Simulation.Buildings;
 
 namespace Homestead.Simulation.Lockstep;
 
@@ -80,6 +81,10 @@ public sealed class ServerConnection : IAsyncDisposable
     public void Join(string game) => Send(ServerMessages.Join, new JsonObject { ["game"] = game });
 
     public void Leave() => Send(ServerMessages.Leave);
+
+    /// <summary>The own people and color (palette index) in the lobby; null: drawn when the game starts.</summary>
+    public void Choose(Civilization? people, int? color) =>
+        Send(ServerMessages.Choose, new JsonObject { ["people"] = people?.ToString(), ["color"] = color });
 
     /// <summary>The host starts the game once every seat is taken.</summary>
     public void Start() => Send(ServerMessages.Start);

@@ -77,6 +77,15 @@ public sealed class LockstepSession
     /// <summary>The last <see cref="TryStep"/> stood still: the turn's bundle has not come yet.</summary>
     public bool Waiting { get; private set; }
 
+    /// <summary>
+    /// How many turns the fastest computer is ahead of this one (from the newest input it sent, <see cref="TurnBundle.Newest"/>):
+    /// above one, this computer should step faster to catch up – the others wait for it otherwise.
+    /// </summary>
+    public long Behind => Math.Max(0, _newest - Options.DelayTurns - Turn);
+
+    /// <summary>The newest turn any player has sent an input for, as the server last told.</summary>
+    private long _newest;
+
     /// <summary>The worlds went apart: the game stops for good (<see cref="TryStep"/> returns false).</summary>
     public DesyncReport? Desync { get; private set; }
 
@@ -104,6 +113,7 @@ public sealed class LockstepSession
         {
             var bundle = _codec.DecodeBundle(message);
             _bundles[bundle.Turn] = bundle.Commands;
+            _newest = Math.Max(_newest, bundle.Newest);
             Compare(bundle.Checks ?? []);
         }
         if (Desync is not null)

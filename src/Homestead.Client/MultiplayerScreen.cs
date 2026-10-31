@@ -58,7 +58,16 @@ public sealed class MultiplayerScreen : IDisposable
     private ServerConnection? _connection;
 
     private IReadOnlyList<(string Id, string Name, string Host, int Seats, int Taken)> _games = [];
-    private (string Name, int Host, int You, IReadOnlyList<(int Player, string? Name)> Seats)? _lobby;
+    /// <summary>A seat of the lobby: the player it is, who took it (null: free), the people and color chosen (null: drawn).</summary>
+    private sealed record Seat(int Player, string? Name, Civilization? People, int? Color);
+
+    /// <summary>The lobby as the server tells it: the colors taken include the computer players' fixed ones.</summary>
+    private sealed record Lobby(string Name, int Host, int You, IReadOnlyList<Seat> Seats, IReadOnlySet<int> Colors);
+
+    private Lobby? _lobby;
+
+    /// <summary>The order a click on the own people goes through: drawn, then every people.</summary>
+    private static readonly Civilization?[] PeopleChoices = [null, .. Enum.GetValues<Civilization>().Cast<Civilization?>()];
     /// <summary>A note under the list: what went wrong, or what is waited for.</summary>
     private string _status = "";
     private bool _statusIsProblem;
@@ -102,6 +111,15 @@ public sealed class MultiplayerScreen : IDisposable
         _name = "Capture";
         _server = server;
         Connect();
+    }
+
+    /// <summary>For capture runs: a lobby as a joined player sees it, without a server.</summary>
+    public void ShowSampleLobby()
+    {
+        _step = Step.Lobby;
+        _lobby = new Lobby("Spiel von Anna", Host: 0, You: 2,
+            [new Seat(0, "Anna", Civilization.Roman, 3), new Seat(2, "Ben", Civilization.Amazon, 7), new Seat(3, null, null, null)], new HashSet<int> { 3, 5, 7 });
+        Status(Lang.T("multiplayer.waiting"));
     }
 
     /// <summary>The game the host started (after <see cref="MultiplayerAction.Started"/>).</summary>
@@ -219,8 +237,19 @@ public sealed class MultiplayerScreen : IDisposable
                     ToBrowse();
                     break;
                 }
-                if (_lobby is { } lobby && lobby.Host == lobby.You && Full && Click(SecondButton))
+                if (_lobby is not { } lobby)
+                    break;
+                if (lobby.Host == lobby.You && Full && Click(SecondButton))
                     _connection!.Start();
+                // The own seat: a click on the people or the color takes the next one (free colors only).
+                int own = lobby.Seats.ToList().FindIndex(s => s.Player == lobby.You);
+                if (own >= 0 && own < VisibleRows && lobby.Seats[own] is var seat)
+                {
+                    if (Click(PeopleBox(own)))
+                        _connection!.Choose(PeopleChoices[(Array.IndexOf(PeopleChoices, seat.People) + 1) % PeopleChoices.Length], seat.Color);
+                    if (Click(ColorBox(own)))
+                        _connection!.Choose(seat.People, NextColor(seat.Color, lobby.Colors));
+                }
                 break;
         }
         return MultiplayerAction.None;
@@ -229,6 +258,18 @@ public sealed class MultiplayerScreen : IDisposable
     private bool CanConnect => _name.Trim().Length > 0 && Uri.TryCreate(_server.Trim(), UriKind.Absolute, out var uri) && uri.Scheme is "ws" or "wss";
 
     private bool Full => _lobby is { } lobby && lobby.Seats.All(s => s.Name is not null);
+
+    private Rectangle PeopleBox(int index) => new(Row(index).X + 232, Row(index).Y + 2, 112, RowHeight - 8);
+
+    private Rectangle ColorBox(int index) => new(Row(index).Right - 28, Row(index).Y + 4, 22, 22);
+
+    /// <summary>The color after <paramref name="color"/> among those nobody else has (null: drawn, then the palette in order).</summary>
+    private static int? NextColor(int? color, IReadOnlySet<int> taken)
+    {
+        var choices = new int?[] { null }.Concat(Enumerable.Range(0, PlayerColors.Palette.Length).Where(c => c == color || !taken.Contains(c)).Cast<int?>())
+            .ToArray();
+        return choices[(Array.IndexOf(choices, color) + 1) % choices.Length];
+    }
 
     private void Connect()
     {
@@ -294,12 +335,15 @@ public sealed class MultiplayerScreen : IDisposable
                     break;
                 case ServerMessages.Lobby:
                     _step = Step.Lobby;
-                    _lobby = (message["name"]!.GetValue<string>(), message["host"]!.GetValue<int>(), message["you"]!.GetValue<int>(),
-                        (message["seats"] as JsonArray ?? []).OfType<JsonObject>()
-                            .Select(s => (s["player"]!.GetValue<int>(), s["name"]?.GetValue<string>())).ToArray());
-                    Status(Full ? Lang.T(_lobby.Value.Host == _lobby.Value.You ? "multiplayer.allThere" : "multiplayer.hostStarts")
+                    _lobby = new Lobby(message["name"]!.GetValue<string>(), message["host"]!.GetValue<int>(), message["you"]!.GetValue<int>(),
+                        (message["seats"] as JsonArray ?? []).OfType<JsonObject>().Select(s => new Seat(s["player"]!.GetValue<int>(),
+                            s["name"]?.GetValue<string>(),
+                            Enum.TryParse<Civilization>(s["people"]?.GetValue<string>(), out var people) ? people : null,
+                            s["color"]?.GetValue<int>())).ToArray(),
+                        (message["colors"] as JsonArray ?? []).Select(c => c!.GetValue<int>()).ToHashSet());
+                    Status(Full ? Lang.T(_lobby.Host == _lobby.You ? "multiplayer.allThere" : "multiplayer.hostStarts")
                         : Lang.T("multiplayer.waiting"));
-                    if (_automatic is not null && Full && _lobby.Value.Host == _lobby.Value.You)
+                    if (_automatic is not null && Full && _lobby.Host == _lobby.You)
                         connection.Start();
                     break;
                 case ServerMessages.Closed:
@@ -364,13 +408,30 @@ public sealed class MultiplayerScreen : IDisposable
             case Step.Lobby when _lobby is { } lobby:
                 for (int index = 0; index < Math.Min(lobby.Seats.Count, VisibleRows); index++)
                 {
-                    var (player, name) = lobby.Seats[index];
+                    var (player, name, people, color) = lobby.Seats[index];
                     var row = Row(index);
+                    bool own = player == lobby.You;
                     string who = name is null ? Lang.T("multiplayer.free")
-                        : name + (player == lobby.Host ? Lang.T("multiplayer.host") : "") + (player == lobby.You ? Lang.T("start.you") : "");
+                        : name + (player == lobby.Host ? Lang.T("multiplayer.host") : "") + (own ? Lang.T("start.you") : "");
                     Write(batch, font, Lang.T("start.player", player + 1), row.X + 8, row.Y + 7, Gold, 14);
-                    Write(batch, font, Shorten(font, who, row.Width - 120, 14), row.X + 110, row.Y + 7, name is null ? Dim : Text, 14);
+                    Write(batch, font, Shorten(font, who, 140, 14), row.X + 86, row.Y + 7, name is null ? Dim : own ? Gold : Text, 14);
+                    // People and color: the own ones to click through, the others' as chosen.
+                    var peopleBox = PeopleBox(index);
+                    bool lit = own && peopleBox.Contains(hover);
+                    if (own)
+                        batch.Draw(pixel, ToScreen(peopleBox), (lit ? Gold * 0.25f : Color.Black * 0.35f));
+                    string peopleName = people is { } chosen ? Lang.T("peoples." + chosen) : Lang.T("start.randomPeople");
+                    Write(batch, font, Shorten(font, peopleName, peopleBox.Width - 8, 12), peopleBox.X + 4, peopleBox.Y + 6,
+                        lit ? Gold : people is null ? Dim : Text, 12);
+                    var swatch = ColorBox(index);
+                    batch.Draw(pixel, ToScreen(swatch), own && swatch.Contains(hover) ? Gold : Color.Black);
+                    var inner = new Rectangle(swatch.X + 2, swatch.Y + 2, swatch.Width - 4, swatch.Height - 4);
+                    batch.Draw(pixel, ToScreen(inner), color is { } c ? PlayerColors.Palette[c] : new Color(60, 55, 50));
+                    if (color is null)
+                        WriteCentered(batch, font, "?", inner, Text, 12);
                 }
+                if (lobby.Seats.Any(s => s.Player == lobby.You))
+                    Paragraph(batch, font, Lang.T("multiplayer.chooseHint"), Row(Math.Min(lobby.Seats.Count, VisibleRows)).Y + 8, Dim, 11);
                 if (lobby.Host == lobby.You)
                     TextButton.Draw(batch, pixel, font, ToScreen(SecondButton), Lang.T("multiplayer.start"), cursor, enabled: Full, size: Px(13));
                 break;

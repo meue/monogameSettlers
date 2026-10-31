@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Homestead.Server;
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Commands;
 using Homestead.Simulation.Lockstep;
 using Homestead.Simulation.Map.Generation;
@@ -159,6 +160,32 @@ public class ServerTests : IAsyncLifetime
         client.ListGames();
         await client.WaitForAsync([ServerMessages.Games], Wait);
         Assert.True(client.IsOpen);
+    }
+
+    [Fact]
+    public async Task A_player_chooses_people_and_color_in_the_lobby()
+    {
+        await using var host = await Connect("Anna");
+        host.Create("Test", Setup() with { Players = [new PlayerSetup(Human: true, Color: 3), new PlayerSetup(Color: 5), new PlayerSetup(Human: true)] });
+        string id = (await host.WaitForAsync([ServerMessages.Lobby], Wait))["game"]!.GetValue<string>();
+        await using var guest = await Connect("Ben");
+        guest.Join(id);
+        var lobby = await guest.WaitForAsync([ServerMessages.Lobby], Wait);
+        // Taken: the host's and the computer player's colors.
+        Assert.Equal([3, 5], lobby["colors"]!.AsArray().Select(c => c!.GetValue<int>()).Order());
+
+        guest.Choose(Civilization.Amazon, 5);
+        Assert.Equal("the color is taken", (await guest.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
+        guest.Choose(Civilization.Amazon, 7);
+        JsonObject? seat = null;
+        for (int i = 0; i < 5 && seat?["color"] is null; i++)
+            seat = (await guest.WaitForAsync([ServerMessages.Lobby], Wait))["seats"]!.AsArray().OfType<JsonObject>().Single(s => s["player"]!.GetValue<int>() == 2);
+        Assert.Equal(("Amazon", 7), (seat!["people"]!.GetValue<string>(), seat["color"]!.GetValue<int>()));
+
+        host.Start();
+        var setup = GameSetup.FromJson((await guest.WaitForAsync([ServerMessages.Started], Wait))["setup"]!.ToJsonString());
+        Assert.Equal((Civilization.Amazon, 7), (setup.Players[2].People!.Value, setup.Players[2].Color!.Value));
+        Assert.Equal(Civilization.Amazon, setup.Start(setup.Map.Open("")).World.PeopleOf(2));
     }
 
     [Fact]
