@@ -2,7 +2,7 @@
 
 Privater Nachbau von „Die Siedler 3" in MonoGame/C#. Ziele, Roadmap: [docs/PROJEKT.md](docs/PROJEKT.md).
 Kommunikation Deutsch; Code und Kommentare Englisch.
-Spieltexte nie im Code: `data/lang/de.json` und `en.json` (verschachtelt, Schlüssel mit Punkten, Platzhalter `{0}`), Zugriff `Lang.T("schlüssel", args)`
+Spieltexte nie im Code: `data/lang/de.json`, `en.json` und `pl.json` (verschachtelt, Schlüssel mit Punkten, Platzhalter `{0}`), Zugriff `Lang.T("schlüssel", args)`
 im Client; Namen aus Daten nach ID (`buildings.<name>`, `goods.<GOOD>`, `peoples.<People>`, `soldiers.types.*`, `spells.<Kind>`, `events.texts.<id>`,
 `ai.characters/traits.*`, `panel.tabs/menus.*`, `buildingStatus.*`). Fehlt Englisch → Deutsch → Schlüssel (Konsole „Missing text“). `LanguageTests`:
 gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Daten-ID. Entwickler-Hinweise (`_message`, Fenstertitel, Konsole) englisch, unübersetzt.

@@ -5,8 +5,8 @@ using Homestead.Simulation.Buildings;
 namespace Homestead.Client;
 
 /// <summary>
-/// The texts of the game in the chosen language (<see cref="DisplaySettings.Language"/>): <c>data/lang/de.json</c> and
-/// <c>en.json</c>, nested objects whose keys join with dots (<c>title.singlePlayer</c>); placeholders <c>{0}</c>, …
+/// The texts of the game in the chosen language (<see cref="DisplaySettings.Language"/>): <c>data/lang/de.json</c>,
+/// <c>en.json</c> and <c>pl.json</c>, nested objects whose keys join with dots (<c>title.singlePlayer</c>); placeholders <c>{0}</c>, …
 /// as in <see cref="string.Format(IFormatProvider, string, object[])"/>, numbers in the language's culture. A text
 /// missing in the language comes from German, else the key itself shows (and is reported once on the console).
 /// Data names have keys from their ids: <c>buildings.&lt;name&gt;</c>, <c>goods.&lt;GOOD&gt;</c>, <c>peoples.&lt;People&gt;</c>, …
@@ -18,7 +18,12 @@ public static class Lang
 
     public static Language Current { get; private set; } = Language.German;
 
-    public static CultureInfo Culture => Current == Language.English ? CultureInfo.GetCultureInfo("en-US") : CultureInfo.GetCultureInfo("de-DE");
+    public static CultureInfo Culture => CultureInfo.GetCultureInfo(Current switch
+    {
+        Language.English => "en-US",
+        Language.Polish => "pl-PL",
+        _ => "de-DE",
+    });
 
     /// <summary>The language for all texts from now on; numbers and dates follow it (the thread's culture).</summary>
     public static void Use(Language language)
@@ -28,7 +33,26 @@ public static class Lang
     }
 
     /// <summary>The file name of a language in <c>data/lang</c>.</summary>
-    public static string Code(Language language) => language == Language.English ? "en" : "de";
+    public static string Code(Language language) => language switch
+    {
+        Language.English => "en",
+        Language.Polish => "pl",
+        _ => "de",
+    };
+
+    /// <summary>The language of a file name / <c>HOMESTEAD_LANGUAGE</c> value (<see cref="Code"/>); unknown: German.</summary>
+    public static Language Parse(string? code) => Enum.GetValues<Language>().FirstOrDefault(l => Code(l) == code);
+
+    /// <summary>The language's column in the original's text tables (GFX files 07–09): 0 German, 1 English, 4 Polish.</summary>
+    public static int TextIndex(Language language) => language switch
+    {
+        Language.English => 1,
+        Language.Polish => 4,
+        _ => 0,
+    };
+
+    /// <summary>The Windows code page the original stores the language's texts in.</summary>
+    public static int CodePage(Language language) => language == Language.Polish ? 1250 : 1252;
 
     /// <summary>The text of the key.</summary>
     public static string T(string key)

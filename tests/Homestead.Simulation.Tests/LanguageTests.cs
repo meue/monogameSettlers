@@ -6,12 +6,12 @@ using Homestead.Simulation.Magic;
 namespace Homestead.Simulation.Tests;
 
 /// <summary>
-/// The texts in <c>data/lang</c> (read by the client's <c>Lang</c>): both languages complete and alike, every key the
+/// The texts in <c>data/lang</c> (read by the client's <c>Lang</c>): all languages complete and alike, every key the
 /// client names literally there, and every id of the data that gets its name from them.
 /// </summary>
 public partial class LanguageTests
 {
-    private static readonly string[] Languages = ["de", "en"];
+    private static readonly string[] Languages = ["de", "en", "pl"];
 
     private static Dictionary<string, string> Load(string language)
     {
@@ -38,18 +38,21 @@ public partial class LanguageTests
         JsonDocument.Parse(File.ReadAllText(Path.Combine(BuildingCatalog.DefaultDataDirectory, file))).RootElement;
 
     [Fact]
-    public void Both_languages_have_the_same_texts_with_the_same_placeholders()
+    public void All_languages_have_the_same_texts_with_the_same_placeholders()
     {
         var german = Load("de");
-        var english = Load("en");
-        Assert.Empty(german.Keys.Except(english.Keys));
-        Assert.Empty(english.Keys.Except(german.Keys));
-        foreach (var (key, text) in german)
+        foreach (var language in Languages.Where(l => l != "de"))
         {
-            var placeholders = Placeholder().Matches(text).Select(m => m.Value).Order().Distinct();
-            Assert.True(placeholders.SequenceEqual(Placeholder().Matches(english[key]).Select(m => m.Value).Order().Distinct()),
-                $"{key}: placeholders differ");
-            Assert.False(string.IsNullOrWhiteSpace(english[key]), $"{key}: empty");
+            var other = Load(language);
+            Assert.Empty(german.Keys.Except(other.Keys));
+            Assert.Empty(other.Keys.Except(german.Keys));
+            foreach (var (key, text) in german)
+            {
+                var placeholders = Placeholder().Matches(text).Select(m => m.Value).Order().Distinct();
+                Assert.True(placeholders.SequenceEqual(Placeholder().Matches(other[key]).Select(m => m.Value).Order().Distinct()),
+                    $"{language} {key}: placeholders differ");
+                Assert.False(string.IsNullOrWhiteSpace(other[key]), $"{language} {key}: empty");
+            }
         }
     }
 

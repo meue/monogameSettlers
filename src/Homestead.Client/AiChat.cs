@@ -169,7 +169,7 @@ public sealed partial class AiChat
         string situation = AiSituation.Describe(world, 0);
         var voices = world.AiPlayers.Where(ai => IsVoice(world, ai.Player))
             .Select(ai => $"- player {ai.Player + 1}: {_characters.GetValueOrDefault(ai.Character.Id, _characters["standard"])}");
-        string request = $"Language: {(Lang.Current == Language.English ? "English" : "German")}\n" +
+        string request = $"Language: {Lang.Current}\n" +
                          $"Computer players and how they talk:\n{string.Join("\n", voices)}\n" +
                          $"<situation>\n{situation}\n</situation>";
         if (_happenings.Count > 0)

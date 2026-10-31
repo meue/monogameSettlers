@@ -21,9 +21,9 @@ string? Option(string name)
 }
 
 string? capture = Option("--capture");
-// HOMESTEAD_LANGUAGE=de|en overrides the settings (capture runs in either language).
+// HOMESTEAD_LANGUAGE=de|en|pl overrides the settings (capture runs in either language).
 Lang.Use(Environment.GetEnvironmentVariable("HOMESTEAD_LANGUAGE") is { } language
-    ? language == "en" ? Language.English : Language.German
+    ? Lang.Parse(language)
     : DisplaySettings.Load().Language);
 // The installation is checked on every start; without a valid one the dialog asks for it (capture runs just fail,
 // unless HOMESTEAD_CAPTURE_DIALOG captures the dialog too). It runs as a process of its own: a second game window

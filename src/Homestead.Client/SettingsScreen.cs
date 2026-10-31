@@ -90,7 +90,7 @@ public sealed class SettingsScreen : IDisposable
             Display("hardwareCursor", OnOff, d => d.HardwareCursor ? 1 : 0, (d, v) => d with { HardwareCursor = v == 1 }),
             Display("fullScreen", OnOff, d => d.FullScreen ? 1 : 0, (d, v) => d with { FullScreen = v == 1 }),
             // Each language by its own name.
-            Display("language", [("Deutsch", (int)Language.German), ("English", (int)Language.English)],
+            Display("language", [("Deutsch", (int)Language.German), ("English", (int)Language.English), ("Polski", (int)Language.Polish)],
                 d => (int)d.Language, (d, v) => d with { Language = (Language)v }),
             Display("theme", Enum.GetValues<Theme>().Select(t => ("settings.display.themes." + t.ToString().ToLowerInvariant(), (int)t)).ToArray(),
                 d => (int)d.Theme, (d, v) => d with { Theme = (Theme)v }),

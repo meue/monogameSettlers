@@ -55,8 +55,8 @@ public sealed class BriefingScreen : IDisposable
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = Mouse.GetState();
 
-    /// <param name="language">Language of the text table (0 German, 1 English).</param>
-    public BriefingScreen(GraphicsDevice device, GfxDirectory gfx, GameInstallation installation, CampaignMission mission, int language,
+    /// <param name="language">Language of the text table (<see cref="Lang.TextIndex"/>).</param>
+    public BriefingScreen(GraphicsDevice device, GfxDirectory gfx, GameInstallation installation, CampaignMission mission, Language language,
         float volume)
     {
         _device = device;
@@ -82,7 +82,7 @@ public sealed class BriefingScreen : IDisposable
         _map = OriginalMap.Open(installation.FindPath(mission.Map) ?? throw new FileNotFoundException("Mission map missing", mission.Map));
         _preview = new Texture2D(device, _map.Area.Size, _map.Area.Size);
         _preview.SetData(MapOverview.Pixels(_map.Area));
-        var texts = gfx.Open(7).ReadTexts(language);
+        var texts = gfx.Open(7).ReadTexts(Lang.TextIndex(language), Lang.CodePage(language));
         _text = Clean(mission.Text < texts.Count ? texts[mission.Text] : "");
         _hint = Clean(mission.Hint < texts.Count ? texts[mission.Hint] : "");
         _labels = mission.Labels;

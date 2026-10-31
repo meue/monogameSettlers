@@ -131,8 +131,10 @@ public sealed class TitleScreen : IDisposable
             texture.SetData(bitmap.Pixels);
             return texture;
         }
+        // A language without a picture of its own (Polish) shows the English one.
+        var backgrounds = look.GetProperty("background");
         foreach (var language in Enum.GetValues<Language>())
-            _backgrounds[language] = Gui(look.GetProperty("background").GetProperty(Lang.Code(language)).GetInt32());
+            _backgrounds[language] = Gui((backgrounds.TryGetProperty(Lang.Code(language), out var index) ? index : backgrounds.GetProperty("en")).GetInt32());
         _plain = Image("plain");
         var popup = screen.GetProperty("popup");
         var popupBitmap = gfx.Open(popup[0].GetInt32()).ReadGui(popup[1].GetInt32());

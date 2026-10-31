@@ -982,7 +982,7 @@ public sealed class MapGame : Game
     private void OpenMissionSelect()
     {
         _missionSelect?.Dispose();
-        var texts = _gfx.Open(7).ReadTexts(Lang.Current == Language.German ? 0 : 1);
+        var texts = _gfx.Open(7).ReadTexts(Lang.TextIndex(Lang.Current), Lang.CodePage(Lang.Current));
         var names = Side.Missions.Select(m => m.Text < texts.Count ? MissionSelectScreen.NameOf(texts[m.Text]) : $"{m.Text}").ToArray();
         _missionSelect = new MissionSelectScreen(GraphicsDevice, _gfx, Lang.T(Side.Name), names,
             CampaignProgress.Load().Accomplished(_campaign, _campaignSide), Side.Intro is not null, Side.Outro is not null);
@@ -1056,7 +1056,7 @@ public sealed class MapGame : Game
         try
         {
             _briefing = new BriefingScreen(GraphicsDevice, _gfx, _installation, Side.Missions[mission],
-                Lang.Current == Language.German ? 0 : 1, _display.EffectsVolume / 100f);
+                Lang.Current, _display.EffectsVolume / 100f);
         }
         catch (Exception e) when (e is IOException or InvalidDataException)
         {
