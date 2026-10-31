@@ -5,6 +5,7 @@ using Homestead.Assets.Maps;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
+using Homestead.Simulation.Lockstep;
 using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map.Generation;
 
@@ -80,6 +81,11 @@ public sealed record GameSetup
     /// <summary>The game values (depletion, spell costs); null: those of <c>data/</c>.</summary>
     public GameSettings? Settings { get; init; }
 
+    /// <summary>
+    /// The program and data every computer must have (a network game's, from the server); null: not checked (a game alone).
+    /// </summary>
+    public GameFingerprint? Fingerprint { get; init; }
+
     /// <summary>What is drawn from the seed: each draw has its own random numbers, so one does not shift another.</summary>
     public enum Draw { Peoples, Positions, Colors, Characters }
 
@@ -90,8 +96,11 @@ public sealed record GameSetup
     /// hardcore players and teams as set up, a free game's goals (<see cref="ConquestGoals"/>), a computer player for every
     /// player who is not human.
     /// </summary>
+    /// <exception cref="IncompatibleGameException">This computer's program or data differ from <see cref="Fingerprint"/>.</exception>
     public GameStart Start(OriginalMap map, string? dataDirectory = null)
     {
+        if (Fingerprint is { } required && GameFingerprint.Of(dataDirectory).Differences(required) is { Count: > 0 } differences)
+            throw new IncompatibleGameException(differences);
         int count = map.Players.Count;
         var peoples = Enum.GetValues<Civilization>();
         var peopleDraw = RandomFor(Draw.Peoples);

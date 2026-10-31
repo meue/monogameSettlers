@@ -79,14 +79,25 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
   über ein Netz mit 0–3 Runden Verzögerung (überholende Nachrichten, verschiedene Geschwindigkeiten) → gleiche Prüfsumme jede Sekunde,
   gleiche Chat-Ticks; Warten ohne Server. Gegenprobe: eine Baustelle an der Sitzung vorbei → Prüfsummen weichen ab.
 
+### Versions- und Datenprüfung
+- `GameFingerprint` (`Lockstep/`): Protokoll (`CurrentProtocol`, bei jeder Änderung am Netzwerkformat erhöhen), Programmversion
+  (MinVer mit Commit, z. B. `0.5.1-alpha.0.8+98f7a9e…` – Entwicklerstände passen also nur auf demselben Commit) und SHA-256 je Datei
+  in `data/`, außer was nur der Client liest (`ClientOnly`: `lang/`, `ui.json`, `sound.json`, `settlers.json`, `ai-chat.json`,
+  `campaign.json`) – neue Datendateien zählen also automatisch mit. CRLF/LF und BOM zählen nicht (Windows-Checkout ≠ Linux sonst).
+- `Differences(andere)` nennt, was abweicht (Protokoll, Version, `data/… differs/missing`); `Data` = ein Hash über alles (für die Lobby).
+- `GameSetup.Fingerprint`: der Server trägt den des Spiels ein; `GameSetup.Start` wirft `IncompatibleGameException` mit den Abweichungen,
+  statt ein anderes Spiel zu rechnen. Allein (`null`) keine Prüfung.
+- Später im Server: Client schickt beim Verbinden seinen Fingerabdruck (JSON), Server vergleicht mit dem des Spiels und lehnt mit den
+  Abweichungen ab (Meldung im Client übersetzt).
+- Tests `GameFingerprintTests`.
+
 ## Offen – Reihenfolge
 
 ### 1. Client (vor dem Server)
 1. ~~Lokaler Spieler statt fest Spieler 0~~ – erledigt (siehe oben).
 2. ~~Gemeinsamer Spielaufbau~~ – erledigt (siehe oben); verteilen tut ihn später der Server.
 3. ~~Befehle für einen Ziel-Tick~~ – erledigt als Ziel-Zug (siehe oben).
-4. **Versions- und Datenprüfung** beim Verbinden: Hash über Programmversion und `data/` (weicht z. B. `production.json` ab, rechnet
-   der Rechner sofort ein anderes Spiel).
+4. ~~Versions- und Datenprüfung~~ – erledigt (siehe oben); den Abgleich beim Verbinden macht später der Server.
 5. **Desync-Erkennung**: alle paar Sekunden `WorldChecksum` vergleichen; bei Abweichung anhalten und melden (später: Zustand des Hosts
    übernehmen).
 6. **Im Mehrspieler sperren**: Taste I, KI-Chat, F12, Cheats; Pause und Speichern gelten für alle (als Befehl/über den Server).
