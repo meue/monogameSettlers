@@ -173,7 +173,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
 - **Maus** (`SdlMouse`, überall statt `Mouse.GetState()`; `NextFrame()` als Erstes in `Update`): Tasten aus SDL-Ereignissen (Event-Watch) statt
   aus MonoGames Abfrage je Frame – eine Taste gilt im Frame als gedrückt, wenn sie unten ist oder seit dem Frame davor gedrückt wurde (Tippen aufs
-  Trackpad geht nicht verloren; auf macOS kommt der Zwei-Finger-Klick so als rechte Taste an, Issue #6). Ohne SDL: MonoGames Zustand.
+  Trackpad geht nicht verloren; auf macOS kommt der Zwei-Finger-Klick so als rechte Taste an, Issue #6). Position aus `SDL_GetMouseState` (relativ zum Fenster; MonoGame rechnet global minus
+  Fensterposition, unter XWayland/COSMIC um den Fensterversatz falsch). Ohne SDL: MonoGames Zustand.
   SDL-Bibliothek für eigene DllImports: `SdlLibrary` (auch im Plattformordner wie `osx-arm64/`).
 - **Tasten**: Enter Chat (siehe Info-Feld), Esc bricht Platzieren/Zielen ab, sonst Pause wie P; keine Cheat-Tasten (nur `/cheats`, siehe Info-Feld);
   F Angriff aufs feindliche Militärgebäude unter der Maus, Fog of War (Sicht 1×/s, `FogLayer` blendet weich,

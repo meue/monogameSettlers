@@ -8,7 +8,9 @@ namespace Homestead.Client;
 /// press and release in between (a tap on a trackpad), and on macOS the trackpad's secondary click (two fingers)
 /// comes as a right button event, whatever the polled state says. A button counts as pressed in
 /// a frame if it is down or was pressed since the frame before, so the next frame sees it released: a click.
-/// Without SDL at hand the buttons stay MonoGame's.
+/// The position is SDL's relative to the window: MonoGame takes the global one minus the window's position, which
+/// under XWayland can be off by the window's offset on the screen (clicks shifted by the panel at the top).
+/// Without SDL at hand position and buttons stay MonoGame's.
 /// </summary>
 public static class SdlMouse
 {
@@ -20,6 +22,9 @@ public static class SdlMouse
 
     [DllImport("SDL2", EntryPoint = "SDL_AddEventWatch", CallingConvention = CallingConvention.Cdecl)]
     private static extern void SdlAddEventWatch(IntPtr filter, IntPtr userdata);
+
+    [DllImport("SDL2", EntryPoint = "SDL_GetMouseState", CallingConvention = CallingConvention.Cdecl)]
+    private static extern uint SdlGetMouseState(out int x, out int y);
 
     /// <summary>Kept alive as long as SDL may call it.</summary>
     private static EventFilter? _watch;
@@ -56,14 +61,15 @@ public static class SdlMouse
         _frame = Volatile.Read(ref _down) | pressed;
     }
 
-    /// <summary>MonoGame's mouse state (position, wheel) with this frame's buttons.</summary>
+    /// <summary>MonoGame's mouse state (wheel) with SDL's position in the window and this frame's buttons.</summary>
     public static MouseState GetState()
     {
         var state = Mouse.GetState();
         if (!_installed)
             return state;
+        SdlGetMouseState(out int x, out int y);
         ButtonState Of(int button) => (_frame & button) != 0 ? ButtonState.Pressed : ButtonState.Released;
-        return new MouseState(state.X, state.Y, state.ScrollWheelValue, Of(Left), Of(Middle), Of(Right),
+        return new MouseState(x, y, state.ScrollWheelValue, Of(Left), Of(Middle), Of(Right),
             state.XButton1, state.XButton2, state.HorizontalScrollWheelValue);
     }
 
