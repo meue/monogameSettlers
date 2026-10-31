@@ -30,12 +30,12 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
   alle geschafften und die nächste, Namen aus den Missionstexten, nach allen der Abschluss; längere Liste scrollt (Rad, Pfeile, Bildlaufleiste), öffnet bei der neuesten; Klick → Beschreibung, deren „Zurück“ wieder
   hierher, bzw. Video und danach zurück; Esc/„Zurück“ → Volkswahl). Videos über `MapGame.PlayVideo(pfad, danach)`. Laufende Mission `MissionRef` (`settlers/Roman/0`, `amazons/peoples/3`) steht im
   Spielstand (Client-Wert `mission`, Kopf `SaveInfo.Mission` – Listen zeigen „Kampagne Römer, Mission 1“).
-  Sieg/Niederlage: `World.Goals` (`MissionGoals`, nur in Missionen, mitgespeichert) prüft sekündlich für Spieler 1: kein eigenes Gebäude
+  Sieg/Niederlage: `World.Goals` (`MissionGoals`, nur in Missionen, mitgespeichert) prüft sekündlich für Spieler 1 (`MissionGoals.Player`): kein eigenes Gebäude
   (auch Baustellen) mehr, nachdem es eins gab, oder keins und keine Siedler (G06 beginnt ohne Gebäude) → verloren, kein fremdes mehr (zerstört/erobert) → gewonnen; einmal entschieden, bleibt es. Missionsspezifische Bedingungen
   aus den Texten (Vorposten halten, Goldmengen …) noch nicht.
   Freie Partien (Startscreen, auch alte Spielstände): `ConquestGoals` (`World.Goals` ist `IGameGoals`) – wer kein fertiges Militärgebäude
   (Turm, großer Turm, Burg) mehr hat, nachdem er eins hatte, ist endgültig besiegt (`IsDefeated`); seine KI denkt nicht mehr (`World` überspringt sie),
-  Siedler/Soldaten handeln nur noch von selbst. Spieler 1 besiegt → verloren, alle anderen besiegt → gewonnen (Banner mit `system.wonHint`/`lostHint`, Statistik ohne „Weiter“). Gewonnen: weiß oben „Spiel gewonnen“, Fortschritt sofort gespeichert, weiterspielen
+  Siedler/Soldaten handeln nur noch von selbst. je Spieler (`OutcomeOf`, `DecidedAt`): besiegt → verloren, alle Feinde besiegt → gewonnen; der Client zeigt das des lokalen Spielers (Banner mit `system.wonHint`/`lostHint`, Statistik ohne „Weiter“). Gewonnen: weiß oben „Spiel gewonnen“, Fortschritt sofort gespeichert, weiterspielen
   möglich; Spiel beenden → Statistik („Weiter“) → nächste Missionsbeschreibung über Missionsauswahl und Volkswahl (nach der letzten das Sieg-Video, dann die Auswahl).
   Gewonnen hebt den Fog of War auf (`FogOn`; Cheat-Wahl `_fogChosen` bleibt für die nächste Partie).
   Verloren: „Spiel verloren“, keine Befehle mehr (Auswahl, Bauen, Menüs, Tasten außer Esc/F11/F3/T/Leertaste); Kamera, Minimap, Events und Computer-Menü
@@ -186,7 +186,11 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGU
   `World.BuildSpotEffort`; Vorschau am nächsten Bauplatz; Q/E Gebäude; endet nach Platzieren, Rechtsklick bricht ab).
 - **Optionen**: `--scene map` (Standard) / `--scene walk` (Lauf-PoC); `--load <slot>` (1–8; Gelände/Objekte aus der Karte, dann Feld für Feld auf Stand);
   `--map <name>` (Standard: erste Mehrspieler-Karte; `random[:spieler[:none|mirror|repeat[:seed]]]`); `--peoples amazon,roman,…` (offene Völker,
-  Spieler i: Eintrag i mod n; sonst zufällig; Kartenvorgaben 0–3 gelten); `--characters ,general` (KI-Charakter je Spieler, Eintrag i → Spieler i+1, leer = gelost).
+  Spieler i: Eintrag i mod n; sonst zufällig; Kartenvorgaben 0–3 gelten); `--characters ,general` (KI-Charakter je Spieler, Eintrag i → Spieler i+1, leer = gelost);
+  `--player <n>` (gespielter Spieler freier Partien, 1–8, Vorgabe 1; alle anderen KI).
+- **Lokaler Spieler** (`MapGame._local`, ab 0): der Spieler dieses Rechners – Befehle, Auswahl, Fog of War (`Vision`), Minimap (weiß), Menüs,
+  Gebäude-Panel, Steuergruppen, Events, Sieg/Niederlage (`Goals.OutcomeOf`), KI-Chat (`AiChat.Player`), Startscreen („Du“, bevorzugte Farbe), Capture-Szenarien.
+  Missionen immer `MissionGoals.Player` (0); Spielstände speichern ihn (Client-Wert `player`, ältere: 0). Fürs Mehrspieler später vom Server.
 - **Ton** (`GameAudio`, nicht in Captures): Effekte aus `SND/Siedler3_00.dat` je `SoundCue` (Nummern in `data/sound.json`, am Original erkannt:
   Schwert 30, Bogen 33 – Ägypter 32 –, Speer 34, Tod 35, Amazone 113, Baum fällt 36, Gebäude fällt 93, Zaubern 75, Heilen 21, Pionier 25/1, Geologe ab
   `minAmount` 24/1–3, Aussaat Bauer 8; Tabelle `docs/formate/snd.md`; `SoundRef`: Nummer oder `{sound, variants}`), Variante zufällig, nur in Sicht (Fog), im Bild voll, außerhalb bis `hearing` halbe Bildbreiten leiser,

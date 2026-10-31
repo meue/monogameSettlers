@@ -21,22 +21,22 @@ public class MissionGoalsTests
         var first = world.PlaceBuilding(Romans["sawmill"], 1, new GridPoint(50, 50), force: true)!;
         var second = world.PlaceBuilding(Romans["lumberjack"], 2, new GridPoint(60, 30), force: true)!;
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Open, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0));
 
         world.RemoveBuilding(first);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Open, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0));
 
         world.RemoveBuilding(second);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Won, world.Goals.Outcome);
-        Assert.InRange(world.Goals.DecidedAt, 1, world.Tick);
+        Assert.Equal(MissionOutcome.Won, world.Goals.OutcomeOf(0));
+        Assert.InRange(world.Goals.DecidedAt(0), 1, world.Tick);
 
         // Decided once: losing everything afterwards changes nothing.
         foreach (var building in world.Buildings.ToList())
             world.RemoveBuilding(building);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Won, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Won, world.Goals.OutcomeOf(0));
     }
 
     [Fact]
@@ -46,11 +46,11 @@ public class MissionGoalsTests
         var own = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(20, 20), force: true)!;
         world.PlaceBuilding(Romans["sawmill"], 1, new GridPoint(50, 50), force: true);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Open, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0));
 
         world.RemoveBuilding(own);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Lost, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Lost, world.Goals.OutcomeOf(0));
     }
 
     [Fact]
@@ -68,12 +68,12 @@ public class MissionGoalsTests
         Assert.NotNull(world.Spawn(new GridPoint(20, 20), Profession.Carrier, 0));
         world.PlaceBuilding(Romans["sawmill"], 1, new GridPoint(50, 50), force: true);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Open, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0));
 
         var own = world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(25, 30), force: true)!;
         Seconds(world, 2);
         world.RemoveBuilding(own);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Lost, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Lost, world.Goals.OutcomeOf(0));
     }
 }

@@ -126,8 +126,10 @@ public sealed class StartScreen : IDisposable
     private int? _teamMenu;
     /// <summary>First player row shown when the players don't fit the table.</summary>
     private int _playerScroll;
-    /// <summary>Palette index player 1 gets (<see cref="DisplaySettings.PreferredColor"/>).</summary>
+    /// <summary>Palette index the local player gets (<see cref="DisplaySettings.PreferredColor"/>).</summary>
     private readonly int _preferredColor;
+    /// <summary>The player played here (marked as „you“); every other one is a computer player.</summary>
+    private readonly int _local;
 
     private RandomMapSettings _randomSettings = new();
     private int _randomSeed = Random.Shared.Next();
@@ -145,11 +147,13 @@ public sealed class StartScreen : IDisposable
 
     /// <param name="mapDirectory">Map directory of the installation; its first level of folders gives the category.</param>
     /// <param name="peoples">Preset peoples (command line): player i gets entry i modulo the count.</param>
-    /// <param name="preferredColor">Palette index of player 1's color.</param>
+    /// <param name="preferredColor">Palette index of the local player's color.</param>
+    /// <param name="local">The player played here (from 0).</param>
     public StartScreen(GraphicsDevice device, GfxDirectory gfx, IReadOnlyList<string> mapFiles, string mapDirectory, int selected,
-        IReadOnlyList<Civilization>? peoples, int preferredColor = 0)
+        IReadOnlyList<Civilization>? peoples, int preferredColor = 0, int local = 0)
     {
         _device = device;
+        _local = local;
         _preferredColor = Math.Clamp(preferredColor, 0, PlayerColors.Palette.Length - 1);
         _mapFiles = mapFiles;
         _entries = mapFiles.Select((file, index) =>
@@ -249,8 +253,8 @@ public sealed class StartScreen : IDisposable
         while (_peoples.Count < PlayerCount)
         {
             int player = _peoples.Count;
-            _peoples.Add(_presetPeoples is { } preset ? preset[player % preset.Count] : player == 0 ? Civilization.Roman : null);
-            _colors.Add(player == 0 ? _preferredColor : null);
+            _peoples.Add(_presetPeoples is { } preset ? preset[player % preset.Count] : player == _local ? Civilization.Roman : null);
+            _colors.Add(player == _local ? _preferredColor : null);
             _hardcore.Add(false);
             _teams.Add(0);
         }
@@ -843,8 +847,8 @@ public sealed class StartScreen : IDisposable
         {
             var left = LeftArrow(player);
             var right = RightArrow(player);
-            Write(batch, font, PlayerName(player) + (player == 0 ? Lang.T("start.you") : ""), 346, left.Y + (left.Height - size) / 2 - 1,
-                player == 0 ? HoverText : Text, size);
+            Write(batch, font, PlayerName(player) + (player == _local ? Lang.T("start.you") : ""), 346, left.Y + (left.Height - size) / 2 - 1,
+                player == _local ? HoverText : Text, size);
 
             var fixedPeople = FixedPeople(player);
             var people = fixedPeople ?? _peoples[player];

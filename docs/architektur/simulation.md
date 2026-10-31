@@ -129,7 +129,7 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
     Ziel → heim, Ladung neben den Steg. Handelsschiffe auf Fahrt nehmen keine Befehle (`HarborOf`, `CargoOf`).
 - Teams (`World.Teams`, `AreAllies`; vom Startscreen, gespeichert): Verbündete kämpfen nicht gegeneinander (`MilitaryCombat.IsEnemy`, `Attack`,
   Turmschützen, Kriegsmaschinen `IsTarget`), Feind-Zauber verschonen sie (`Magic.Affects`), Türme/Pioniere nehmen kein verbündetes Land
-  (`Claim`, `TakeLand`, `IsClaimable`), Diebe stehlen nicht bei ihnen (`Theft.IsOwn`); `ConquestGoals`: gewonnen, wenn alle Feinde besiegt sind.
+  (`Claim`, `TakeLand`, `IsClaimable`), Diebe stehlen nicht bei ihnen (`Theft.IsOwn`); `ConquestGoals`: gewonnen, wenn alle Feinde besiegt sind (Ergebnis je Spieler, `IGameGoals.OutcomeOf`/`Decide(spieler, …)`).
   Sicht geteilt: `Vision`, `Military.Sees`, `Magic.SeesBySpell` zählen das ganze Team; ein enttarnter Späher ist dem ganzen Team des Soldaten enttarnt.
 - `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
   Militärgebäude rufen nur untätige Soldaten bis `garrisonCallRadius` (100) Felder von der Tür; weiter entfernte bleiben stehen.

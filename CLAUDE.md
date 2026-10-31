@@ -37,6 +37,7 @@ Vor Arbeit an einem System die passende Datei lesen und dort nachführen (wie bi
   Menüs, Gebäude-Panel, Statistik, Auswahl/Befehle, Tasten, Optionen, Ton, Darstellung.
 - [docs/architektur/capture.md](docs/architektur/capture.md) – `--capture` und alle `HOMESTEAD_CAPTURE_…`-Variablen.
 - [docs/architektur/werkzeuge.md](docs/architektur/werkzeuge.md) – Arena (KI gegen KI), Turnier, AssetTool.
+- [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) – Lockstep-Mehrspieler: Entscheidungen, Stand (Determinismus, Befehlsschicht), offene Schritte, Regeln für neuen Code.
 
 ### Querschnittsregeln
 - Sprites nur über `SpriteLibrary` (siehe Grafik-Konventionen); Texte nur über `Lang.T` (siehe oben).

@@ -32,14 +32,14 @@ public static class DemoEconomy
     ];
 
     public static string Create(World world, BuildingCatalog catalog, GridPoint near, Random random, int carriers = 24,
-        int diggers = 0, int builders = 0)
+        int diggers = 0, int builders = 0, int player = 0)
     {
         int placed = 0;
         foreach (string name in BuildingNames)
-            if (PlaceNear(world, catalog[name], near, random) is not null)
+            if (PlaceNear(world, catalog[name], near, random, player: player) is not null)
                 placed++;
         foreach (var (name, resource) in PlacedAtResources)
-            if (NearestResource(world.Map!, near, resource) is { } spot && PlaceNear(world, catalog[name], spot, random, 2) is not null)
+            if (NearestResource(world.Map!, near, resource) is { } spot && PlaceNear(world, catalog[name], spot, random, 2, player) is not null)
                 placed++;
 
         int piles = 0;
@@ -64,7 +64,7 @@ public static class DemoEconomy
         int spawned = 0;
         foreach (var (profession, count) in new[] { (Profession.Carrier, carriers), (Profession.Digger, diggers), (Profession.Builder, builders) })
             for (int i = 0; i < count; i++)
-                if (world.Spawn(new GridPoint(near.X + random.Next(-6, 7), near.Y + random.Next(-6, 7)), profession) is not null)
+                if (world.Spawn(new GridPoint(near.X + random.Next(-6, 7), near.Y + random.Next(-6, 7)), profession, player) is not null)
                     spawned++;
 
         world.Housing.SettleStartPopulation(); // the demo's settlers have room
@@ -89,7 +89,7 @@ public static class DemoEconomy
     }
 
     /// <summary>Tries positions in growing rings around <paramref name="near"/> until the building fits.</summary>
-    public static Building? PlaceNear(World world, BuildingDefinition definition, GridPoint near, Random random, int firstRing = 6)
+    public static Building? PlaceNear(World world, BuildingDefinition definition, GridPoint near, Random random, int firstRing = 6, int player = 0)
     {
         for (int r = firstRing; r < 40; r += 2)
         for (int attempt = 0; attempt < 40; attempt++)
@@ -100,7 +100,7 @@ public static class DemoEconomy
             // Keep the protected ring free as well, so piles and doors stay reachable.
             if (definition.Protected.Any(o => !world.Map!.IsWalkable(at + o)))
                 continue;
-            if (world.PlaceBuilding(definition, 0, at) is { } building)
+            if (world.PlaceBuilding(definition, player, at) is { } building)
                 return building;
         }
         return null;

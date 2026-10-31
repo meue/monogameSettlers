@@ -25,6 +25,9 @@ public sealed partial class AiChat
     private const string Section = "aiChat";
     private const string DefaultModel = "claude-haiku-5-5";
 
+    /// <summary>The human player whose chat the computer players answer (the local player; set by the game).</summary>
+    public int Player { get; set; }
+
     private readonly AnthropicClient _client;
     private readonly string _model;
     private readonly string _effort;
@@ -83,7 +86,7 @@ public sealed partial class AiChat
     /// <summary>The own player said something: the computer players hear it (now, or after the request under way).</summary>
     public void Heard(World world)
     {
-        if (!world.AiPlayers.Any(ai => ai.Player != 0 && world.Goals?.IsDefeated(ai.Player) != true))
+        if (!world.AiPlayers.Any(ai => ai.Player != Player && world.Goals?.IsDefeated(ai.Player) != true))
             return;
         if (_running is { IsCompleted: false })
         {
@@ -167,16 +170,16 @@ public sealed partial class AiChat
     private static bool IsPlayer(World world, int player) =>
         player >= 0 && player < Math.Max(world.PlayerCount, 1) && world.Goals?.IsDefeated(player) != true;
 
-    /// <summary>A computer player still in the game (not the own player 0).</summary>
-    private static bool IsVoice(World world, int player) =>
-        player != 0 && world.AiPlayers.Any(a => a.Player == player) && world.Goals?.IsDefeated(player) != true;
+    /// <summary>A computer player still in the game (not the human, <see cref="Player"/>).</summary>
+    private bool IsVoice(World world, int player) =>
+        player != Player && world.AiPlayers.Any(a => a.Player == player) && world.Goals?.IsDefeated(player) != true;
 
     /// <param name="said">The own player wrote something (otherwise only what happened is answered).</param>
     private void Ask(World world, bool said)
     {
         // The world is read here, on the game's thread; only the request runs in the background.
         _asked = world;
-        string situation = AiSituation.Describe(world, 0);
+        string situation = AiSituation.Describe(world, Player);
         var voices = world.AiPlayers.Where(ai => IsVoice(world, ai.Player))
             .Select(ai => $"- player {ai.Player + 1}: {_characters.GetValueOrDefault(ai.Character.Id, _characters["standard"])}");
         string request = $"Language: {(Lang.Current == Language.English ? "English" : "German")}\n" +

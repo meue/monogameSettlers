@@ -64,7 +64,7 @@ public sealed record Cheat(int Player, CheatKind Kind, GridPoint At = default) :
             case CheatKind.MissionWon or CheatKind.MissionLost:
                 if (world.Goals is null)
                     return false;
-                world.Goals.Decide(Kind == CheatKind.MissionWon ? MissionOutcome.Won : MissionOutcome.Lost, world.Tick);
+                world.Goals.Decide(Player, Kind == CheatKind.MissionWon ? MissionOutcome.Won : MissionOutcome.Lost, world.Tick);
                 return true;
             default:
                 // Every computer opponent still in the game assaults the player with everything. Result: how many.

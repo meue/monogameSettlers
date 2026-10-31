@@ -13,6 +13,7 @@ using Homestead.Simulation.Buildings;
 //   --load <slot>      load the saved game of this slot (1-8) instead of a new game
 //   --characters <list> AI characters per player (ai.json characters), e.g. ,general,standard: entry i for
 //                      player i+1, empty or missing: drawn by the people's weights
+//   --player <n>       the player to play in free games (1-8, default 1); every other one is a computer player
 //   --setup            only the dialog asking for the original installation (stores it in the settings)
 string? Option(string name)
 {
@@ -67,6 +68,7 @@ using Microsoft.Xna.Framework.Game game = Option("--scene") switch
         Option("--characters")?.Split(',').Select(c => c.Trim()).ToArray(),
         startScreen: (capture is null || Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_START") is not null) && Option("--map") is null
                      && Option("--load") is null,
-        loadSlot: int.TryParse(Option("--load"), out int slot) ? slot - 1 : null),
+        loadSlot: int.TryParse(Option("--load"), out int slot) ? slot - 1 : null,
+        localPlayer: int.TryParse(Option("--player"), out int player) ? player - 1 : 0),
 };
 game.Run();
