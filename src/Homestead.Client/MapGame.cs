@@ -792,6 +792,8 @@ public sealed class MapGame : Game
     {
         _info.Clear();
         _chat.Close();
+        if (_world.Multiplayer)
+            _cheats.IsOpen = false;
         if (_aiChat is not null)
             _aiChat.Player = _local;
         _chatShown = _world.Chat.Messages.Count;
@@ -1503,7 +1505,7 @@ public sealed class MapGame : Game
         if (_paused)
             elapsed = TimeSpan.Zero;
         // F12 held: the game runs at FastForward times its speed.
-        if (_captureDirectory is null && !_chat.IsOpen && Keyboard.GetState().IsKeyDown(Keys.F12))
+        if (_captureDirectory is null && !_chat.IsOpen && !_world.Multiplayer && Keyboard.GetState().IsKeyDown(Keys.F12))
             elapsed *= FastForward;
         // Never more than MaxBacklog behind: a slow machine would otherwise fall further back every frame.
         _accumulator = TimeSpan.FromTicks(Math.Min((_accumulator + elapsed).Ticks, MaxBacklog.Ticks));
@@ -1524,7 +1526,7 @@ public sealed class MapGame : Game
         _perf.EndSimulation();
         NoteOutcome();
         NoteNews(gameTime.ElapsedGameTime);
-        if (_aiChat is not null)
+        if (_aiChat is not null && !_world.Multiplayer)
             foreach (string note in _aiChat.Apply(_world, IssueReported))
                 _info.Add(note, _now);
         if (_audio is not null && _world.SoundCues is { } cues)
@@ -2151,7 +2153,7 @@ public sealed class MapGame : Game
             else
                 Issue(new Say(_local, line), said =>
                 {
-                    if (said is not null)
+                    if (said is not null && !_world.Multiplayer)
                         _aiChat?.Heard(_world);
                 });
         }
@@ -2170,6 +2172,11 @@ public sealed class MapGame : Game
     private void RunCommand(string line)
     {
         string name = line.Split(' ', 2)[0].ToLowerInvariant();
+        if (_world.Multiplayer)
+        {
+            _info.Add(Lang.T("chat.noCheatsMultiplayer"), _now);
+            return;
+        }
         if (!_display.Cheats)
         {
             var opponents = _world.AiPlayers.Where(ai => ai.Player != _local && !_world.AreAllies(_local, ai.Player) && _world.Goals?.IsDefeated(ai.Player) != true)
@@ -2260,15 +2267,17 @@ public sealed class MapGame : Game
             _placeIndex = (_placeIndex + 1) % _placeable.Length;
         if (_placing && Pressed(Keys.Q))
             _placeIndex = (_placeIndex - 1 + _placeable.Length) % _placeable.Length;
-        if (Pressed(Keys.PageDown))
+        // Alone only: another map, the own AI, the computer players' decisions.
+        bool alone = !_world.Multiplayer;
+        if (alone && Pressed(Keys.PageDown))
             LoadMap(_mapIndex + 1);
-        if (Pressed(Keys.PageUp))
+        if (alone && Pressed(Keys.PageUp))
             LoadMap(_mapIndex - 1);
         if (Pressed(Keys.B))
             _showBlocked = !_showBlocked;
         if (Pressed(Keys.O))
             _showObjects = !_showObjects;
-        if (Pressed(Keys.I))
+        if (alone && Pressed(Keys.I))
         {
             if (_ownAi is null && _playerCatalogs.Count > 0)
             {
@@ -2283,7 +2292,7 @@ public sealed class MapGame : Game
                 _message = "you play again";
             }
         }
-        if (Pressed(Keys.L))
+        if (alone && Pressed(Keys.L))
         {
             foreach (var ai in _world.AiPlayers.OrderBy(a => a.Player))
             {

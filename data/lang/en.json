@@ -639,6 +639,7 @@
   "chat": {
     "line": "{0}: {1}",
     "aiFailed": "The computer players stay silent ({0}).",
+    "noCheatsMultiplayer": "No cheats in multiplayer games.",
     "noCheats": "No cheating here!",
     "attackMe": "{0} computer opponents attack you with everything they have.",
     "unknown": "Unknown command {0}. Commands: {1}"

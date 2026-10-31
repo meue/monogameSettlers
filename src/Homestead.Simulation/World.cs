@@ -67,6 +67,12 @@ public sealed partial class World
 
     public bool IsHardcore(int player) => HardcorePlayers.Contains(player);
 
+    /// <summary>
+    /// More than one human plays (set by <see cref="GameSetup.Start"/>): cheats and the AI chat's replies do nothing, on every
+    /// computer alike; the client also leaves out what only works alone (own AI, fast forward).
+    /// </summary>
+    public bool Multiplayer { get; set; }
+
     /// <summary>Team per player (index = player; set before the game starts): 1–4, 0 or missing: no team, against everybody.</summary>
     public List<int> Teams { get; } = new();
 

@@ -13,6 +13,7 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
   `settings.json` der einzelnen Spieler.
 - **Computergegner bleiben**: Sie laufen deterministisch auf jedem Rechner mit, kein Netzwerkaufwand (auch gemischt, z. B. 2 Menschen gegen 2 KIs).
 - **Im Mehrspieler vorerst aus**: eigene KI (Taste I), KI-Chat über Claude (API-Schlüssel, Netzwerkantworten), Vorspulen (F12), Cheats.
+- **Pause bleibt** (Spieler wollen sie): kommt später als gemeinsame Pause für alle, nicht gesperrt.
 
 ## Erledigt
 
@@ -106,6 +107,17 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
 - Tests: `LockstepTests` (Laggy-Netz: jede Sekunde verglichen, keine Abweichung; absichtlich veränderte Welt → beide Rechner melden Zug 50,
   Teil `piles`, und halten an).
 
+### Im Mehrspieler gesperrt
+- `World.Multiplayer` (mehr als ein Mensch, gesetzt von `GameSetup.Start`, mitgespeichert): `Cheat` wirkt nicht (Ergebnis null), `AiReply`
+  auch nicht (false) – auf jedem Rechner gleich, also auch gegen gefälschte Befehle.
+- Client bei `Multiplayer`: kein F12, kein KI-Chat (weder Fragen noch Antworten), keine Chat-Befehle (Info `chat.noCheatsMultiplayer`),
+  Cheat-Menü zu, keine Tasten I (eigene KI – liefe nur auf diesem Rechner: Desync), L (Entscheidungen der Gegner-KIs), Bild↑/↓
+  (andere Karte lokal).
+- Pause bleibt bewusst (siehe Entscheidungen). Heute hält die Pause nur den eigenen Rechner an; mit Sitzung warten die anderen dann
+  aufs Bündel (kein Desync, aber Stillstand) – die gemeinsame Pause gehört in die Client-Anbindung. Achtung: `ApplyWhilePaused` darf es
+  im Mehrspieler nicht geben (wendet Befehle sofort an → Desync).
+- Test: `GameSetupTests.With_more_than_one_human_cheats_and_the_ai_chat_do_nothing`.
+
 ## Offen – Reihenfolge
 
 ### 1. Client (vor dem Server)
@@ -114,7 +126,7 @@ Stand 31.10.2026, Branch `feature/lockstep` (abgezweigt von `fix/mac-trackpad-cl
 3. ~~Befehle für einen Ziel-Tick~~ – erledigt als Ziel-Zug (siehe oben).
 4. ~~Versions- und Datenprüfung~~ – erledigt (siehe oben); den Abgleich beim Verbinden macht später der Server.
 5. ~~Desync-Erkennung~~ – erledigt (siehe oben); Meldung im Client und Übernahme des Host-Zustands später.
-6. **Im Mehrspieler sperren**: Taste I, KI-Chat, F12, Cheats; Pause und Speichern gelten für alle (als Befehl/über den Server).
+6. ~~Im Mehrspieler sperren~~ – erledigt (siehe oben). Offen für später: gemeinsame Pause, Speichern für alle (über den Server).
 
 ### 2. Server
 - Relay in Go (angedacht) oder C#: Lobby, Spielaufbau verteilen, Befehle je Tick sammeln und an alle schicken, Prüfsummen vergleichen.

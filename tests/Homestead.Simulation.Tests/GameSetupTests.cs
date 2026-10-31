@@ -70,6 +70,24 @@ public class GameSetupTests
     }
 
     [Fact]
+    public void With_more_than_one_human_cheats_and_the_ai_chat_do_nothing()
+    {
+        var alone = Start(Setup()).World;
+        Assert.False(alone.Multiplayer);
+        var start = Start(Setup() with { Players = [new PlayerSetup(Human: true), new PlayerSetup(Human: true), new PlayerSetup()] });
+        var world = start.World;
+        Assert.True(world.Multiplayer);
+        var at = world.Buildings.First(b => b.Player == 0).Door;
+        int settlers = world.Settlers.Count;
+        var cheat = world.Commands.Issue(new Commands.Cheat(0, Commands.CheatKind.Swordsmen, at));
+        var reply = world.Commands.Issue(new Commands.AiReply(2, Commands.AiReplyKind.Assault, 0));
+        world.Step();
+        Assert.Equal(settlers, world.Settlers.Count);
+        Assert.Contains(world.Commands.Applied, a => a.Command == cheat && a.Result is null);
+        Assert.Contains(world.Commands.Applied, a => a.Command == reply && a.Result is false);
+    }
+
+    [Fact]
     public void Each_draw_has_its_own_random_numbers()
     {
         // Other start positions do not change the peoples drawn.

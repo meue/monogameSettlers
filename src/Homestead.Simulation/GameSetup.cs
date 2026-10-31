@@ -116,6 +116,7 @@ public sealed record GameSetup
             positions: positions, production: settings.Apply(production), magic: settings.Apply(magic));
         world.Teams.AddRange(Players.Take(count).Select(p => p.Team));
         world.Goals = new ConquestGoals();
+        world.Multiplayer = Players.Count(p => p.Human) > 1;
         var characters = RandomFor(Draw.Characters);
         for (int player = 0; player < report.Catalogs.Count; player++)
             if (!Of(player).Human)

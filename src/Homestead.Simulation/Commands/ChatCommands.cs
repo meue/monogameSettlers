@@ -16,7 +16,7 @@ public sealed record AiReply(int Player, AiReplyKind Kind, int Target, long Tick
 {
     internal override object? Apply(World world)
     {
-        if (world.AiPlayers.FirstOrDefault(a => a.Player == Player) is not { } ai)
+        if (world.Multiplayer || world.AiPlayers.FirstOrDefault(a => a.Player == Player) is not { } ai)
             return false;
         switch (Kind)
         {
@@ -35,11 +35,13 @@ public sealed record AiReply(int Player, AiReplyKind Kind, int Target, long Tick
 
 public enum AiReplyKind { Challenge, Assault, Truce, Help }
 
-/// <summary>Cheats (only with cheats on; never in a multiplayer game).</summary>
+/// <summary>Cheats (only with cheats on; in a multiplayer game they do nothing, result null).</summary>
 public sealed record Cheat(int Player, CheatKind Kind, GridPoint At = default) : GameCommand(Player)
 {
     internal override object? Apply(World world)
     {
+        if (world.Multiplayer)
+            return null;
         int Spawn(int count, Func<Settler?> spawn) => Enumerable.Range(0, count).Count(_ => spawn() is not null);
         switch (Kind)
         {

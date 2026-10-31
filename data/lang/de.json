@@ -639,6 +639,7 @@
   "chat": {
     "line": "{0}: {1}",
     "aiFailed": "Die Computergegner schweigen ({0}).",
+    "noCheatsMultiplayer": "Im Mehrspieler gibt es keine Cheats.",
     "noCheats": "Hier wird nicht gecheatet!",
     "attackMe": "{0} Computergegner greifen dich mit allem an, was sie haben.",
     "unknown": "Unbekannter Befehl {0}. Befehle: {1}"
