@@ -8,6 +8,7 @@ using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Commands;
 using Homestead.Simulation.Events;
+using Homestead.Simulation.Lockstep;
 using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Map.Generation;
@@ -59,6 +60,17 @@ public sealed class MapGame : Game
     private TitleScreen? _title;
     /// <summary>The settings screen, over the title screen while open.</summary>
     private SettingsScreen? _settingsScreen;
+    /// <summary>Multiplayer before the game (server, games, lobby), over the title screen while open.</summary>
+    private MultiplayerScreen? _multiplayerScreen;
+    /// <summary>The start screen setting up a multiplayer game to open, over the multiplayer screen.</summary>
+    private StartScreen? _multiplayerCreate;
+    /// <summary>A multiplayer game: the connection to the server and the lockstep session stepping the world (null alone).</summary>
+    private ServerConnection? _connection;
+    private LockstepSession? _session;
+    /// <summary>Real seconds the session has been waiting for the other players' turn.</summary>
+    private double _waitingFor;
+    /// <summary>The desync or the lost connection told already.</summary>
+    private bool _networkTroubleTold;
     /// <summary>The campaign's choice of people, over the title screen while open.</summary>
     private CampaignScreen? _campaignScreen;
     /// <summary>A video playing over the title screen (a campaign's intro or outro).</summary>
@@ -406,6 +418,8 @@ public sealed class MapGame : Game
         _spriteBatch = new SpriteBatch(GraphicsDevice);
         Window.TextInput += (_, e) =>
         {
+            if (_multiplayerScreen is { } multiplayer && _multiplayerCreate is null)
+                multiplayer.Type(e.Character, e.Key);
             if (!_chat.IsOpen)
                 return;
             if (e.Key == Keys.Back)
@@ -472,7 +486,7 @@ public sealed class MapGame : Game
         ControlGroups.PortraitSize = s => SettlerRenderer.TypeOf(s) is { } type ? PortraitsOf(_settlerRenderer.PeopleOf(s)).SizeOf(type) : Portraits.Size;
         ControlGroups.DrawShip = _buildingInfo.DrawShipIcon;
         _font = new UiFont();
-        if (_showStartScreen)
+        if (_showStartScreen || CaptureServer is not null)
         {
             // HOMESTEAD_CAPTURE_START=<category>: the start screen's picture shows this tab (3: random maps);
             // =intro: a picture of the game's intro video, video.png;
@@ -490,11 +504,21 @@ public sealed class MapGame : Game
                 || captureStart?.StartsWith("missionCd") == true;
             if (captureStart?.StartsWith("loading") == true)
                 _loading = new LoadingScreen(GraphicsDevice, _gfx, captureStart.Split(':') is [_, var campaign] ? campaign : null, _display.Theme);
-            else if (captureStart is null or "intro" || captureStart.StartsWith("title") || captureStart.StartsWith("settings") || campaignCapture)
+            else if (captureStart is null or "intro" || captureStart.StartsWith("title") || captureStart.StartsWith("settings")
+                     || captureStart == "multiplayer" || campaignCapture || CaptureServer is not null)
             {
                 _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
+                if (captureStart == "multiplayer")
+                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+                // HOMESTEAD_CAPTURE_SERVER=<ws://…/ws>: a multiplayer game against a computer player through that server.
+                if (CaptureServer is { } server)
+                {
+                    _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
+                    _multiplayerScreen.Automate(server, SoloSetup(_randomMap is { } random ? MapChoice.Generated(random.Settings, random.Seed)
+                        : MapChoice.Generated(new RandomMapSettings(), 1), 2, local: 0) with { Seed = 1 });
+                }
                 // The game's intro first (unless switched off); a click or its end leads to the title screen.
-                if (captureStart is null && _display.IntroVideo || captureStart == "intro")
+                if (captureStart is null && CaptureServer is null && _display.IntroVideo || captureStart == "intro")
                     PlayVideo(IntroVideo, () => _title?.Resume());
                 if (campaignCapture)
                 {
@@ -570,6 +594,15 @@ public sealed class MapGame : Game
             return;
         _startScreen.Dispose();
         _startScreen = null;
+        int local = _chosenLocal < choice.Players.Count ? _chosenLocal : 0;
+        var setup = ChosenSetup(choice, local);
+        PlayerColors.Assign(setup.Players.Select(p => p.Color).ToArray(), setup.RandomFor(GameSetup.Draw.Colors));
+        ShowLoading(null, () => StartGame(setup, setup.Map.Open(_mapDirectory), local));
+    }
+
+    /// <summary>The setup chosen on a start screen, played here as <paramref name="local"/>.</summary>
+    private GameSetup ChosenSetup(StartScreen.Choice choice, int local)
+    {
         MapChoice map;
         if (choice.Random is { } random)
             map = MapChoice.Generated(random.Settings, random.Seed);
@@ -578,10 +611,125 @@ public sealed class MapGame : Game
             _mapIndex = choice.MapIndex;
             map = MapChoice.Original(_mapFiles[_mapIndex], _mapDirectory);
         }
-        int local = _chosenLocal < choice.Players.Count ? _chosenLocal : 0;
-        var setup = SoloSetup(map, choice.Players.Count, local, player => choice.Players[player]) with { Positions = choice.Positions };
-        PlayerColors.Assign(setup.Players.Select(p => p.Color).ToArray(), setup.RandomFor(GameSetup.Draw.Colors));
-        ShowLoading(null, () => StartGame(setup, setup.Map.Open(_mapDirectory), local));
+        return SoloSetup(map, choice.Players.Count, local, player => choice.Players[player]) with { Positions = choice.Positions };
+    }
+
+    /// <summary>
+    /// The multiplayer screen over the title: the start screen to open a game (its human players are the seats), a game
+    /// started by its host – loaded, then stepped by a <see cref="LockstepSession"/> over the screen's connection.
+    /// </summary>
+    private void UpdateMultiplayerScreen(MultiplayerScreen screen)
+    {
+        if (_multiplayerCreate is { } create)
+        {
+            var choice = create.Update(GraphicsDevice.Viewport.Bounds, out bool quit);
+            if (!quit && choice is null)
+                return;
+            create.Dispose();
+            _multiplayerCreate = null;
+            screen.Resume();
+            if (choice is not null)
+            {
+                var setup = ChosenSetup(choice, local: 0);
+                screen.Create(setup with
+                {
+                    Seed = Random.Shared.Next(),
+                    Players = setup.Players.Select((p, player) => p with { Human = choice.Players[player].Human }).ToArray(),
+                });
+            }
+            return;
+        }
+        switch (screen.Update(GraphicsDevice.Viewport.Bounds))
+        {
+            case MultiplayerAction.Back:
+                screen.Dispose();
+                _multiplayerScreen = null;
+                _title!.Resume();
+                break;
+            case MultiplayerAction.Create:
+                _multiplayerCreate = new StartScreen(GraphicsDevice, _gfx, _mapFiles, _mapDirectory, _mapIndex, _presetPeoples,
+                    _display.PreferredColor, local: 0, multiplayer: true);
+                break;
+            case MultiplayerAction.Started:
+                var started = screen.Started!;
+                OriginalMap map;
+                try
+                {
+                    map = started.Setup.Map.Open(_mapDirectory);
+                }
+                catch (Exception e) when (e is FileNotFoundException or IOException or InvalidDataException)
+                {
+                    screen.Fail(Lang.T("multiplayer.noMap", e.Message));
+                    break;
+                }
+                var connection = screen.TakeConnection();
+                screen.Dispose();
+                _multiplayerScreen = null;
+                _title!.Dispose();
+                _title = null;
+                PlayerColors.Assign(started.Setup.Players.Select(p => p.Color).ToArray(), started.Setup.RandomFor(GameSetup.Draw.Colors));
+                ShowLoading(null, () =>
+                {
+                    StartGame(started.Setup, map, started.Player);
+                    _connection = connection;
+                    _session = new LockstepSession(_world, _local, new CommandCodec(_playerCatalogs), connection.Link, started.Options);
+                });
+                break;
+        }
+    }
+
+    /// <summary>HOMESTEAD_CAPTURE_SERVER: a capture run playing a multiplayer game through this server.</summary>
+    private string? CaptureServer => _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SERVER");
+
+    /// <summary>Ends a multiplayer game's connection (the other players are told by the server).</summary>
+    private void EndNetworkGame()
+    {
+        if (_connection is { } connection)
+            _ = connection.DisposeAsync().AsTask();
+        _connection = null;
+        _session = null;
+        _waitingFor = 0;
+        _networkTroubleTold = false;
+    }
+
+    /// <summary>
+    /// Once a frame in a multiplayer game: players gone, a desync (the game stands still for good) or the lost connection
+    /// go to the info feed.
+    /// </summary>
+    private void NoteNetwork()
+    {
+        if (_connection is not { } connection || _session is not { } session)
+            return;
+        foreach (var message in connection.Receive())
+            if (ServerMessages.TypeOf(message) == ServerMessages.Left && message["player"]?.GetValue<int>() is { } player)
+            {
+                string name = PlayerNames.Of(_world, player);
+                _info.Add(Lang.T("multiplayer.playerLeft", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
+            }
+        if (_networkTroubleTold)
+            return;
+        if (session.Desync is { } desync)
+        {
+            _networkTroubleTold = true;
+            string parts = string.Join(", ", desync.Players.SelectMany(p => p.Parts).Distinct());
+            Console.WriteLine($"desync at turn {desync.Turn} (tick {desync.Tick}): " +
+                              string.Join("; ", desync.Players.Select(p => $"player {p.Player + 1}: {string.Join(", ", p.Parts)}")));
+            _info.Add(Lang.T("multiplayer.desync", parts), _now);
+        }
+        else if (!connection.IsOpen)
+        {
+            _networkTroubleTold = true;
+            _info.Add(Lang.T("multiplayer.connectionLost"), _now);
+        }
+    }
+
+    /// <summary>P or Esc: pause alone; in a multiplayer game not yet (it would stop everybody).</summary>
+    private void TogglePause()
+    {
+        if (_session is not null)
+            _info.Add(Lang.T("multiplayer.noPause"), _now);
+        else
+            _paused = !_paused;
     }
 
     /// <summary>
@@ -681,6 +829,7 @@ public sealed class MapGame : Game
     /// <summary>Starts the game of <paramref name="setup"/> on its map (opened already), played here as <paramref name="local"/>.</summary>
     private void StartGame(GameSetup setup, OriginalMap map, int local)
     {
+        EndNetworkGame();
         _mission = null;
         _outcomeNoted = MissionOutcome.Open;
         _terrain?.Dispose();
@@ -736,6 +885,7 @@ public sealed class MapGame : Game
     /// </summary>
     private void LoadGame(SaveGame game)
     {
+        EndNetworkGame();
         _terrain?.Dispose();
         _map = game.Map;
         _terrain = new TerrainMesh(GraphicsDevice, _map.Area);
@@ -930,6 +1080,7 @@ public sealed class MapGame : Game
     /// <summary>Quits the game: back to the title screen.</summary>
     private void QuitToTitle()
     {
+        EndNetworkGame();
         _tabs.Current = PanelTab.Build;
         _ownAi = null;
         _title = new TitleScreen(GraphicsDevice, _gfx, _display.Theme);
@@ -1211,6 +1362,13 @@ public sealed class MapGame : Game
             _previousMouse = SdlMouse.GetState();
             return;
         }
+        if (_multiplayerScreen is not null)
+        {
+            UpdateMultiplayerScreen(_multiplayerScreen);
+            _previousKeys = Keyboard.GetState();
+            _previousMouse = SdlMouse.GetState();
+            return;
+        }
         if (_settingsScreen is not null)
         {
             if (_settingsScreen.Update(GraphicsDevice.Viewport.Bounds))
@@ -1251,6 +1409,8 @@ public sealed class MapGame : Game
             _campaign = action switch { TitleAction.Campaign => "settlers", TitleAction.MissionCd => "missionCd", _ => "amazons" };
             _campaignScreen = new CampaignScreen(GraphicsDevice, _gfx, _campaign);
         }
+        else if (action == TitleAction.Multiplayer)
+            _multiplayerScreen = new MultiplayerScreen(GraphicsDevice, _gfx);
         else if (action == TitleAction.SinglePlayer)
         {
             _title.Dispose();
@@ -1511,14 +1671,27 @@ public sealed class MapGame : Game
         _accumulator = TimeSpan.FromTicks(Math.Min((_accumulator + elapsed).Ticks, MaxBacklog.Ticks));
         _time += elapsed;
         _perf.BeginSection();
+        bool waiting = false;
         while (_accumulator >= World.TickDuration)
         {
-            _world.Step();
+            // A multiplayer game steps only with every player's turn: waiting keeps the time owed, caught up once it comes.
+            if (_session is { } session)
+            {
+                if (!session.TryStep())
+                {
+                    waiting = true;
+                    break;
+                }
+            }
+            else
+                _world.Step();
             TakeCommandResults();
             _accumulator -= World.TickDuration;
         }
-        // Paused: the orders still work (they take effect at once).
-        if (_paused && _world.Commands.Pending.Count > 0)
+        _waitingFor = waiting ? _waitingFor + gameTime.ElapsedGameTime.TotalSeconds : 0;
+        NoteNetwork();
+        // Paused: the orders still work (they take effect at once; alone only).
+        if (_paused && _session is null && _world.Commands.Pending.Count > 0)
         {
             _world.Commands.ApplyWhilePaused(_world);
             TakeCommandResults();
@@ -2217,7 +2390,7 @@ public sealed class MapGame : Game
             else if (_placing)
                 _placing = false;
             else
-                _paused = !_paused;
+                TogglePause();
         }
         if (Pressed(Keys.F2))
         {
@@ -2262,7 +2435,7 @@ public sealed class MapGame : Game
             }
         }
         if (Pressed(Keys.P))
-            _paused = !_paused;
+            TogglePause();
         if (_placing && Pressed(Keys.E))
             _placeIndex = (_placeIndex + 1) % _placeable.Length;
         if (_placing && Pressed(Keys.Q))
@@ -2697,7 +2870,11 @@ public sealed class MapGame : Game
     /// </summary>
     private void Issue(GameCommand command, Action<object?>? then = null)
     {
-        _world.Commands.Issue(command);
+        // In a multiplayer game through the session: applied with every player's turn, on every computer at the same tick.
+        if (_session is { } session)
+            session.Issue(command);
+        else
+            _world.Commands.Issue(command);
         if (then is not null)
             _awaiting[command.Sequence] = then;
     }
@@ -3096,7 +3273,7 @@ public sealed class MapGame : Game
         {
             // Capture runs with HOMESTEAD_CAPTURE_START save one picture of the title or start screen and quit
             // (a video's once it shows its 100th frame).
-            var startTarget = _captureDirectory is null || _video is { Shown: < 100 } ? null : NewCaptureTarget();
+            var startTarget = _captureDirectory is null || _video is { Shown: < 100 } || CaptureServer is not null ? null : NewCaptureTarget();
             GraphicsDevice.SetRenderTarget(startTarget);
             GraphicsDevice.Clear(new Color(12, 12, 16));
             _spriteBatch.Begin(samplerState: SamplerState.LinearClamp);
@@ -3112,6 +3289,10 @@ public sealed class MapGame : Game
                 _campaignScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             else if (_settingsScreen is not null)
                 _settingsScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_multiplayerCreate is not null)
+                _multiplayerCreate.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
+            else if (_multiplayerScreen is not null)
+                _multiplayerScreen.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             else if (_title is not null)
                 _title.Draw(_spriteBatch, _pixel, _font, GraphicsDevice.Viewport.Bounds);
             else
@@ -3121,6 +3302,7 @@ public sealed class MapGame : Game
             {
                 GraphicsDevice.SetRenderTarget(null);
                 string picture = _briefing is not null ? "briefing.png" : _video is not null ? "video.png" : _missionSelect is not null ? "missions.png" : _loadList is not null ? "load.png" : _campaignScreen is not null ? "campaign.png"
+                    : _multiplayerScreen is not null ? "multiplayer.png"
                     : _settingsScreen is not null ? "settings.png" : _title is not null ? "title.png" : "start.png";
                 using (var stream = File.Create(Path.Combine(_captureDirectory!, picture)))
                     startTarget.SaveAsPng(stream, startTarget.Width, startTarget.Height);
@@ -3444,7 +3626,11 @@ public sealed class MapGame : Game
     private void DrawOutcome(Viewport viewport)
     {
         var outcome = Outcome;
-        if (_paused)
+        if (_session?.Desync is not null)
+            DrawBanner(viewport, Lang.T("multiplayer.desyncBanner"), Lang.T("multiplayer.desyncHint"));
+        else if (_waitingFor > 1)
+            DrawBanner(viewport, Lang.T("multiplayer.waitingBanner"), Lang.T("multiplayer.waitingHint"));
+        else if (_paused)
             DrawBanner(viewport, Lang.T("system.paused"), Lang.T("system.pausedHint"));
         else if (outcome != MissionOutcome.Open)
             DrawBanner(viewport, Lang.T(outcome == MissionOutcome.Won ? "campaign.won" : "campaign.lost"),
@@ -4259,6 +4445,9 @@ public sealed class MapGame : Game
         {
             case 1 when int.TryParse(Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_MINUTES"), out int minutes) && minutes > 0:
                 StartBenchmark(minutes);
+                break;
+            case 1 when _session is not null:
+                // A multiplayer game: nothing set up on this computer alone (the others would not have it).
                 break;
             case 1:
                 // HOMESTEAD_CAPTURE_ZOOM: closer look at details (flags, marks) in a capture run.

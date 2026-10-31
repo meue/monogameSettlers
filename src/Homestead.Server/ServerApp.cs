@@ -12,7 +12,8 @@ public static class ServerApp
     /// <param name="urls">Where to listen (e.g. <c>http://127.0.0.1:0</c> in tests); null: as configured.</param>
     public static WebApplication Create(string[] args, string? urls = null)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        // Settings (appsettings.json) next to the program, wherever it is started from.
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = AppContext.BaseDirectory });
         if (urls is not null)
             builder.WebHost.UseUrls(urls);
         var defaults = new LockstepOptions();

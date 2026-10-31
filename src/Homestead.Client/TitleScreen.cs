@@ -24,6 +24,8 @@ public enum TitleAction
     AmazonCampaign,
     /// <summary>Open the map selection (<see cref="StartScreen"/>).</summary>
     SinglePlayer,
+    /// <summary>Open the multiplayer screen (<see cref="MultiplayerScreen"/>).</summary>
+    Multiplayer,
     /// <summary>Open the list of saved games.</summary>
     Load,
     /// <summary>Open the settings (<see cref="SettingsScreen"/>).</summary>
@@ -63,6 +65,7 @@ public sealed class TitleScreen : IDisposable
         ("missionCd", TitleAction.MissionCd, null),
         ("amazonCampaign", TitleAction.AmazonCampaign, null),
         ("singlePlayer", TitleAction.SinglePlayer, null),
+        ("multiplayer", TitleAction.Multiplayer, null),
         ("settings", TitleAction.Settings, null),
         ("load", TitleAction.Load, null),
         ("readme", TitleAction.None, Readme),
@@ -145,7 +148,7 @@ public sealed class TitleScreen : IDisposable
     // Layout in the 800 × 600 space of the picture, measured on the original menu.
     // The campaigns sit a little apart from "Weiterspielen", the free games (from the first one on) from the campaigns,
     // the links to the repository (from the first one on) from the game's buttons.
-    private const int FirstCampaign = 1, FirstGame = 4, FirstLink = 7, GroupGap = 16;
+    private const int FirstCampaign = 1, FirstGame = 4, FirstLink = 8, GroupGap = 16;
 
     /// <summary>The version of this build (from the git tags, docs/VERSIONING.md), with the commit shortened.</summary>
     private static readonly string GameVersion = "v" + (typeof(TitleScreen).Assembly

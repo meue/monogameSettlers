@@ -148,9 +148,23 @@ Erledigt (erste Stufe, C# im selben Repo – teilt `TurnRelay`, `GameSetup`, `Ga
 - Tests `ServerTests` (echter Server auf freiem Port): Lobby → Start → zwei Welten 40 s über WebSockets, gleiche Prüfsumme/Chat, `left`;
   Protokoll abgelehnt; Beitritt mit anderen Daten/anderer Version abgelehnt, Start nur voll, Host weg → `closed`; kaputte Nachricht; Status.
 
+### Mehrspieler im Client
+- Titel → „Mehrspieler“ (`MultiplayerScreen`, Hintergrund der Missionsliste): Name + Serveradresse (`ws://…/ws`, gemerkt in
+  `settings.json`, Abschnitt `multiplayer`, `MultiplayerSettings`; Tab/Klick wechselt das Feld, Strg+V) → Verbinden (Ablehnung mit
+  Gründen) → offene Spiele (Klick tritt bei, „Aktualisieren“, „Eröffnen“) → Lobby (Plätze, Gastgeber; „Starten“ nur Gastgeber und voll,
+  „Verlassen“). Esc geht einen Schritt zurück.
+- „Eröffnen“: Startscreen im Mehrspieler-Modus (`StartScreen(multiplayer: true)`): Klick auf einen Spielernamen schaltet Mensch
+  (Platz für Mitspieler) / KI, der eigene ist Spieler 1; Knopf „Eröffnen“ → `GameSetup` (zufälliger Seed) an den Server.
+- `started` → Karte öffnen (fehlt sie: Meldung, Verbindung zu), Farben aus `RandomFor(Colors)`, `StartGame`, dann `LockstepSession`
+  über `ServerConnection.Link`. `MapGame`: Schritte nur über `TryStep` (wartend bleibt die Zeit gutgeschrieben und wird aufgeholt),
+  Befehle über `session.Issue`; Banner „Warte auf Mitspieler“ (> 1 s), „Asynchron“ (Desync, Konsole mit Teilen); Info: Spieler weg,
+  Verbindung verloren. Pause (P/Esc) im Mehrspieler noch aus (Info), Statistik (Esc) hält den eigenen Rechner an → die anderen warten.
+  Spiel beenden/Titel/neues Spiel schließen die Verbindung (`EndNetworkGame`).
+- Capture: `HOMESTEAD_CAPTURE_START=multiplayer` (Bild des Verbindens), `HOMESTEAD_CAPTURE_SERVER=ws://…/ws` (verbindet, eröffnet ein
+  Spiel 1 Mensch + 1 KI auf einer Zufallskarte, startet und spielt es über den Server; ohne Demo-Wirtschaft).
+
 Offen:
-- Client: Mehrspieler-Menü (Serveradresse, Spiele, Lobby), `MapGame` mit `LockstepSession` statt direkter Queue, Meldungen (Desync,
-  abgelehnt, Spieler weg), gemeinsame Pause, Speichern für alle.
+- Client: gemeinsame Pause, Speichern für alle, Desync-Spielstand, Chat in der Lobby, Statistik ohne Anhalten.
 - Spieler weg im laufenden Spiel: Platz an eine KI (auf allen Rechnern zum selben Zug) statt Warten; Neuverbinden.
 - Rate-Limit je Verbindung, Obergrenze für Spiele/Verbindungen; CI-Job, der das Image baut (und bei Tags nach ghcr.io schiebt);
   ggf. Native AOT für ein kleineres Image.

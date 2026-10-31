@@ -4,7 +4,7 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
 
 - **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
   daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): ganz oben Weiterspielen (lädt `SaveSlots.Latest`, ohne Spielstand blass), abgesetzt Kampagne, Missions-CD, Amazonen-Kampagne (je → Kampagne),
-  abgesetzt Einzelspieler (→ Startscreen), Einstellungen (→ Einstellungen), Spiel laden
+  abgesetzt Einzelspieler (→ Startscreen), Mehrspieler (→ `MultiplayerScreen`, siehe `docs/MULTIPLAYER.md`), Einstellungen (→ Einstellungen), Spiel laden
   (Liste der 8 Slots als `ListScreen`: Name, Datum, Volk; leere blass; Klick lädt, Ladefehler über dem Titel), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
   Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`THIRD_PARTY_NOTICES.md` auf GitHub, Enter/Esc),
   unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.

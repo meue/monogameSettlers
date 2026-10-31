@@ -109,6 +109,10 @@ public sealed class StartScreen : IDisposable
     private readonly List<int?> _colors = new();
     /// <summary>The player gets the <see cref="Homestead.Simulation.Hardcore"/> head start.</summary>
     private readonly List<bool> _hardcore = new();
+    /// <summary>Per player in a multiplayer game: a human (a seat for another computer) or a computer player.</summary>
+    private readonly List<bool> _humans = new();
+    /// <summary>Opening a multiplayer game: a click on a player's name makes it a human or a computer player.</summary>
+    private readonly bool _multiplayer;
     /// <summary>Team of the player, 1–4; 0: none (the default, everybody against everybody).</summary>
     private readonly List<int> _teams = new();
     /// <summary>Per start position of the map the player assigned to it; <c>null</c>: drawn at the start.</summary>
@@ -144,11 +148,13 @@ public sealed class StartScreen : IDisposable
     /// <param name="peoples">Preset peoples (command line): player i gets entry i modulo the count.</param>
     /// <param name="preferredColor">Palette index of the local player's color.</param>
     /// <param name="local">The player played here (from 0).</param>
+    /// <param name="multiplayer">Opening a multiplayer game: the players can be humans (seats) or computer players.</param>
     public StartScreen(GraphicsDevice device, GfxDirectory gfx, IReadOnlyList<string> mapFiles, string mapDirectory, int selected,
-        IReadOnlyList<Civilization>? peoples, int preferredColor = 0, int local = 0)
+        IReadOnlyList<Civilization>? peoples, int preferredColor = 0, int local = 0, bool multiplayer = false)
     {
         _device = device;
         _local = local;
+        _multiplayer = multiplayer;
         _preferredColor = Math.Clamp(preferredColor, 0, PlayerColors.Palette.Length - 1);
         _mapFiles = mapFiles;
         _entries = mapFiles.Select((file, index) =>
@@ -251,6 +257,7 @@ public sealed class StartScreen : IDisposable
             _peoples.Add(_presetPeoples is { } preset ? preset[player % preset.Count] : player == _local ? Civilization.Roman : null);
             _colors.Add(player == _local ? _preferredColor : null);
             _hardcore.Add(false);
+            _humans.Add(player == _local);
             _teams.Add(0);
         }
     }
@@ -359,6 +366,9 @@ public sealed class StartScreen : IDisposable
         new(x, RowY(player) + (PlayerRow - Control) / 2, width == 0 ? Control : width, Control);
 
     private Rectangle LeftArrow(int player) => Cell(430, player);
+
+    /// <summary>The player's name (in a multiplayer game a click there switches human and computer player).</summary>
+    private Rectangle NameBox(int player) => Cell(340, player, 86);
 
     private Rectangle RightArrow(int player) => Cell(540, player);
 
@@ -564,6 +574,8 @@ public sealed class StartScreen : IDisposable
                     _peoples[player] = Cycle(_peoples[player], step);
                 if (HardcoreBox(player).Contains(at))
                     _hardcore[player] = !_hardcore[player];
+                if (_multiplayer && player != _local && NameBox(player).Contains(at))
+                    _humans[player] = !_humans[player];
             }
             if (StartButton.Contains(at) && _map is not null)
                 return Start();
@@ -585,7 +597,8 @@ public sealed class StartScreen : IDisposable
 
     private Choice Start()
     {
-        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(People: _peoples[p], Color: _colors[p], Team: _teams[p], Hardcore: _hardcore[p])).ToArray();
+        var players = Enumerable.Range(0, PlayerCount).Select(p => new PlayerSetup(People: _peoples[p], Color: _colors[p], Team: _teams[p], Hardcore: _hardcore[p],
+            Human: _multiplayer ? _humans[p] : p == _local)).ToArray();
         var positions = RandomPositions ? _positions.ToArray() : null;
         if (_category != RandomCategory)
             return new Choice(_shown[_selected].Index, players, positions);
@@ -655,7 +668,7 @@ public sealed class StartScreen : IDisposable
         for (int category = 0; category < Categories.Length; category++)
             Oval(batch, font, CategoryButton(category), category == RandomCategory ? Lang.T("start.randomShort") : CategoryName(category), hover,
                 category == _category);
-        Oval(batch, font, StartButton, Lang.T("start.start"), hover, enabled: _map is not null);
+        Oval(batch, font, StartButton, Lang.T(_multiplayer ? "start.open" : "start.start"), hover, enabled: _map is not null);
         Oval(batch, font, QuitButton, Lang.T("start.quit"), hover);
 
         if (_category == RandomCategory)
@@ -818,8 +831,12 @@ public sealed class StartScreen : IDisposable
         {
             var left = LeftArrow(player);
             var right = RightArrow(player);
-            Write(batch, font, PlayerName(player) + (player == _local ? Lang.T("start.you") : ""), 346, left.Y + (left.Height - size) / 2 - 1,
-                player == _local ? HoverText : Text, size);
+            string who = player == _local ? Lang.T("start.you")
+                : _multiplayer ? Lang.T(_humans[player] ? "start.human" : "start.computer") : "";
+            Write(batch, font, PlayerName(player) + who, 346, left.Y + (left.Height - size) / 2 - 1,
+                player == _local ? HoverText : _multiplayer && NameBox(player).Contains(hover) ? Gold : Text, size);
+            if (_multiplayer && player != _local && NameBox(player).Contains(hover))
+                hint = Lang.T("start.humanHint");
 
             var fixedPeople = FixedPeople(player);
             var people = fixedPeople ?? _peoples[player];
