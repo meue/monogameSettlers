@@ -676,6 +676,8 @@
     "opening": "Spiel wird eröffnet …",
     "joining": "Trete bei …",
     "free": "frei",
+    "computer": "KI",
+    "computerCharacter": "KI · {0}",
     "host": " (Gastgeber)",
     "start": "Starten",
     "leave": "Verlassen",

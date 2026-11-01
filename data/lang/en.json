@@ -676,6 +676,8 @@
     "opening": "Opening the game …",
     "joining": "Joining …",
     "free": "free",
+    "computer": "AI",
+    "computerCharacter": "AI · {0}",
     "host": " (host)",
     "start": "Start",
     "leave": "Leave",

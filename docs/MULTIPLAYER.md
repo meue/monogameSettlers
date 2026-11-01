@@ -137,7 +137,7 @@ Erledigt (erste Stufe, C# im selben Repo – teilt `TurnRelay`, `GameSetup`, `Ga
     → `lobby` (Plätze mit Namen, Host, eigener Platz) an alle im Spiel; `list` → `games` (offene Spiele, Plätze, Datenhash);
     `join` (Fingerabdruck muss passen, sonst `refused` mit den Abweichungen; „voll“, „gibt es nicht“); `leave` (Platz frei, Wahl zurück
     auf frei; Host → `closed`); `choose` (eigenes Volk und Farbe ins Setup, `null` = gelost; vergebene Farbe → `error`). `lobby` trägt je
-    Platz Name, Volk, Farbe und alle vergebenen Farben (auch feste der KIs).
+    Platz Name, Volk, Farbe, die KI-Spieler (`computers`: Spieler, Volk, Farbe, Charakter) und alle vergebenen Farben (auch feste der KIs).
   - `start` (nur Host, alle Plätze besetzt) → `started` an jeden: Setup mit Fingerabdruck, eigener Spieler, `LockstepOptions`
     (Server-Konfiguration `Lockstep__TurnTicks`/`DelayTurns`/`CheckTurns`). Danach `input` → `TurnRelay` → `bundle` an alle.
   - Verlassen eines laufenden Spiels → `left` an die anderen (die dann warten). Unlesbare Felder → `error`, Verbindung bleibt.
@@ -158,7 +158,7 @@ Erledigt (erste Stufe, C# im selben Repo – teilt `TurnRelay`, `GameSetup`, `Ga
 - „Eröffnen“: Startscreen im Mehrspieler-Modus (`StartScreen(multiplayer: true)`): alle Spieler zuerst Menschen, Klick auf einen
   Spielernamen schaltet Mensch (Platz für Mitspieler) / KI, der eigene ist Spieler 1. Plätze anderer Menschen: Volk „Freie Wahl“, Farbe „?“,
   nicht änderbar (Kartenvorgabe gilt weiter); Knopf „Eröffnen“ → `GameSetup` (zufälliger Seed) an den Server.
-- Lobby: je Platz Name, Volk, Farbe; beim eigenen schaltet ein Klick das Volk (Zufall → die Völker) bzw. die Farbe („?“ → freie
+- Lobby: je Platz Name, Volk, Farbe, dazwischen die KI-Spieler („KI · Charakter“), nach Spielernummer; beim eigenen schaltet ein Klick das Volk (Zufall → die Völker) bzw. die Farbe („?“ → freie
   Farben) weiter (`ServerConnection.Choose`).
 - `started` → Karte öffnen (fehlt sie: Meldung, Verbindung zu), Farben aus `RandomFor(Colors)`, `StartGame`, dann `LockstepSession`
   über `ServerConnection.Link`. `MapGame`: Schritte nur über `TryStep`; wartend wird keine Zeit angestaut (sonst Sprint, dann wieder

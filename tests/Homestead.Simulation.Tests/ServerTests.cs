@@ -173,6 +173,9 @@ public class ServerTests : IAsyncLifetime
         var lobby = await guest.WaitForAsync([ServerMessages.Lobby], Wait);
         // Taken: the host's and the computer player's colors.
         Assert.Equal([3, 5], lobby["colors"]!.AsArray().Select(c => c!.GetValue<int>()).Order());
+        // The computer player is shown too.
+        var computer = lobby["computers"]!.AsArray().OfType<JsonObject>().Single();
+        Assert.Equal((1, 5), (computer["player"]!.GetValue<int>(), computer["color"]!.GetValue<int>()));
 
         guest.Choose(Civilization.Amazon, 5);
         Assert.Equal("the color is taken", (await guest.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());

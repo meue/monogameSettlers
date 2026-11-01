@@ -59,7 +59,8 @@ public sealed class MultiplayerScreen : IDisposable
 
     private IReadOnlyList<(string Id, string Name, string Host, int Seats, int Taken)> _games = [];
     /// <summary>A seat of the lobby: the player it is, who took it (null: free), the people and color chosen (null: drawn).</summary>
-    private sealed record Seat(int Player, string? Name, Civilization? People, int? Color);
+    /// <summary>A player in the lobby: a human seat (<paramref name="Name"/> null while free) or a computer player.</summary>
+    private sealed record Seat(int Player, string? Name, Civilization? People, int? Color, bool Computer = false, string? Character = null);
 
     /// <summary>The lobby as the server tells it: the colors taken include the computer players' fixed ones.</summary>
     private sealed record Lobby(string Name, int Host, int You, IReadOnlyList<Seat> Seats, IReadOnlySet<int> Colors);
@@ -118,7 +119,8 @@ public sealed class MultiplayerScreen : IDisposable
     {
         _step = Step.Lobby;
         _lobby = new Lobby("Spiel von Anna", Host: 0, You: 2,
-            [new Seat(0, "Anna", Civilization.Roman, 3), new Seat(2, "Ben", Civilization.Amazon, 7), new Seat(3, null, null, null)], new HashSet<int> { 3, 5, 7 });
+            [new Seat(0, "Anna", Civilization.Roman, 3), new Seat(1, null, Civilization.Egyptian, 5, Computer: true, Character: "general"),
+             new Seat(2, "Ben", Civilization.Amazon, 7), new Seat(3, null, null, null)], new HashSet<int> { 3, 5, 7 });
         Status(Lang.T("multiplayer.waiting"));
     }
 
@@ -257,13 +259,16 @@ public sealed class MultiplayerScreen : IDisposable
 
     private bool CanConnect => _name.Trim().Length > 0 && Uri.TryCreate(_server.Trim(), UriKind.Absolute, out var uri) && uri.Scheme is "ws" or "wss";
 
-    private bool Full => _lobby is { } lobby && lobby.Seats.All(s => s.Name is not null);
+    private bool Full => _lobby is { } lobby && lobby.Seats.All(s => s.Computer || s.Name is not null);
 
     private Rectangle PeopleBox(int index) => new(Row(index).X + 232, Row(index).Y + 2, 112, RowHeight - 8);
 
     private Rectangle ColorBox(int index) => new(Row(index).Right - 28, Row(index).Y + 4, 22, 22);
 
     /// <summary>The color after <paramref name="color"/> among those nobody else has (null: drawn, then the palette in order).</summary>
+    private static Civilization? PeopleOf(JsonObject seat) =>
+        Enum.TryParse<Civilization>(seat["people"]?.GetValue<string>(), out var people) ? people : null;
+
     private static int? NextColor(int? color, IReadOnlySet<int> taken)
     {
         var choices = new int?[] { null }.Concat(Enumerable.Range(0, PlayerColors.Palette.Length).Where(c => c == color || !taken.Contains(c)).Cast<int?>())
@@ -337,9 +342,10 @@ public sealed class MultiplayerScreen : IDisposable
                     _step = Step.Lobby;
                     _lobby = new Lobby(message["name"]!.GetValue<string>(), message["host"]!.GetValue<int>(), message["you"]!.GetValue<int>(),
                         (message["seats"] as JsonArray ?? []).OfType<JsonObject>().Select(s => new Seat(s["player"]!.GetValue<int>(),
-                            s["name"]?.GetValue<string>(),
-                            Enum.TryParse<Civilization>(s["people"]?.GetValue<string>(), out var people) ? people : null,
-                            s["color"]?.GetValue<int>())).ToArray(),
+                                s["name"]?.GetValue<string>(), PeopleOf(s), s["color"]?.GetValue<int>()))
+                            .Concat((message["computers"] as JsonArray ?? []).OfType<JsonObject>().Select(c => new Seat(c["player"]!.GetValue<int>(),
+                                null, PeopleOf(c), c["color"]?.GetValue<int>(), Computer: true, c["character"]?.GetValue<string>())))
+                            .OrderBy(s => s.Player).ToArray(),
                         (message["colors"] as JsonArray ?? []).Select(c => c!.GetValue<int>()).ToHashSet());
                     Status(Full ? Lang.T(_lobby.Host == _lobby.You ? "multiplayer.allThere" : "multiplayer.hostStarts")
                         : Lang.T("multiplayer.waiting"));
@@ -408,13 +414,15 @@ public sealed class MultiplayerScreen : IDisposable
             case Step.Lobby when _lobby is { } lobby:
                 for (int index = 0; index < Math.Min(lobby.Seats.Count, VisibleRows); index++)
                 {
-                    var (player, name, people, color) = lobby.Seats[index];
+                    var (player, name, people, color, computer, character) = lobby.Seats[index];
                     var row = Row(index);
                     bool own = player == lobby.You;
-                    string who = name is null ? Lang.T("multiplayer.free")
+                    string who = computer
+                        ? character is null ? Lang.T("multiplayer.computer") : Lang.T("multiplayer.computerCharacter", Lang.T("ai.characters." + character))
+                        : name is null ? Lang.T("multiplayer.free")
                         : name + (player == lobby.Host ? Lang.T("multiplayer.host") : "") + (own ? Lang.T("start.you") : "");
                     Write(batch, font, Lang.T("start.player", player + 1), row.X + 8, row.Y + 7, Gold, 14);
-                    Write(batch, font, Shorten(font, who, 140, 14), row.X + 86, row.Y + 7, name is null ? Dim : own ? Gold : Text, 14);
+                    Write(batch, font, Shorten(font, who, 140, 14), row.X + 86, row.Y + 7, name is null && !computer ? Dim : own ? Gold : Text, 14);
                     // People and color: the own ones to click through, the others' as chosen.
                     var peopleBox = PeopleBox(index);
                     bool lit = own && peopleBox.Contains(hover);

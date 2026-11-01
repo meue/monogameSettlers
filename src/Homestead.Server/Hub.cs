@@ -242,6 +242,11 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
                     ["player"] = s, ["name"] = game.Taken.TryGetValue(s, out var taken) ? taken.Name : null,
                     ["people"] = game.Setup.Players[s].People?.ToString(), ["color"] = game.Setup.Players[s].Color,
                 }).ToArray()),
+                // The computer players, so the humans see whom they play with or against.
+                ["computers"] = new JsonArray(game.Setup.Players.Select((p, player) => (p, player)).Where(c => !c.p.Human).Select(c => (JsonNode)new JsonObject
+                {
+                    ["player"] = c.player, ["people"] = c.p.People?.ToString(), ["color"] = c.p.Color, ["character"] = c.p.Character,
+                }).ToArray()),
                 ["colors"] = new JsonArray(game.Setup.Players.Where(p => p.Color is not null).Select(p => (JsonNode)p.Color!.Value).ToArray()),
             }));
     }
