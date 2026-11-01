@@ -73,6 +73,18 @@ at that minute, pick any good to compare its production, and jump back into the 
   full of gold, gems and coal, ringed by a moor with one pass per player
 - **Hardcore mode** per player, **save games** in 8 slots, **fog of war**
 
+## Multiplayer
+
+- **Play together over the network**: every computer simulates the whole game, only the players' commands travel (lockstep),
+  so even large battles need hardly any bandwidth
+- **Mixed games**: humans and computer opponents on the same map, e.g. two players against two AIs, on random or original maps
+- **Host your own server**: a small relay server as a Docker image (`docker build -f src/Homestead.Server/Dockerfile -t homestead-server .`,
+  `docker run -p 8080:8080 homestead-server`), then connect from the title screen via "Multiplayer" with `ws://<host>:8080/ws`
+- **Desync detection**: the computers compare checksums of their worlds all the time and stop at once if they ever differ;
+  the simulation is checked to run bit-identical on Linux, Windows and macOS
+
+Details: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md).
+
 ## Clean room: how this game is made
 
 Imagine you want to build a car that drives exactly like a famous old model, but you are **not** allowed to copy its
@@ -173,11 +185,10 @@ monoSettlers is fully playable, but not perfect. What is known so far:
 - **AI chat**: talking to the computer opponents through Claude is experimental and only configured in `settings.json`
   (section `aiChat`: `apiKey`, `model`, `effort`), not in the settings screen
 - **macOS**: the builds have never been tried on a real Mac
+- **Multiplayer is new**: no pause, no reconnecting after a dropout (the others wait) and no own AI, fast-forward, cheats or AI chat
+  in network games yet; a public server only behind TLS (`wss://`, e.g. via a reverse proxy)
 
 Measurements from the original, savegames showing odd behaviour and pull requests are very welcome.
-
-## Maybe-Goal
-- Multiplayer
 
 ## Thanks
 

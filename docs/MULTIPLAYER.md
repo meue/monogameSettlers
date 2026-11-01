@@ -1,6 +1,6 @@
 # Multiplayer (lockstep)
 
-As of 2026-11-01, branch `feature/lockstep` (up to date with `main`, not merged into it yet).
+As of 2026-11-01: merged into `main` (#9).
 
 ## Decisions
 
