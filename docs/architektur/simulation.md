@@ -2,6 +2,12 @@
 
 Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](ki.md).
 
+**Determinismus** (Lockstep-Mehrspieler: jeder Rechner simuliert gleich): Zufall nur `new Random(… + World.Seed)`, keine Uhr, keine Threads,
+kein `GetHashCode` in der Logik; Winkelfunktionen nur über `DeterministicMath` (Sin/Cos/Atan2 aus Grundrechenarten – `Math.Sin` & Co. kommen aus
+der C-Bibliothek der Plattform), Grundrechenarten und `Math.Sqrt` sind nach IEEE überall gleich. `WorldChecksum.Of` (FNV-1a auf 64-Bit-Wörtern, je Teil `Parts`, über Tick, Siedler,
+Gebäude, Stapel, Karte, Mana) für Desync-Erkennung; `DeterminismTests` (KI-Spiel auf `random:4:mirror:11`, 25 min, Prüfsumme je Minute) läuft im Build
+auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
+
 - `Map/GameMap`: Gelände, Objekte, Begehbarkeit, Bodenschätze (`ResourceAt`).
   `Map/Vision`: Fog of War je Spieler – Sicht eigener Figuren draußen (Soldaten `Sight`, Späher `scouts.sight` 26, Esel `trade.sight` 3
   – keine Späher –, sonst `SettlerSight`) und Gebäude (`Military.SightOfBuilding`: fertige mit `buildingSight` in `military.json`,
@@ -123,7 +129,7 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     Ziel → heim, Ladung neben den Steg. Handelsschiffe auf Fahrt nehmen keine Befehle (`HarborOf`, `CargoOf`).
 - Teams (`World.Teams`, `AreAllies`; vom Startscreen, gespeichert): Verbündete kämpfen nicht gegeneinander (`MilitaryCombat.IsEnemy`, `Attack`,
   Turmschützen, Kriegsmaschinen `IsTarget`), Feind-Zauber verschonen sie (`Magic.Affects`), Türme/Pioniere nehmen kein verbündetes Land
-  (`Claim`, `TakeLand`, `IsClaimable`), Diebe stehlen nicht bei ihnen (`Theft.IsOwn`); `ConquestGoals`: gewonnen, wenn alle Feinde besiegt sind.
+  (`Claim`, `TakeLand`, `IsClaimable`), Diebe stehlen nicht bei ihnen (`Theft.IsOwn`); `ConquestGoals`: gewonnen, wenn alle Feinde besiegt sind (Ergebnis je Spieler, `IGameGoals.OutcomeOf`/`Decide(spieler, …)`).
   Sicht geteilt: `Vision`, `Military.Sees`, `Magic.SeesBySpell` zählen das ganze Team; ein enttarnter Späher ist dem ganzen Team des Soldaten enttarnt.
 - `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
   Militärgebäude rufen nur untätige Soldaten bis `garrisonCallRadius` (100) Felder von der Tür; weiter entfernte bleiben stehen.
@@ -146,6 +152,10 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
     „Position halten“ (`Military.Hold`, Auswahl-Panel bei Soldaten, an der Stelle von „Land einnehmen“; `Move(…, hold: true)` erst hinlaufen):
     nicht untätig (kein Gebäude ruft ihn), kämpft nur gegen Feinde in Reichweite, verfolgt niemanden, kehrt auf den Platz zurück, bis zum nächsten Befehl
     (`HoldTarget`/`Holds`; das Lazarett ruft Haltende nicht). KI: Verwundete, geparkte Nahkämpfer, Bogenschützen der Schlachtordnung.
+    Wegpunkte (`AddWaypoint`, Shift+Rechtsklick): mit Befehl (Laufen, Angriff, eigener Kampf) erst dieser, dann der Reihe nach bis `MaxWaypoints` (3)
+    Punkte, ein weiterer ersetzt den letzten (`Fighter.Waypoints`, `Dismiss` macht den nächsten zum Laufbefehl); ohne Befehl (oder haltend/patrouillierend) wie `Move`.
+    Patrouille (`Patrol`, Alt+Rechtsklick): zum Punkt und zurück zum Standort, hin und her bis zum nächsten Befehl (`Fighter.PatrolBack`); kämpft
+    unterwegs wie beim Laufbefehl, eigenständige Angriffe enden mit der Patrouille weiter (`EndAttack` behält `MoveTo`).
   - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst Startwert je Spielerzahl (`startPercent`, im Original gemessen: 1 → 54 % (wie dort, obwohl sinnlos), 2 → 50 %, 4 → 37 %, 8 → 25 %, 16 → 14 %); plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
     halb, Edelsteine doppelt), jeder weitere Prozentpunkt kostet nach erreichter Kampfkraft (Bänder `stepPercent` ab 0 %, `unitsPerPercent`, im Original gemessen: bis 50 % 1,2 Barren, ab 90 % 20; niedriger Start steigt schneller), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
   - Werte: `data/military.json`; Gebietsradien aus Originalkarten gemessen.
@@ -183,6 +193,13 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
   Alte Spielstände übernehmen die aktuellen Regeln (`Magic.FollowRules`). Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`
   (`upgrades.manaEarned` je n-ter Aufwertung, Original: 10/30/60/110/170/200). `Upgrade`: braucht fertigen kleinen Tempel; erst alle drei Typen Stufe 2, dann 3;
   gilt nur für danach Ausgebildete. Werte: `data/magic.json`.
+- `Commands/` (Lockstep-Vorbereitung): Spielerbefehle als Daten (`GameCommand`-Records: Spieler, IDs von Siedlern/Gebäuden/Schiffen, Punkte,
+  Enums, Zahlen; Gebäudetyp als `BuildingDefinition`, über Volk + Name eindeutig), wirken nur auf Eigenes des Spielers. `World.Commands`
+  (`CommandQueue`): `Issue` vergibt `Sequence`, `World.Step` wendet als Erstes alle wartenden in dieser Reihenfolge an, Ergebnisse in `Applied` bis
+  zum nächsten Schritt; pausiert allein `ApplyWhilePaused`. Gruppen: `UnitCommands` (Rechtsklick `MoveUnits`: feindliches Gebäude angreifen, sonst
+  laufen; Wegpunkt, Patrouille, Halten, Spezialisten, Priester, Zauber, Schiffe), `BuildingCommands` (Baustelle, Abriss, Pause, Vorrang,
+  Arbeitsbereich, Besatzung, Lager, Markt, Werft, Kriegswerkstatt), `EconomyCommands` (Verteilung, Transport, Schmiede, Berufe, Rekrutierung,
+  Aufwertung), `ChatCommands` (`Say`, `AiReply` für den KI-Chat, `Cheat`). Wartende Befehle stehen im Spielstand.
 - `Persistence/`: `Snapshot` schreibt den ganzen Objektgraphen per Reflection (alle Felder, auch private, Objektidentität; Typtabelle mit
   Feldnamen – fehlende übersprungen, neue: Sammlungen/Klassen mit parameterlosem Konstruktor leer, nicht-nullbare Referenzen ohne solchen → inkompatibel, sonst Standardwert (nicht der Initialisierer!); Dictionary/HashSet mit innerem Aufbau, Hashes beim Laden neu → Partie läuft
   tickgenau weiter, `SaveTests`). Delegates nur mit Zielen in eigenen Assemblies (Client-Abos werden nach dem Laden neu gesetzt);
@@ -204,6 +221,10 @@ Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](
 - `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
   Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
   (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
+- `Lockstep/`: `LockstepSession` (Befehle für Zug jetzt + Verzögerung, wartet aufs Bündel, vergleicht Prüfsummen → `Desync`), `TurnRelay` (Server-Logik), `CommandCodec`
+  (JSON-Netzwerkformat), `LocalRelay`, `GameFingerprint` (Protokoll, Version, Datenhashes; Details: `docs/MULTIPLAYER.md`).
+- `GameSetup` (`MapChoice`, `PlayerSetup`): Spielaufbau als Daten (JSON) – Karte per Seed bzw. Hash, Spieler, Startplätze, Spielwerte, ein Seed für
+  alle Ziehungen; `Start` → Welt mit KIs (Details: `docs/MULTIPLAYER.md`).
 - `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler; Siedlertyp 23 = Späher/Dieb, 22 Geologe, 36 Priester, 40 Pionier; Besatzung der
   Militärgebäude aus der Karte sofort drin, `Military.Station`, Soll = Besatzung; ohne Angabe 1 Schwertkämpfer Stufe 1 wie im Original). Karten ohne Gebäude (Mehrspieler, auch Einzelspieler wie Beginner I/III): `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json` (Startturm will nur Infanterie, Bogenschützen warten draußen).
 - `Map/Generation/RandomMapGenerator`: Zufallskarten als `OriginalMap` (`OriginalMap.Create`), gleiche `RandomMapSettings` + Seed = gleiche Karte,

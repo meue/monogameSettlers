@@ -52,7 +52,7 @@ public static class TextButton
         bool enabled = true, int size = 14, bool selected = false)
     {
         bool over = enabled && rect.Contains(cursor);
-        bool down = selected || over && Mouse.GetState().LeftButton == ButtonState.Pressed;
+        bool down = selected || over && SdlMouse.GetState().LeftButton == ButtonState.Pressed;
         if (_sheet is null)
             batch.Draw(pixel, rect, over ? Color.White * 0.15f : Color.Black * 0.3f);
         else

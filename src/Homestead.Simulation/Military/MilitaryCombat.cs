@@ -125,6 +125,64 @@ public sealed partial class Military
         }
     }
 
+    /// <summary>Waypoints a soldier keeps after its current order (Shift+right click); a further one replaces the last.</summary>
+    public const int MaxWaypoints = 3;
+
+    /// <summary>
+    /// A waypoint (Shift+right click): soldiers with an order carry it out, then walk on to this point; up to
+    /// <see cref="MaxWaypoints"/> wait in turn, a further one replaces the last. Soldiers without an order (or holding,
+    /// patrolling) walk there at once, like <see cref="Move"/>.
+    /// </summary>
+    public void AddWaypoint(IEnumerable<Settler> soldiers, GridPoint destination, bool forced = false)
+    {
+        var list = soldiers.Where(s => s.Profession == Profession.Soldier && !s.IsDead && !s.IsInside && !_guards.ContainsKey(s.Id)).Distinct().ToList();
+        if (list.Count > 0 && _world.CommandTarget(list[0], destination) is { } reachable)
+            destination = reachable;
+        var spots = FreeSpotsAround(destination, list);
+        var walking = new List<Settler>();
+        for (int i = 0; i < list.Count; i++)
+        {
+            var soldier = list[i];
+            var spot = spots.Count > 0 ? spots[i % spots.Count] : destination;
+            if (_fighters.TryGetValue(soldier.Id, out var f) && f is { Hold: false, PatrolBack: null })
+            {
+                if (f.Waypoints.Count == MaxWaypoints)
+                    f.Waypoints.RemoveAt(f.Waypoints.Count - 1);
+                f.Waypoints.Add(new Waypoint(_world.CommandTarget(soldier, spot) ?? spot, forced));
+            }
+            else
+                walking.Add(soldier);
+        }
+        if (walking.Count > 0)
+            Move(walking, destination, forced);
+    }
+
+    /// <summary>
+    /// Patrol (Alt+right click): the soldiers walk to the point and back to where they stand, to and fro until another
+    /// order. Enemies on the way are fought as on a move order, buildings taken up on their own too; then they walk on.
+    /// </summary>
+    public void Patrol(IEnumerable<Settler> soldiers, GridPoint destination)
+    {
+        var list = Commandable(soldiers);
+        if (list.Count > 0 && _world.CommandTarget(list[0], destination) is { } reachable)
+            destination = reachable;
+        var spots = FreeSpotsAround(destination, list);
+        for (int i = 0; i < list.Count; i++)
+        {
+            var soldier = list[i];
+            var spot = spots.Count > 0 ? spots[i % spots.Count] : destination;
+            _fighters[soldier.Id] = new Fighter(soldier) { MoveTo = _world.CommandTarget(soldier, spot) ?? spot, PatrolBack = soldier.StepTarget };
+            soldier.HasTask = true;
+        }
+    }
+
+    /// <summary>The waypoints the soldier walks to after its current order, in turn.</summary>
+    public IReadOnlyList<GridPoint> Waypoints(Settler soldier) =>
+        _fighters.TryGetValue(soldier.Id, out var f) ? f.Waypoints.Select(w => w.Spot).ToList() : [];
+
+    /// <summary>The other end of the soldier's patrol (the one it is not walking to); null if it does not patrol.</summary>
+    public GridPoint? PatrolBack(Settler soldier) => _fighters.TryGetValue(soldier.Id, out var f) ? f.PatrolBack : null;
+
     /// <summary>
     /// Where the soldier walks on a plain (not forced) move order while it is neither fighting nor
     /// attacking a building on the way; null otherwise. Such a soldier may take a new order any time.
@@ -789,6 +847,13 @@ public sealed partial class Military
                     f.Forced = false;
                     return;
                 }
+                if (f.PatrolBack is { } back)
+                {
+                    // Patrolling: back to the other end.
+                    (f.MoveTo, f.PatrolBack) = (back, spot);
+                    f.NextReplan = 0;
+                    return;
+                }
                 Dismiss(f);
                 return;
             }
@@ -1214,8 +1279,18 @@ public sealed partial class Military
                 _world.RemoveBuilding(other);
     }
 
+    /// <summary>The order is done: on to the next waypoint, if any; otherwise the soldier stands idle.</summary>
     private void Dismiss(Fighter f)
     {
+        if (f.Waypoints.Count > 0)
+        {
+            var next = f.Waypoints[0];
+            var walking = new Fighter(f.Soldier) { MoveTo = next.Spot, Forced = next.Forced };
+            walking.Waypoints.AddRange(f.Waypoints.Skip(1));
+            _fighters[f.Soldier.Id] = walking;
+            SetActivity(f.Soldier, Activity.None);
+            return;
+        }
         _fighters.Remove(f.Soldier.Id);
         SetActivity(f.Soldier, Activity.None);
         f.Soldier.HasTask = false;
@@ -1283,7 +1358,16 @@ public sealed partial class Military
 
         /// <summary>It went for an enemy soldier last tick.</summary>
         public bool Chasing { get; set; }
+
+        /// <summary>Where to walk after this order, in turn (Shift+right click).</summary>
+        public List<Waypoint> Waypoints { get; } = new();
+
+        /// <summary>Patrol: the other end, walked to once <see cref="MoveTo"/> is reached (and so on).</summary>
+        public GridPoint? PatrolBack { get; set; }
     }
+
+    /// <summary>A point to walk to after the current order, forced (no fighting on the way) or not.</summary>
+    private readonly record struct Waypoint(GridPoint Spot, bool Forced);
 }
 
 /// <summary>

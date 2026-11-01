@@ -4,7 +4,7 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
 
 - **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
   daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): ganz oben Weiterspielen (lädt `SaveSlots.Latest`, ohne Spielstand blass), abgesetzt Kampagne, Missions-CD, Amazonen-Kampagne (je → Kampagne),
-  abgesetzt Einzelspieler (→ Startscreen), Einstellungen (→ Einstellungen), Spiel laden
+  abgesetzt Einzelspieler (→ Startscreen), Mehrspieler (→ `MultiplayerScreen`, siehe `docs/MULTIPLAYER.md`), Einstellungen (→ Einstellungen), Spiel laden
   (Liste der 8 Slots als `ListScreen`: Name, Datum, Volk; leere blass; Klick lädt, Ladefehler über dem Titel), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
   Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`THIRD_PARTY_NOTICES.md` auf GitHub, Enter/Esc),
   unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
@@ -30,12 +30,12 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
   alle geschafften und die nächste, Namen aus den Missionstexten, nach allen der Abschluss; längere Liste scrollt (Rad, Pfeile, Bildlaufleiste), öffnet bei der neuesten; Klick → Beschreibung, deren „Zurück“ wieder
   hierher, bzw. Video und danach zurück; Esc/„Zurück“ → Volkswahl). Videos über `MapGame.PlayVideo(pfad, danach)`. Laufende Mission `MissionRef` (`settlers/Roman/0`, `amazons/peoples/3`) steht im
   Spielstand (Client-Wert `mission`, Kopf `SaveInfo.Mission` – Listen zeigen „Kampagne Römer, Mission 1“).
-  Sieg/Niederlage: `World.Goals` (`MissionGoals`, nur in Missionen, mitgespeichert) prüft sekündlich für Spieler 1: kein eigenes Gebäude
+  Sieg/Niederlage: `World.Goals` (`MissionGoals`, nur in Missionen, mitgespeichert) prüft sekündlich für Spieler 1 (`MissionGoals.Player`): kein eigenes Gebäude
   (auch Baustellen) mehr, nachdem es eins gab, oder keins und keine Siedler (G06 beginnt ohne Gebäude) → verloren, kein fremdes mehr (zerstört/erobert) → gewonnen; einmal entschieden, bleibt es. Missionsspezifische Bedingungen
   aus den Texten (Vorposten halten, Goldmengen …) noch nicht.
   Freie Partien (Startscreen, auch alte Spielstände): `ConquestGoals` (`World.Goals` ist `IGameGoals`) – wer kein fertiges Militärgebäude
   (Turm, großer Turm, Burg) mehr hat, nachdem er eins hatte, ist endgültig besiegt (`IsDefeated`); seine KI denkt nicht mehr (`World` überspringt sie),
-  Siedler/Soldaten handeln nur noch von selbst. Spieler 1 besiegt → verloren, alle anderen besiegt → gewonnen (Banner mit `system.wonHint`/`lostHint`, Statistik ohne „Weiter“). Gewonnen: weiß oben „Spiel gewonnen“, Fortschritt sofort gespeichert, weiterspielen
+  Siedler/Soldaten handeln nur noch von selbst. je Spieler (`OutcomeOf`, `DecidedAt`): besiegt → verloren, alle Feinde besiegt → gewonnen; der Client zeigt das des lokalen Spielers (Banner mit `system.wonHint`/`lostHint`, Statistik ohne „Weiter“). Gewonnen: weiß oben „Spiel gewonnen“, Fortschritt sofort gespeichert, weiterspielen
   möglich; Spiel beenden → Statistik („Weiter“) → nächste Missionsbeschreibung über Missionsauswahl und Volkswahl (nach der letzten das Sieg-Video, dann die Auswahl).
   Gewonnen hebt den Fog of War auf (`FogOn`; Cheat-Wahl `_fogChosen` bleibt für die nächste Partie).
   Verloren: „Spiel verloren“, keine Befehle mehr (Auswahl, Bauen, Menüs, Tasten außer Esc/F11/F3/T/Leertaste); Kamera, Minimap, Events und Computer-Menü
@@ -54,7 +54,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
   Ok/Enter speichert `GameSettings` (Abschnitt `game`) und `DisplaySettings` (Client, Abschnitt `display`, sofort angewandt) in
   `~/.config/homestead/settings.json` (`SettingsFile`: je Abschnitt, Rest der Datei bleibt); Abbrechen/Esc verwirft, Standard setzt den offenen
   Reiter zurück (Spielwerte: `production.json`). Hardware-Cursor aus: eigener goldener Pfeil (`SoftwareCursor`, in `EndDraw`, nicht in Captures).
-  Neue Partien: `GameSettings.Load(…).Apply(…)` → `OriginalScenario.Load(production:, magic:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
+  Neue Partien: `GameSettings.Load(…)` → `GameSetup.Settings` → `Apply(…)` in `OriginalScenario.Load(production:, magic:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
 - **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
   im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
   sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: Einstellungen (Spieler, Symmetrie, Flüsse, Rohstoffe, Steine, Wälder,
@@ -62,7 +62,8 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
   Farbe (`PlayerColors.Palette`, nach Farbton sortiert, Kennungen `Choices`; Klick öffnet Auswahl darunter mit „?“ und allen Farben, belegte
   durchgestrichen; Spieler 1 vorbelegt mit „Bevorzugte Farbe“ der Einstellungen, Vorgabe Rot; „Zufall“ → `PlayerColors.Assign`), Team (Klick öffnet Auswahl 1–4/„-“, Vorgabe „-“ = keins; `World.Teams`,
   nach dem Laden gesetzt; `TeamOf`, `AreAllies`), Hardcore.
-  Mehrspieler-Startpositionen gelost (Vorschau schwarz „?“, Klick weist zu/zurück; `StartScreen.ResolvePositions` → `OriginalScenario.Load(positions:)`).
+  Mehrspieler-Startpositionen gelost (Vorschau schwarz „?“, Klick weist zu/zurück; `GameSetup.Positions` → `GameSetup.ResolvePositions`).
+  Jede Partie (Startscreen, `--map`, Bild↑/↓, Missionen) startet über ein `GameSetup` (`MapGame.SoloSetup` → `StartGame`, siehe `docs/MULTIPLAYER.md`).
   Hardcore (`World.HardcorePlayers`, `Hardcore`): +10 % Kampfkraft flach (auch über 100 %), +30 % Bewohner je Wohnhaus, +20 % Soldaten-LP
   (`World.MaxHealth`), −25 % Baumaterial je Stapel (gerundet, mind. 1, `World.ConstructionCost`), Arbeitszeiten × 0,9,
   Start +2 Schwertkämpfer, +5 Bretter, +5 Stämme (`OriginalScenario.Load(hardcore:)`).
@@ -149,13 +150,18 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
   Leerzeichen um (zu lange Wörter werden geteilt), Folgezeilen weiter eingerückt (`Hang`, 1,25 × Zeilenhöhe); Umbruch je Notiz gecacht.
 - **Textbuttons** (`TextButton`): Steinknöpfe aus den Menüs vor dem Spiel (`textButton` in `ui.json`, Datei 02 GUI 0, 9-Slice), z. B. Abreißen,
   Anhalten, Ja/Nein, Rekrutierung, Statistik. Besatzung ±: Auf/Ab-Spinner wie in der Herstellung.
+- **Befehle an die Welt** (Lockstep-Vorbereitung): der Client ändert die Simulation nur über `GameCommand`s – `MapGame.Issue(befehl, danach)`
+  (Ergebnis nach dem Anwenden an `danach`: Meldung, Klang, Auswahl; `TakeCommandResults` nach jedem `Step`), Menüs/Panel/KI-Chat über den Delegaten
+  `IssueCommand` (`IssueReported`: Ergebnis → Meldung). Ausnahmen: Spielaufbau, Capture-/Demo-Code, eigene KI (Taste I, nur Einzelspieler),
+  Statistik-Messpunkt beim Öffnen und Kalender-Ereignisse (beides liest die Spiellogik nicht).
 - **Auswahl/Befehle**: Rahmen oder Klick wählt eigene Figuren, Vorrang Soldaten > Kriegsmaschinen (nie zusammen) > Priester > Geologen > Späher > Pioniere,
   Träger und andere Berufe nie (Rahmen ohne solche Figuren: das der Mitte nächste Gebäude; Gebäude: weißer Eckrahmen 3 px). Shift fügt hinzu,
   Strg+Klick alle eigenen dieses Berufs im Bild (Soldaten: alle), Alt+Klick dieses Typs im Bild (Soldaten: Typ, Rang egal). Ausgewählte wie im Original: zwei weiße Eckklammern über dem Kopf, dazwischen
   runder Punkt mit schwarzem Rand grün→gelb→rot nach LP (`DrawSelectionMarker`).
   `SelectionPanel` je Art (Typ/Stufe und Volk – Bekehrte zeigen ihres) Porträt (`Portraits`, `ui.json` `portraits`; andere Völker `MapGame.PortraitsOf`) + Anzahl (zu viele: gestaucht, mehr Spalten oder kleiner), unten Kampfkraft – wie Zaubermenü
   im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (auch Schiffe; jede Figur/jedes Schiff in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel` bzw. Schiffs-Knopfbild, gleich hoch, breitere Bilder (Kriegsmaschine, Schiff) breiter, folgende rücken weiter, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt; ist die Auswahl genau eine Gruppe, kommt per Shift Hinzugefügtes auch in die Gruppe; zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
-  Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf. Schiffe (`_ships`, statt Siedlern; Klick, Strg: alle im Bild,
+  Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf, Shift+Rechtsklick Wegpunkt (`Military.AddWaypoint`, mit Strg erzwungen),
+  Alt+Rechtsklick Patrouille (`Military.Patrol`); Tab: von der Auswahl bleiben nur verwundete Soldaten (LP < `World.MaxHealth`; Steuergruppen unverändert). Schiffe (`_ships`, statt Siedlern; Klick, Strg: alle im Bild,
   Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl, Fähren „An Bord: n/7“, Handelsschiffe „Ladung: n“, unten „Schiff entladen“ (`BuildingInfo.DrawShips`/`UnloadAt`).
   Gewählte Einheiten: Rechtsklick auf eine eigene Fähre nahe Land → einsteigen; an Deck stehend gezeichnet (`ShipRenderer`: ganzes Schiff, Passagiere hinter
   dem Mast, Vorderteil = Sequenz davor, Segel, Passagiere vor dem Mast). Geologen: Rechtsklick hin, auf Gebirge suchen.
@@ -165,6 +171,11 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
   (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
   Träger umwandeln nur über Siedler › Berufe. Linksklick ins Leere wählt ab (Figuren, Gebäude, Menüs) und leert das Panel wie im Original
   (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
+- **Maus** (`SdlMouse`, überall statt `Mouse.GetState()`; `NextFrame()` als Erstes in `Update`): Tasten aus SDL-Ereignissen (Event-Watch) statt
+  aus MonoGames Abfrage je Frame – eine Taste gilt im Frame als gedrückt, wenn sie unten ist oder seit dem Frame davor gedrückt wurde (Tippen aufs
+  Trackpad geht nicht verloren; auf macOS kommt der Zwei-Finger-Klick so als rechte Taste an, Issue #6). Position aus `SDL_GetMouseState` (relativ zum Fenster; MonoGame rechnet global minus
+  Fensterposition, unter XWayland/COSMIC um den Fensterversatz falsch). Ohne SDL: MonoGames Zustand.
+  SDL-Bibliothek für eigene DllImports: `SdlLibrary` (auch im Plattformordner wie `osx-arm64/`).
 - **Tasten**: Enter Chat (siehe Info-Feld), Esc bricht Platzieren/Zielen ab, sonst Pause wie P; keine Cheat-Tasten (nur `/cheats`, siehe Info-Feld);
   F Angriff aufs feindliche Militärgebäude unter der Maus, Fog of War (Sicht 1×/s, `FogLayer` blendet weich,
   klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht; an/aus nur im Cheat-Menü), F11 Vollbild (nur für die Sitzung; Vorgabe in den Einstellungen),
@@ -177,7 +188,11 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
   `World.BuildSpotEffort`; Vorschau am nächsten Bauplatz; Q/E Gebäude; endet nach Platzieren, Rechtsklick bricht ab).
 - **Optionen**: `--scene map` (Standard) / `--scene walk` (Lauf-PoC); `--load <slot>` (1–8; Gelände/Objekte aus der Karte, dann Feld für Feld auf Stand);
   `--map <name>` (Standard: erste Mehrspieler-Karte; `random[:spieler[:none|mirror|repeat[:seed]]]`); `--peoples amazon,roman,…` (offene Völker,
-  Spieler i: Eintrag i mod n; sonst zufällig; Kartenvorgaben 0–3 gelten); `--characters ,general` (KI-Charakter je Spieler, Eintrag i → Spieler i+1, leer = gelost).
+  Spieler i: Eintrag i mod n; sonst zufällig; Kartenvorgaben 0–3 gelten); `--characters ,general` (KI-Charakter je Spieler, Eintrag i → Spieler i+1, leer = gelost);
+  `--player <n>` (gespielter Spieler freier Partien, 1–8, Vorgabe 1; alle anderen KI).
+- **Lokaler Spieler** (`MapGame._local`, ab 0): der Spieler dieses Rechners – Befehle, Auswahl, Fog of War (`Vision`), Minimap (weiß), Menüs,
+  Gebäude-Panel, Steuergruppen, Events, Sieg/Niederlage (`Goals.OutcomeOf`), KI-Chat (`AiChat.Player`), Startscreen („Du“, bevorzugte Farbe), Capture-Szenarien.
+  Missionen immer `MissionGoals.Player` (0); Spielstände speichern ihn (Client-Wert `player`, ältere: 0). Fürs Mehrspieler später vom Server.
 - **Ton** (`GameAudio`, nicht in Captures): Effekte aus `SND/Siedler3_00.dat` je `SoundCue` (Nummern in `data/sound.json`, am Original erkannt:
   Schwert 30, Bogen 33 – Ägypter 32 –, Speer 34, Tod 35, Amazone 113, Baum fällt 36, Gebäude fällt 93, Zaubern 75, Heilen 21, Pionier 25/1, Geologe ab
   `minAmount` 24/1–3, Aussaat Bauer 8; Tabelle `docs/formate/snd.md`; `SoundRef`: Nummer oder `{sound, variants}`), Variante zufällig, nur in Sicht (Fog), im Bild voll, außerhalb bis `hearing` halbe Bildbreiten leiser,

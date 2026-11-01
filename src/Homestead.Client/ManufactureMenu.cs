@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
@@ -82,7 +83,7 @@ public sealed class ManufactureMenu : IDisposable
     /// Mouse handling (panel space): a press on a spinner orders one more/less, a press on a bar starts
     /// dragging it; while held, the dragged bar follows the cursor (also beyond the panel). Returns a message, or null.
     /// </summary>
-    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player)
+    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue)
     {
         if (!pressed)
         {
@@ -95,17 +96,19 @@ public sealed class ManufactureMenu : IDisposable
                 var spinner = Spinner(y);
                 if (spinner.Contains(panel))
                 {
-                    world.Production.ChangeOrdered(player, product, panel.Y < spinner.Center.Y ? 1 : -1);
+                    issue(new ChangeOrdered(player, product, panel.Y < spinner.Center.Y ? 1 : -1),
+                        _ => $"{NameOf(product)}: {world.Production.Ordered(player, product)} ordered");
                     UiSounds.Step(panel.Y < spinner.Center.Y);
-                    return $"{NameOf(product)}: {world.Production.Ordered(player, product)} ordered";
+                    return null;
                 }
                 if (Bar(y).Contains(panel))
                     _dragging = product;
             }
         if (_dragging is not { } dragged)
             return null;
-        world.Production.SetShare(player, dragged, ShareBar.ValueAt(Bar(Rows().First(r => r.Product == dragged).Y), panel.X));
-        return $"{NameOf(dragged)}: {world.Production.ShareOf(player, dragged) * 100:0} %";
+        double share = Math.Clamp(ShareBar.ValueAt(Bar(Rows().First(r => r.Product == dragged).Y), panel.X), 0, 1);
+        issue(new SetProductionShare(player, dragged, share));
+        return $"{NameOf(dragged)}: {share * 100:0} %";
     }
 
     /// <summary>What the element under the point does (hover text), or null.</summary>

@@ -71,7 +71,7 @@ internal sealed class PincerTrait(JsonElement settings) : AiTrait
         dy /= length;
         GridPoint? At(double angle, double radius)
         {
-            double cos = Math.Cos(angle), sin = Math.Sin(angle);
+            double cos = DeterministicMath.Cos(angle), sin = DeterministicMath.Sin(angle);
             return NearestOpen(ai, Grid(tx + (dx * cos - dy * sin) * radius, ty + (dx * sin + dy * cos) * radius), campaign.Rally);
         }
         if (At(side * _flankAngle, distance) is not { } staging || At(side * _flankAngle / 2, Math.Max((length + distance) / 2, distance + 4)) is not { } waypoint)

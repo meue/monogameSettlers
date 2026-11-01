@@ -19,6 +19,11 @@ public sealed class ControlGroups
     private const int Gap = 4;
     private const int Margin = 8;
 
+    /// <summary>The local player: only its settlers and ships stay in groups, portraits in its color.</summary>
+    private readonly int _player;
+
+    public ControlGroups(int player) => _player = player;
+
     /// <summary>The size of a ship's button image, its icon's proportions.</summary>
     private static readonly Point ShipSize = new(60, 40);
 
@@ -77,9 +82,9 @@ public sealed class ControlGroups
         .Select(i => string.Join(',', _groups[i].Select(s => s.Id.ToString()).Concat(_shipGroups[i].Select(s => $"s{s.Id}")))));
 
     /// <summary>The groups of a saved game (<see cref="Saved"/>); members no longer there are left out.</summary>
-    public static ControlGroups Restore(string? saved, IEnumerable<Settler> settlers, IEnumerable<Ship>? ships = null)
+    public static ControlGroups Restore(string? saved, int player, IEnumerable<Settler> settlers, IEnumerable<Ship>? ships = null)
     {
-        var groups = new ControlGroups();
+        var groups = new ControlGroups(player);
         if (string.IsNullOrEmpty(saved))
             return groups;
         var byId = settlers.ToDictionary(s => s.Id);
@@ -88,7 +93,7 @@ public sealed class ControlGroups
         for (int i = 0; i < Math.Min(parts.Length, Count); i++)
             foreach (var id in parts[i].Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
-                if (id.StartsWith('s') && int.TryParse(id[1..], out int s) && shipsById.TryGetValue(s, out var ship) && ship.Player == 0)
+                if (id.StartsWith('s') && int.TryParse(id[1..], out int s) && shipsById.TryGetValue(s, out var ship) && ship.Player == player)
                     groups._shipGroups[i].Add(ship);
                 else if (int.TryParse(id, out int n) && byId.TryGetValue(n, out var settler))
                     groups._groups[i].Add(settler);
@@ -101,7 +106,7 @@ public sealed class ControlGroups
     public void Update()
     {
         foreach (var group in _groups)
-            group.RemoveAll(s => s.IsDead || s.IsInside || s.Player != 0);
+            group.RemoveAll(s => s.IsDead || s.IsInside || s.Player != _player);
     }
 
     /// <summary>The group whose icon is under the screen point.</summary>
@@ -136,7 +141,7 @@ public sealed class ControlGroups
             {
                 var people = settlers.PeopleOf(group[0]);
                 // As high as the other portraits.
-                portraits(people).Draw(batch, type, rect, settlers, people, PlayerColors.Of(0), scale * Portraits.Size.Y / PortraitSize(group[0]).Y);
+                portraits(people).Draw(batch, type, rect, settlers, people, PlayerColors.Of(_player), scale * Portraits.Size.Y / PortraitSize(group[0]).Y);
             }
             if (rect.Contains(cursor))
                 batch.Draw(pixel, rect, Color.White * 0.15f);

@@ -88,7 +88,7 @@ public sealed partial class AiChat
 
     private void HandedOver(int from, int to, Material material)
     {
-        if (from != 0 || _watched is not { } world || !IsVoice(world, to))
+        if (from != Player || _watched is not { } world || !IsVoice(world, to))
             return;
         var (worth, goods) = _gifts.TryGetValue(to, out var gift) ? gift : (0, new Dictionary<Material, int>());
         worth += _giftValues.GetValueOrDefault(material, _giftOtherValue);
@@ -99,7 +99,7 @@ public sealed partial class AiChat
         _gifts.Remove(to);
         string list = string.Join(", ", goods.OrderByDescending(g => g.Value).Select(g => $"{g.Value} {g.Key}"));
         string verdict = worth >= _giftPleased ? "a generous gift" : "worthless stuff, raw logs: an insult";
-        _happenings.Add($"Player 1 sent player {to + 1} goods by donkey: {list} ({verdict}). Player {to + 1} answers player 1.");
+        _happenings.Add($"Player {Player + 1} sent player {to + 1} goods by donkey: {list} ({verdict}). Player {to + 1} answers player {Player + 1}.");
     }
 
     /// <summary>Once a frame: military buildings taken and big fights since the last look, each answered by chance.</summary>
@@ -141,8 +141,8 @@ public sealed partial class AiChat
     private void NoticeArmy(World world)
     {
         var map = world.Map!;
-        var soldiers = world.Settlers.Where(s => s.Player == 0 && s.Profession == Profession.Soldier && !s.IsDead && !s.IsInside).ToList();
-        foreach (var ai in world.AiPlayers.Where(a => IsVoice(world, a.Player) && !world.AreAllies(0, a.Player)))
+        var soldiers = world.Settlers.Where(s => s.Player == Player && s.Profession == Profession.Soldier && !s.IsDead && !s.IsInside).ToList();
+        foreach (var ai in world.AiPlayers.Where(a => IsVoice(world, a.Player) && !world.AreAllies(Player, a.Player)))
         {
             var military = world.Buildings.Where(b => b.Exists && b.Player == ai.Player && b.Definition.Occupiers.Count > 0)
                 .Select(b => b.Position).ToList();
@@ -158,7 +158,7 @@ public sealed partial class AiChat
                 continue;
             _lastArmy[ai.Player] = world.Tick;
             bool inside = soldiers.Count(s => map.OwnerAt(s.Position) == ai.Player) >= _army.Soldiers / 2;
-            _happenings.Add($"Player 1 marches up with an army of {there} soldiers {(inside ? "onto the land" : "at the border")} of player {ai.Player + 1}.");
+            _happenings.Add($"Player {Player + 1} marches up with an army of {there} soldiers {(inside ? "onto the land" : "at the border")} of player {ai.Player + 1}.");
         }
     }
 

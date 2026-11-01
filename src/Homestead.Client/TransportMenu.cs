@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
@@ -104,7 +105,7 @@ public sealed class TransportMenu : IDisposable
     }
 
     /// <summary>A click (panel space): chooses a good or applies a button to the chosen one; returns a message, or null.</summary>
-    public string? Click(Vector2 panel, World world, int player)
+    public string? Click(Vector2 panel, World world, int player, IssueCommand issue)
     {
         var goods = Ordered(world, player);
         for (int i = 0; i < goods.Count; i++)
@@ -126,35 +127,42 @@ public sealed class TransportMenu : IDisposable
             {
                 case 0:
                 case 1:
-                    world.Logistics.SetStored(player, chosen, i == 0);
+                    issue(new SetStored(player, chosen, i == 0));
                     UiSounds.Toggle();
                     return i == 0 ? $"{name} goes to storehouses" : $"{name} stays with its producer";
                 case 2:
-                    world.Logistics.MoveInTransportOrder(player, chosen, int.MinValue);
+                    issue(new MoveInTransportOrder(player, chosen, int.MinValue), _ => PlaceMessage(world, player, chosen));
                     break;
                 case 3 when index > 0:
-                    MoveTo(world, player, chosen, goods[index - 1].Material);
+                    MoveTo(world, player, chosen, goods[index - 1].Material, issue);
                     break;
                 case 4 when index < goods.Count - 1:
-                    MoveTo(world, player, chosen, goods[index + 1].Material);
+                    MoveTo(world, player, chosen, goods[index + 1].Material, issue);
                     break;
                 case 5:
-                    world.Logistics.MoveInTransportOrder(player, chosen, int.MaxValue);
+                    issue(new MoveInTransportOrder(player, chosen, int.MaxValue), _ => PlaceMessage(world, player, chosen));
                     break;
             }
             if (i is >= 2 and <= 5)
                 UiSounds.Step(i <= 3);
-            int now = Ordered(world, player).FindIndex(g => g.Material == chosen);
-            return $"{name}: place {now + 1} in the transport order";
+            return null; // the place once the order changed (PlaceMessage)
         }
         return null;
     }
 
     /// <summary>Moves the good to the place of another one in the full order (it swaps past it).</summary>
-    private static void MoveTo(World world, int player, Material good, Material other)
+    /// <summary>The good's place among the goods shown.</summary>
+    private string PlaceMessage(World world, int player, Material good)
+    {
+        var goods = Ordered(world, player);
+        int now = goods.FindIndex(g => g.Material == good);
+        return now < 0 ? "" : $"{goods[now].Name}: place {now + 1} in the transport order";
+    }
+
+    private void MoveTo(World world, int player, Material good, Material other, IssueCommand issue)
     {
         var order = world.Logistics.TransportOrder(player).ToList();
-        world.Logistics.MoveInTransportOrder(player, good, order.IndexOf(other) - order.IndexOf(good));
+        issue(new MoveInTransportOrder(player, good, order.IndexOf(other) - order.IndexOf(good)), _ => PlaceMessage(world, player, good));
     }
 
     /// <summary>What the element under the point does (hover text), or null.</summary>

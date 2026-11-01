@@ -27,7 +27,7 @@ public sealed class VideoPlayer : IDisposable
     private readonly Stopwatch _clock = new();
     private readonly float _volume;
     private KeyboardState _previousKeys = Keyboard.GetState();
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
     private bool _skipped;
 
     private VideoPlayer(GraphicsDevice device, AviFile avi, Process ffmpeg, float volume)
@@ -145,7 +145,7 @@ public sealed class VideoPlayer : IDisposable
     public void Update()
     {
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool Pressed(Keys key) => keys.IsKeyDown(key) && !_previousKeys.IsKeyDown(key);
         if (Pressed(Keys.Escape) || Pressed(Keys.Space) || Pressed(Keys.Enter)
             || mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed)

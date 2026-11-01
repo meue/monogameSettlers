@@ -36,7 +36,7 @@ public sealed class CampaignScreen : IDisposable
     private float _scale = 1;
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="campaign">The campaign (<c>settlers</c>, <c>missionCd</c>, <c>amazons</c>).</param>
     public CampaignScreen(GraphicsDevice device, GfxDirectory gfx, string campaign)
@@ -105,7 +105,7 @@ public sealed class CampaignScreen : IDisposable
     {
         Fit(view);
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool escape = keys.IsKeyDown(Keys.Escape) && !_previousKeys.IsKeyDown(Keys.Escape);
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
         _previousKeys = keys;
@@ -121,7 +121,7 @@ public sealed class CampaignScreen : IDisposable
     public void Resume()
     {
         _previousKeys = Keyboard.GetState();
-        _previousMouse = Mouse.GetState();
+        _previousMouse = SdlMouse.GetState();
     }
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view)
@@ -133,7 +133,7 @@ public sealed class CampaignScreen : IDisposable
         batch.Draw(_background, page, Color.White);
 
         WriteCentered(batch, font, Lang.T(Campaign == "amazons" ? "campaign.chooseSide" : "campaign.choosePeople"), _heading, Gold, _headingSize);
-        var hover = Hovered ?? At(ToLayout(Mouse.GetState().Position));
+        var hover = Hovered ?? At(ToLayout(SdlMouse.GetState().Position));
         foreach (var (side, picture, name, brighter, key) in _sides)
         {
             bool lit = side == hover;
@@ -156,7 +156,7 @@ public sealed class CampaignScreen : IDisposable
             else
                 WriteCentered(batch, font, label, name, lit ? Gold : Text, size);
         }
-        TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), Mouse.GetState().Position.ToVector2(), size: Px(13));
+        TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), SdlMouse.GetState().Position.ToVector2(), size: Px(13));
     }
 
     private void Outline(SpriteBatch batch, Texture2D pixel, Rectangle r, Color color)

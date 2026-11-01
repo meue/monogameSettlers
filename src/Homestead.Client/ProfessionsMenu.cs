@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
@@ -138,13 +139,13 @@ public sealed class ProfessionsMenu : IDisposable
         new(spinner.X, upper ? spinner.Y : spinner.Center.Y, spinner.Width, spinner.Height / 2);
 
     /// <summary>
-    /// A click (panel space): changes a share or converts carriers and returns a message; a find button
-    /// returns what to select in <paramref name="find"/> (the caller selects), converted carriers are added to
-    /// <paramref name="chosen"/> (also those that follow after their delivery), taken from <paramref name="among"/> in its order
-    /// if given. Null if it hit nothing.
+    /// A click (panel space): changes a share or converts carriers (by commands; their messages follow once applied); a find
+    /// button returns what to select in <paramref name="find"/> (the caller selects), the ids of converted carriers go to
+    /// <paramref name="chosen"/> once applied (also those that follow after their delivery), taken from <paramref name="among"/>
+    /// in its order if given. Returns a message, or null.
     /// </summary>
-    public string? Click(Vector2 panel, World world, int player, out (Profession Profession, FindMode Mode)? find, ICollection<Settler>? chosen = null,
-        IReadOnlyList<Settler>? among = null)
+    public string? Click(Vector2 panel, World world, int player, IssueCommand issue, out (Profession Profession, FindMode Mode)? find,
+        Action<int[]>? chosen = null, IReadOnlyList<Settler>? among = null)
     {
         find = null;
         for (int row = 0; row < Shares.Length; row++)
@@ -152,9 +153,10 @@ public sealed class ProfessionsMenu : IDisposable
             {
                 var (share, _, name) = Shares[row];
                 bool up = panel.Y < Spinner(row).Center.Y;
-                world.Recruitment.SetShare(player, share, world.Recruitment.ShareOf(player, share) + (up ? Step : -Step));
+                issue(new SetRecruitmentShare(player, share, world.Recruitment.ShareOf(player, share) + (up ? Step : -Step)),
+                    _ => $"{name}: {world.Recruitment.ShareOf(player, share) * 100:0} %");
                 UiSounds.Step(up);
-                return $"{name}: {world.Recruitment.ShareOf(player, share) * 100:0} %";
+                return null;
             }
         for (int e = 0; e < Entries.Length; e++)
         {
@@ -174,15 +176,21 @@ public sealed class ProfessionsMenu : IDisposable
                         return $"no {entry.Name} yet";
                     if (entry.ToCarriers)
                     {
-                        int back = world.Geology.PioneersToCarriers(player, Amounts[i]);
-                        return back == 0 ? "no pioneers to turn into carriers" : $"{back} pioneers became carriers";
+                        issue(new PioneersToCarriers(player, Amounts[i]),
+                            result => (int)result! is var back && back == 0 ? "no pioneers to turn into carriers" : $"{back} pioneers became carriers");
+                        return null;
                     }
-                    var (now, later) = world.Geology.ConvertCarriers(player, Amounts[i], converted, chosen, among);
-                    return now + later == 0 && among is not null && !among.Any(s => s.IsCarrier && s.Player == player)
-                        ? $"no carrier on the screen to become one of the {entry.Name}"
-                        : now + later == 0 ? $"no carrier may become one of the {entry.Name} (carrier share)"
-                        : later == 0 ? $"{now} carriers became {entry.Name}"
-                        : $"{now} carriers became {entry.Name}, {later} more after their delivery";
+                    bool carriersAmong = among is null || among.Any(s => s.IsCarrier && s.Player == player);
+                    issue(new ConvertCarriers(player, Amounts[i], converted, among?.Select(s => s.Id).ToArray()), result =>
+                    {
+                        var (now, later, ids) = ((int, int, int[]))result!;
+                        chosen?.Invoke(ids);
+                        return now + later == 0 && !carriersAmong ? $"no carrier on the screen to become one of the {entry.Name}"
+                            : now + later == 0 ? $"no carrier may become one of the {entry.Name} (carrier share)"
+                            : later == 0 ? $"{now} carriers became {entry.Name}"
+                            : $"{now} carriers became {entry.Name}, {later} more after their delivery";
+                    });
+                    return null;
                 }
         }
         return null;

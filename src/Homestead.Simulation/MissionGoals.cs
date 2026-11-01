@@ -10,11 +10,16 @@ public enum MissionOutcome { Open, Won, Lost }
 /// </summary>
 public sealed class MissionGoals : IGameGoals
 {
+    /// <summary>The player the mission is played as (the human of the campaign maps).</summary>
     public const int Player = 0;
 
-    public MissionOutcome Outcome { get; private set; }
+    private MissionOutcome Outcome { get; set; }
 
-    public long DecidedAt { get; private set; } = -1;
+    private long Decided { get; set; }
+
+    public MissionOutcome OutcomeOf(int player) => player == Player ? Outcome : MissionOutcome.Open;
+
+    public long DecidedAt(int player) => player == Player && Outcome != MissionOutcome.Open ? Decided : -1;
 
     /// <summary>The own player has had a building (so losing the last one loses the mission).</summary>
     private bool _hadBuilding;
@@ -33,19 +38,19 @@ public sealed class MissionGoals : IGameGoals
                 others = true;
         _hadBuilding |= own;
         if (!own && (_hadBuilding || !world.Settlers.Any(s => s.Player == Player)))
-            Decide(MissionOutcome.Lost, world.Tick);
+            Decide(Player, MissionOutcome.Lost, world.Tick);
         else if (!others)
-            Decide(MissionOutcome.Won, world.Tick);
+            Decide(Player, MissionOutcome.Won, world.Tick);
     }
 
     /// <summary>Computer players never give up in missions.</summary>
     public bool IsDefeated(int player) => false;
 
-    public void Decide(MissionOutcome outcome, long tick)
+    public void Decide(int player, MissionOutcome outcome, long tick)
     {
-        if (Outcome != MissionOutcome.Open || outcome == MissionOutcome.Open)
+        if (player != Player || Outcome != MissionOutcome.Open || outcome == MissionOutcome.Open)
             return;
         Outcome = outcome;
-        DecidedAt = tick;
+        Decided = tick;
     }
 }

@@ -105,7 +105,7 @@ public sealed class InstallationDialog : Game
         _font = new UiFont();
         SetPath(_path, browse: true);
         _previousKeys = Keyboard.GetState();
-        _previousMouse = Mouse.GetState();
+        _previousMouse = SdlMouse.GetState();
         _previousWheel = _previousMouse.ScrollWheelValue;
     }
 
@@ -159,10 +159,11 @@ public sealed class InstallationDialog : Game
 
     protected override void Update(GameTime gameTime)
     {
+        SdlMouse.NextFrame();
         _now = gameTime.TotalGameTime.TotalSeconds;
         Fit();
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool Pressed(Keys key) => keys.IsKeyDown(key) && !_previousKeys.IsKeyDown(key);
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
         int wheel = mouse.ScrollWheelValue - _previousWheel;
@@ -238,7 +239,7 @@ public sealed class InstallationDialog : Game
         GraphicsDevice.SetRenderTarget(target);
         Fit();
         GraphicsDevice.Clear(Background);
-        var hover = ToLayout(Mouse.GetState().Position);
+        var hover = ToLayout(SdlMouse.GetState().Position);
         _batch.Begin(samplerState: SamplerState.LinearClamp);
 
         Write(Lang.T("install.heading"), 30, 24, Gold, 22);

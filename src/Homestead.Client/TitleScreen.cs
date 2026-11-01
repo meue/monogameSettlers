@@ -24,6 +24,8 @@ public enum TitleAction
     AmazonCampaign,
     /// <summary>Open the map selection (<see cref="StartScreen"/>).</summary>
     SinglePlayer,
+    /// <summary>Open the multiplayer screen (<see cref="MultiplayerScreen"/>).</summary>
+    Multiplayer,
     /// <summary>Open the list of saved games.</summary>
     Load,
     /// <summary>Open the settings (<see cref="SettingsScreen"/>).</summary>
@@ -63,6 +65,7 @@ public sealed class TitleScreen : IDisposable
         ("missionCd", TitleAction.MissionCd, null),
         ("amazonCampaign", TitleAction.AmazonCampaign, null),
         ("singlePlayer", TitleAction.SinglePlayer, null),
+        ("multiplayer", TitleAction.Multiplayer, null),
         ("settings", TitleAction.Settings, null),
         ("load", TitleAction.Load, null),
         ("readme", TitleAction.None, Readme),
@@ -101,7 +104,7 @@ public sealed class TitleScreen : IDisposable
     private float _scale = 1;
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="theme">The look (<see cref="DisplaySettings.Theme"/>); normal is gold.</param>
     public TitleScreen(GraphicsDevice device, GfxDirectory gfx, Theme theme)
@@ -147,7 +150,7 @@ public sealed class TitleScreen : IDisposable
     // Layout in the 800 × 600 space of the picture, measured on the original menu.
     // The campaigns sit a little apart from "Weiterspielen", the free games (from the first one on) from the campaigns,
     // the links to the repository (from the first one on) from the game's buttons.
-    private const int FirstCampaign = 1, FirstGame = 4, FirstLink = 7, GroupGap = 16;
+    private const int FirstCampaign = 1, FirstGame = 4, FirstLink = 8, GroupGap = 16;
 
     /// <summary>The version of this build (from the git tags, docs/VERSIONING.md), with the commit shortened.</summary>
     private static readonly string GameVersion = "v" + (typeof(TitleScreen).Assembly
@@ -190,7 +193,7 @@ public sealed class TitleScreen : IDisposable
     {
         Fit(view);
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool escape = keys.IsKeyDown(Keys.Escape) && !_previousKeys.IsKeyDown(Keys.Escape);
         bool enter = keys.IsKeyDown(Keys.Enter) && !_previousKeys.IsKeyDown(Keys.Enter);
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
@@ -236,7 +239,7 @@ public sealed class TitleScreen : IDisposable
     public void Resume()
     {
         _previousKeys = Keyboard.GetState();
-        _previousMouse = Mouse.GetState();
+        _previousMouse = SdlMouse.GetState();
         _canContinue = SaveSlots.Latest() is not null;
     }
 
@@ -279,8 +282,8 @@ public sealed class TitleScreen : IDisposable
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view)
     {
         Fit(view);
-        var hover = ToLayout(Mouse.GetState().Position);
-        bool held = Mouse.GetState().LeftButton == ButtonState.Pressed;
+        var hover = ToLayout(SdlMouse.GetState().Position);
+        bool held = SdlMouse.GetState().LeftButton == ButtonState.Pressed;
         batch.Draw(_plain, view, _plainStrip, Color.White);
         batch.Draw(_backgrounds[Lang.Current], ToScreen(new Rectangle(0, 0, Width, Height)), Color.White);
 
@@ -310,7 +313,7 @@ public sealed class TitleScreen : IDisposable
             y += 16;
         }
         Write(batch, font, Lang.T("title.loadFailed.code", failure.Code), PopupText.X, y + 8, HoverText, 12);
-        TextButton.Draw(batch, pixel, font, ToScreen(OkButton), Lang.T("common.ok"), Mouse.GetState().Position.ToVector2(), size: Px(12));
+        TextButton.Draw(batch, pixel, font, ToScreen(OkButton), Lang.T("common.ok"), SdlMouse.GetState().Position.ToVector2(), size: Px(12));
     }
 
     /// <summary>The popup over a dimmed screen: the text, the address and what happens, then the two buttons.</summary>
@@ -334,7 +337,7 @@ public sealed class TitleScreen : IDisposable
             : Lang.T("title.popup.willOpen"), Text, 12);
         Paragraph(link.Url, HoverText, 10);
 
-        var cursor = Mouse.GetState().Position.ToVector2();
+        var cursor = SdlMouse.GetState().Position.ToVector2();
         TextButton.Draw(batch, pixel, font, ToScreen(OpenButton), Lang.T("title.popup.open"), cursor, size: Px(12));
         TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), Lang.T("common.cancel"), cursor, size: Px(12));
     }

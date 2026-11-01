@@ -67,6 +67,12 @@ public sealed partial class World
 
     public bool IsHardcore(int player) => HardcorePlayers.Contains(player);
 
+    /// <summary>
+    /// More than one human plays (set by <see cref="GameSetup.Start"/>): cheats and the AI chat's replies do nothing, on every
+    /// computer alike; the client also leaves out what only works alone (own AI, fast forward).
+    /// </summary>
+    public bool Multiplayer { get; set; }
+
     /// <summary>Team per player (index = player; set before the game starts): 1–4, 0 or missing: no team, against everybody.</summary>
     public List<int> Teams { get; } = new();
 
@@ -88,6 +94,9 @@ public sealed partial class World
 
     /// <summary>Computer players; each acts for its own player in every tick.</summary>
     public List<Ai.AiPlayer> AiPlayers { get; } = new();
+
+    /// <summary>The players' orders, applied at the start of the next step (see <see cref="Commands.GameCommand"/>).</summary>
+    public Commands.CommandQueue Commands { get; } = new();
 
     private GameEvents? _events;
 
@@ -165,6 +174,7 @@ public sealed partial class World
     public void Step()
     {
         long mark = StepProfile is null ? 0 : System.Diagnostics.Stopwatch.GetTimestamp();
+        Commands.Apply(this);
         foreach (var walker in Walkers)
             walker.Tick();
 

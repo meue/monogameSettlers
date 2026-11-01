@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Economy;
 using Microsoft.Xna.Framework;
@@ -95,7 +96,7 @@ public sealed class DistributionMenu
     /// Mouse handling (panel space): a press on a good chooses it, a press on a bar starts dragging it;
     /// while held, the dragged bar follows the cursor. Returns a message, or null.
     /// </summary>
-    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player)
+    public string? Update(Vector2 panel, bool pressed, bool justPressed, bool onMenu, World world, int player, IssueCommand issue)
     {
         if (!pressed || _goods.Count == 0)
         {
@@ -117,8 +118,9 @@ public sealed class DistributionMenu
         }
         if (_dragging is not { } dragged || targets.FindIndex(t => t.Target == dragged) is var index && index < 0)
             return null;
-        world.Logistics.SetShare(player, good.Material, dragged, ShareBar.ValueAt(Bar(index), panel.X));
-        return $"{good.Name} for {targets[index].Name}: share {world.Logistics.ShareOf(player, good.Material, dragged) * 100:0} %";
+        double share = ShareBar.ValueAt(Bar(index), panel.X);
+        issue(new SetDistribution(player, good.Material, dragged, share));
+        return $"{good.Name} for {targets[index].Name}: share {share * 100:0} %";
     }
 
     /// <summary>What the element under the point does (hover text), or null.</summary>

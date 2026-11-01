@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Homestead.Assets.Gfx;
 using Homestead.Simulation;
+using Homestead.Simulation.Commands;
 using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Military;
 using Microsoft.Xna.Framework;
@@ -87,17 +88,15 @@ public sealed partial class BuildingInfo
         if (work is not { } w)
             return null;
         string what = w == WarWork.Machine ? "war machine" : "load of ammunition";
-        if (takeBack)
+        Issue!(new OrderWarWork(ownPlayer, building.Id, w, takeBack), result =>
         {
-            if (!world.WarMachines.Cancel(building, w))
-                return $"no {what} to take back (the one being made stays)";
-            UiSounds.Step(more: false);
-            return $"{what} taken back: {world.WarMachines.Ordered(building, w)} ordered";
-        }
-        if (!world.WarMachines.Order(building, w))
-            return $"no {what} here";
-        UiSounds.Step(more: true);
-        return $"{what} ordered ({world.WarMachines.Ordered(building, w)}): carriers bring its material";
+            if (result is not true)
+                return takeBack ? $"no {what} to take back (the one being made stays)" : $"no {what} here";
+            UiSounds.Step(more: !takeBack);
+            return takeBack ? $"{what} taken back: {world.WarMachines.Ordered(building, w)} ordered"
+                : $"{what} ordered ({world.WarMachines.Ordered(building, w)}): carriers bring its material";
+        });
+        return null;
     }
 
     /// <summary>What the works' button under the point does (hover text), or null.</summary>

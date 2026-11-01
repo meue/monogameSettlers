@@ -23,18 +23,18 @@ public class ConquestGoalsTests
         var second = world.PlaceBuilding(Romans["tower"], 2, new GridPoint(90, 30), force: true)!;
         world.PlaceBuilding(Romans["sawmill"], 2, new GridPoint(100, 40), force: true);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Open, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0));
 
         world.RemoveBuilding(first);
         Seconds(world, 2);
         Assert.True(world.Goals.IsDefeated(1));
-        Assert.Equal(MissionOutcome.Open, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0));
 
         // Other buildings do not keep a player in the game.
         world.RemoveBuilding(second);
         Seconds(world, 2);
         Assert.True(world.Goals.IsDefeated(2));
-        Assert.Equal(MissionOutcome.Won, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Won, world.Goals.OutcomeOf(0));
     }
 
     [Fact]
@@ -47,8 +47,36 @@ public class ConquestGoalsTests
         Seconds(world, 2);
         world.RemoveBuilding(own);
         Seconds(world, 2);
-        Assert.Equal(MissionOutcome.Lost, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Lost, world.Goals.OutcomeOf(0));
         Assert.False(world.Goals.IsDefeated(1));
+    }
+
+    [Fact]
+    public void Every_player_has_its_own_outcome()
+    {
+        var world = new World(new GameMap(120), TestConfig.NoTools) { Goals = new ConquestGoals() };
+        world.Teams.AddRange([0, 1, 1]);
+        world.PlaceBuilding(Romans["tower"], 0, new GridPoint(20, 20), force: true);
+        var second = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(80, 80), force: true)!;
+        var third = world.PlaceBuilding(Romans["tower"], 2, new GridPoint(90, 30), force: true)!;
+        Seconds(world, 2);
+        world.RemoveBuilding(second);
+        Seconds(world, 2);
+        // Player 2 is out, its ally player 3 still in: nobody has won yet.
+        Assert.Equal(MissionOutcome.Lost, world.Goals.OutcomeOf(1));
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0));
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(2));
+        Assert.Equal(-1, world.Goals.DecidedAt(0));
+
+        world.RemoveBuilding(third);
+        Seconds(world, 2);
+        Assert.Equal(MissionOutcome.Won, world.Goals.OutcomeOf(0));
+        Assert.Equal(MissionOutcome.Lost, world.Goals.OutcomeOf(2));
+        Assert.InRange(world.Goals.DecidedAt(2), world.Goals.DecidedAt(1) + 1, world.Tick);
+
+        // The cheat decides only for the one who uses it; decided stays decided.
+        world.Goals.Decide(1, MissionOutcome.Won, world.Tick);
+        Assert.Equal(MissionOutcome.Lost, world.Goals.OutcomeOf(1));
     }
 
     [Theory]

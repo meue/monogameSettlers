@@ -19,6 +19,7 @@ gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Date
 ## Aufbau
 - `src/Homestead.Assets` – Parser für Originaldateien (GFX, Karten, `Sound/SoundFile`: `SND/Siedler3_00.dat`), ohne MonoGame. Formatdoku: `docs/formate/`.
 - `src/Homestead.AssetViewer` – MonoGame-Viewer (DesktopGL), ohne Content-Pipeline.
+- `src/Homestead.Server` – Mehrspieler-Server (ASP.NET Core, WebSocket, Docker), Details: `docs/MULTIPLAYER.md`.
 - `data/` – Spieldaten (keine Original-Assets), neben jedes Programm kopiert. `production.json`: eigenes Balancing
   (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration, `depletion`: Verbrauch von Steinen/Bergen/Fisch in %, 0 = unendlich;
   im Spiel über die Einstellungen überschreibbar).
@@ -37,6 +38,7 @@ Vor Arbeit an einem System die passende Datei lesen und dort nachführen (wie bi
   Menüs, Gebäude-Panel, Statistik, Auswahl/Befehle, Tasten, Optionen, Ton, Darstellung.
 - [docs/architektur/capture.md](docs/architektur/capture.md) – `--capture` und alle `HOMESTEAD_CAPTURE_…`-Variablen.
 - [docs/architektur/werkzeuge.md](docs/architektur/werkzeuge.md) – Arena (KI gegen KI), Turnier, AssetTool.
+- [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) – Lockstep-Mehrspieler: Entscheidungen, Stand (Determinismus, Befehlsschicht), offene Schritte, Regeln für neuen Code.
 
 ### Querschnittsregeln
 - Sprites nur über `SpriteLibrary` (siehe Grafik-Konventionen); Texte nur über `Lang.T` (siehe oben).

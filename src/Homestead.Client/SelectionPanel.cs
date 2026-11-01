@@ -62,9 +62,10 @@ public sealed class SelectionPanel
 
     /// <param name="portraits">The portraits of a people (won-over soldiers keep their people's look).</param>
     /// <param name="own">The own people: its kinds come first among those of the same type.</param>
+    /// <param name="player">The local player (the portraits' color).</param>
     /// <param name="top">Where the portraits start (panel space).</param>
     /// <param name="cursor">Mouse in panel space (highlights the order under it).</param>
-    public void Draw(SpriteBatch batch, UiFont font, SettlerRenderer settlers, Func<Civilization, Portraits> portraits, Civilization own,
+    public void Draw(SpriteBatch batch, UiFont font, SettlerRenderer settlers, Func<Civilization, Portraits> portraits, Civilization own, int player,
         IReadOnlyCollection<Settler> selection, float combatStrength, int top, Vector2 cursor)
     {
         var actions = Actions(selection);
@@ -81,7 +82,7 @@ public sealed class SelectionPanel
             var cell = new Rectangle(content.X + i % columns * cellWidth, top + i / columns * cellHeight, cellWidth, cellHeight);
             var portrait = new Rectangle(cell.X, cell.Y + (int)(PortraitDrop * scale), cell.Width, (int)(Portraits.Size.Y * scale));
             var (type, people) = kinds[i].Key;
-            portraits(people).Draw(batch, type!, portrait, settlers, people, PlayerColors.Of(0), scale);
+            portraits(people).Draw(batch, type!, portrait, settlers, people, PlayerColors.Of(player), scale);
             string count = kinds[i].Count().ToString();
             var size = font.Measure(count, textSize);
             Shadowed(batch, font, count, new Vector2(cell.Center.X - size.X / 2, portrait.Bottom), textSize);

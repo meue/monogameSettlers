@@ -39,7 +39,7 @@ public sealed class ListScreen : IDisposable
     private float _scale = 1;
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
-    private MouseState _previousMouse = Mouse.GetState();
+    private MouseState _previousMouse = SdlMouse.GetState();
 
     /// <param name="shown">A row to show at first (scrolled so it is the lowest one on the page if need be).</param>
     public ListScreen(GraphicsDevice device, GfxDirectory gfx, string heading, IReadOnlyList<ListRow> rows, int shown = 0)
@@ -116,7 +116,7 @@ public sealed class ListScreen : IDisposable
     {
         Fit(view);
         var keys = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var mouse = SdlMouse.GetState();
         bool clicked = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
         bool Pressed(Keys key) => keys.IsKeyDown(key) && !_previousKeys.IsKeyDown(key);
         bool escape = Pressed(Keys.Escape);
@@ -147,7 +147,7 @@ public sealed class ListScreen : IDisposable
     public void Resume()
     {
         _previousKeys = Keyboard.GetState();
-        _previousMouse = Mouse.GetState();
+        _previousMouse = SdlMouse.GetState();
     }
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, Rectangle view)
@@ -159,7 +159,7 @@ public sealed class ListScreen : IDisposable
         batch.Draw(_background, page, Color.White);
 
         WriteCentered(batch, font, _heading, _headingBox, Gold, 13);
-        var hover = At(ToLayout(Mouse.GetState().Position));
+        var hover = At(ToLayout(SdlMouse.GetState().Position));
         for (int index = _scroll; index < Math.Min(_rows.Count, _scroll + VisibleRows); index++)
         {
             var (name, note, gold, enabled) = _rows[index];
@@ -182,7 +182,7 @@ public sealed class ListScreen : IDisposable
             int y = track.Y + 8 + (track.Height - 16 - height) * _scroll / MaxScroll;
             batch.Draw(_sheet, ToScreen(new Rectangle(track.X + 2, y, 8, height)), _handle, Color.White);
         }
-        TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), Mouse.GetState().Position.ToVector2(), size: Px(13));
+        TextButton.Draw(batch, pixel, font, ToScreen(BackButton), Lang.T("campaign.back"), SdlMouse.GetState().Position.ToVector2(), size: Px(13));
     }
 
     /// <summary>The text, cut with "…" to fit the width (in the 800 × 600 space).</summary>

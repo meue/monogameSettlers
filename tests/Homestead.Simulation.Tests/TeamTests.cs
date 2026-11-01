@@ -112,12 +112,12 @@ public class TeamTests
         world.PlaceBuilding(Romans["tower"], 1, new GridPoint(60, 60), force: true);
         var enemy = world.PlaceBuilding(Romans["tower"], 2, new GridPoint(100, 100), force: true)!;
         Run(world, 2 * World.TicksPerSecond);
-        Assert.Equal(MissionOutcome.Open, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0));
 
         world.RemoveBuilding(enemy);
         Run(world, 2 * World.TicksPerSecond);
 
-        Assert.Equal(MissionOutcome.Won, world.Goals.Outcome);
+        Assert.Equal(MissionOutcome.Won, world.Goals.OutcomeOf(0));
     }
 
     [Fact]
