@@ -149,9 +149,9 @@ public sealed class GfxFile
 
     /// <summary>
     /// The text table of files 07–09 (block <c>0x1904</c>, see <c>docs/formate/gfx.md</c>): per language (0 German,
-    /// 1 English, …) all its texts, null-terminated, Windows-1252. Empty if the file has none or the language is missing.
+    /// 1 English, 2 Italian, 3 French, 4 Polish, 5 Spanish, …) all its texts, null-terminated, in the language's Windows code page (1252; Polish 1250). Empty if the file has none or the language is missing.
     /// </summary>
-    public IReadOnlyList<string> ReadTexts(int language)
+    public IReadOnlyList<string> ReadTexts(int language, int codePage = 1252)
     {
         for (int i = 0; i < HeaderTableCount; i++)
         {
@@ -161,7 +161,7 @@ public sealed class GfxFile
             int count = U16(blockPos + 8), languages = U16(blockPos + 10);
             if (language < 0 || language >= languages || blockPos + 12 + count * languages * 4 > _data.Length)
                 return [];
-            var encoding = Windows1252;
+            var encoding = Encoding(codePage);
             var texts = new string[count];
             for (int entry = 0; entry < count; entry++)
             {
@@ -176,12 +176,10 @@ public sealed class GfxFile
 
     private const uint TextTable = 0x1904;
 
-    private static readonly System.Text.Encoding Windows1252 = CodePages();
-
-    private static System.Text.Encoding CodePages()
+    private static System.Text.Encoding Encoding(int codePage)
     {
         System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-        return System.Text.Encoding.GetEncoding(1252);
+        return System.Text.Encoding.GetEncoding(codePage);
     }
 
     /// <summary>

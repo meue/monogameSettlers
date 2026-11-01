@@ -19,7 +19,7 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
   (`BriefingScreen` auf dem Startscreen-Hintergrund GUI 8: Missionstext oben mit Bildlauf, Karte im schrägen Fenster mit Kürzeln
   der Spieler an ihren Startpunkten – eigener grün, sonst rot –, Hinweise rechts, Sprachansage dazu; „Zurück“/Esc → Volkswahl,
   „Weiter“/Enter → Mission mit Völkern/Gebäuden der Karte). `data/campaign.json`: je Kampagne `name` (Textschlüssel, im Spielstandnamen) und `sides` mit `name` (Textschlüssel), `intro`,
-  `outro` (Sieg-Video) und `missions` (`map`, `text`/`hint` = Einträge der Texttabelle in GFX-Datei 07, Deutsch/Englisch nach Sprache, `voice`,
+  `outro` (Sieg-Video) und `missions` (`map`, `text`/`hint` = Einträge der Texttabelle in GFX-Datei 07, Deutsch/Englisch/Polnisch nach Sprache (`Lang.TextIndex`: Spalte 0/1/4 der Texttabelle, Polnisch in Codepage 1250), `voice`,
   `labels` je Kartenspieler – bisher nur Mission 1, aus dem Missionstext – oder `preview` [Datei, Sequenz, Bild] eines fertigen Original-Vorschaubilds
   statt der gerenderten Karte: Amazonen Datei 48 Sequenz 3, Z01–Z12 = 0–11, G01–G12 = 12–23, per Wassermaske zugeordnet); Pfade in der
   Installation, `GameInstallation.FindPath` ohne Groß-/Kleinschreibung. Missions-CD: `S3MCD/MAP/MIS_M/R|E|A` (Texte 24–31 Römer, 32–39 Ägypter, 40–47 Asiaten, Vorschaubilder Datei 60 Sequenz 1 = 0–23), ohne Videos und Sprachansagen
@@ -47,10 +47,10 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
 - **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
   Kästchen Reiter mit Icons der Original-Statistikmenüs (Datei 03, dunkel = eingedrückt gewählt, sonst hell; Tab/Shift+Tab): Rohstoffe,
   Wirtschaft (noch leer), Militär, Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
-  100/75/50/25/10 %/∞; Militär: Zauberkosten-Anstieg konstant/+10/+25/+50 % → `MagicConfig.CostIncrease`; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English (Vorgabe English, unabhängig von der Systemsprache; gilt auch für den Installationsdialog),
+  100/75/50/25/10 %/∞; Militär: Zauberkosten-Anstieg konstant/+10/+25/+50 % → `MagicConfig.CostIncrease`; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English/Polski (Vorgabe English, unabhängig von der Systemsprache; gilt auch für den Installationsdialog),
   Thema Normal/Gold/Classic/Amazonen (Titelbild und Ladebildschirm; `titleScreen.themes` in `ui.json` mit Gravurfarben, Normal = Gold; `HOMESTEAD_THEME` überstimmt), Musik/Effekte 100/75/50/25 %/aus, Musik je Volk, Bevorzugte Farbe (`DisplaySettings.PreferredColor`, Farbfelder, als Kennung gespeichert), Automatisch speichern
 (Ja/Nein, Vorgabe Nein: alle 15 min Echtzeit im Spiel und bei „Spiel beenden“ in Slot 8, nicht nach Verlust, nicht in Captures), Intro-Video (Ja/Nein, Vorgabe Ja: `MapGame.IntroVideo` = `S3/ADD/001/01_00_00.DAT` bei jedem Start vor dem Titelbildschirm, Ende/Klick → Titel) – Musik ohne Wahl nach Systemsprache; `Lang.Use` setzt auch die Kultur;
-Titelbild der Gold Edition je Sprache, `background` `{de, en}`; `HOMESTEAD_LANGUAGE=de|en` überstimmt, z. B. für Captures).
+Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne eigenes Titelbild (das englische), `HOMESTEAD_LANGUAGE=de|en|pl` überstimmt, z. B. für Captures).
   Ok/Enter speichert `GameSettings` (Abschnitt `game`) und `DisplaySettings` (Client, Abschnitt `display`, sofort angewandt) in
   `~/.config/homestead/settings.json` (`SettingsFile`: je Abschnitt, Rest der Datei bleibt); Abbrechen/Esc verwirft, Standard setzt den offenen
   Reiter zurück (Spielwerte: `production.json`). Hardware-Cursor aus: eigener goldener Pfeil (`SoftwareCursor`, in `EndDraw`, nicht in Captures).

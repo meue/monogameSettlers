@@ -5,7 +5,7 @@ using Homestead.Assets;
 namespace Homestead.Client;
 
 /// <summary>The language of the texts (<see cref="Lang"/>).</summary>
-public enum Language { German, English }
+public enum Language { German, English, Polish }
 
 /// <summary>
 /// The look of the title and loading screens: <c>Normal</c> the Gold Edition's title and each campaign's loading
@@ -75,7 +75,7 @@ public sealed record DisplaySettings
             IntroVideo = Flag("introVideo", settings.IntroVideo),
             Cheats = Flag("cheats", settings.Cheats),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
-                ? language.GetString() == "en" ? Language.English : Language.German
+                ? Lang.Parse(language.GetString())
                 : settings.Language,
             Theme = display.TryGetProperty("theme", out var theme) && theme.ValueKind == JsonValueKind.String
                     && Enum.TryParse<Theme>(theme.GetString(), ignoreCase: true, out var chosen) && Enum.IsDefined(chosen)
@@ -93,7 +93,7 @@ public sealed record DisplaySettings
         {
             ["hardwareCursor"] = HardwareCursor,
             ["fullScreen"] = FullScreen,
-            ["language"] = Language == Language.English ? "en" : "de",
+            ["language"] = Lang.Code(Language),
             ["theme"] = Theme.ToString().ToLowerInvariant(),
             ["musicVolume"] = MusicVolume,
             ["peopleMusic"] = PeopleMusic,
