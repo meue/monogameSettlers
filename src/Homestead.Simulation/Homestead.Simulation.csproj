@@ -1,14 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Homestead.Assets\Homestead.Assets.csproj" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
 
   <ItemGroup>
     <!-- Game data (no original assets): copied next to every program that uses the simulation. -->

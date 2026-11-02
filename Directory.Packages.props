@@ -1,0 +1,17 @@
+<!-- Central package versions: one version per package; PackageReference items stay in the projects without Version. -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageVersion Include="Anthropic" Version="13.3.0" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="FontStashSharp.MonoGame" Version="1.6.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="MinVer" Version="6.0.0" />
+    <PackageVersion Include="MonoGame.Framework.DesktopGL" Version="3.8.6" />
+    <PackageVersion Include="System.IO.Hashing" Version="9.0.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+</Project>
