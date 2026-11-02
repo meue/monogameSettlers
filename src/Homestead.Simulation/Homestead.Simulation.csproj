@@ -4,12 +4,6 @@
     <ProjectReference Include="..\Homestead.Assets\Homestead.Assets.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
   <ItemGroup>
     <!-- Game data (no original assets): copied next to every program that uses the simulation. -->
     <None Include="../../data/**/*.json" LinkBase="data" CopyToOutputDirectory="PreserveNewest" />

@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
     <RollForward>Major</RollForward>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
@@ -26,9 +25,9 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Anthropic" Version="13.3.0" />
-    <PackageReference Include="FontStashSharp.MonoGame" Version="1.6.1" />
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.6" />
+    <PackageReference Include="Anthropic" />
+    <PackageReference Include="FontStashSharp.MonoGame" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Homestead.Assets\Homestead.Assets.csproj" />
