@@ -37,6 +37,8 @@ Nicht alles soll abschaltbar sein. Ohne folgendes Grundverhalten wäre eine KI k
 - Verteidigung zuerst (Feinde im eigenen Land werden immer bekämpft)
 - Kein Abriss eines Militärgebäudes, dessen Land eigene Gebäude trägt (seit Abriss Land
   ungeschützt zurücklässt, würde die KI sich sonst selbst verwundbar machen)
+- Kein Abriss der letzten fertigen Garnison – ohne sie ist das Spiel verloren (`ConquestGoals`);
+  die KI fragt nie darauf.
 
 Das eingebaute Verhalten (Guerilla, Feldzug bei 1,5:1, Besatzung voll) ist der Charakter **Standard**
 (`standard`, ohne Charakterzüge). Die Bewachung nach Bedrohung ist bereits ein Charakterzug
