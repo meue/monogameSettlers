@@ -288,8 +288,21 @@ public sealed partial class AiPlayer
             .MaxBy(b => _world.Housing.RoomOf(b));
         if (house is null)
             return;
-        Note($"tears down {house.Definition.Name} at {house.Position.X},{house.Position.Y}: {spare} places spare");
-        _world.RemoveBuilding(house);
+        TearDown(house, $"{spare} places spare");
+    }
+
+    /// <summary>Tears a building down – but never the own last finished garrison: without one the game
+    /// is lost (<see cref="ConquestGoals"/>). The player is asked before (client), the AI never risks it.</summary>
+    private void TearDown(Building building, string why)
+    {
+        if (building.Definition.Occupiers.Count > 0 && !_world.Buildings.Any(b => b != building && b.Exists
+                && b.Player == Player && b.State == BuildingState.Finished && b.Definition.Occupiers.Count > 0))
+        {
+            Note($"keeps {building.Definition.Name} at {building.Position.X},{building.Position.Y}: the last garrison");
+            return;
+        }
+        Note($"tears down {building.Definition.Name} at {building.Position.X},{building.Position.Y}: {why}");
+        _world.RemoveBuilding(building);
     }
 
     private bool IsLivingHouse(string name) => name == _config.House || _config.HouseSizes.Any(h => h.Building == name);
@@ -720,8 +733,7 @@ public sealed partial class AiPlayer
                 continue;
             }
             string why = _world.Production.MineChance(building) is { } chance ? $"chance {chance:P0}" : _world.StatusOf(building);
-            Note($"tears down {building.Definition.Name} at {building.Position.X},{building.Position.Y}: {why}");
-            _world.RemoveBuilding(building);
+            TearDown(building, why);
         }
     }
 

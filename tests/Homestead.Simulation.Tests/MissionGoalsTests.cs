@@ -40,6 +40,22 @@ public class MissionGoalsTests
     }
 
     [Fact]
+    public void A_mission_is_won_with_an_allied_building_standing_once_the_enemies_are_gone()
+    {
+        var world = new World(new GameMap(80), TestConfig.NoTools) { Goals = new MissionGoals(), PlayerCount = 3 };
+        world.Teams.AddRange([1, 1, 2]);
+        world.PlaceBuilding(Romans["sawmill"], 0, new GridPoint(20, 20), force: true);
+        world.PlaceBuilding(Romans["sawmill"], 1, new GridPoint(50, 50), force: true);
+        var enemy = world.PlaceBuilding(Romans["lumberjack"], 2, new GridPoint(60, 30), force: true)!;
+        Seconds(world, 2);
+        Assert.Equal(MissionOutcome.Open, world.Goals.OutcomeOf(0)); // an enemy building still blocks
+
+        world.RemoveBuilding(enemy);
+        Seconds(world, 2);
+        Assert.Equal(MissionOutcome.Won, world.Goals.OutcomeOf(0)); // an allied one does not
+    }
+
+    [Fact]
     public void A_mission_is_lost_without_an_own_building()
     {
         var world = new World(new GameMap(80), TestConfig.NoTools) { Goals = new MissionGoals() };
