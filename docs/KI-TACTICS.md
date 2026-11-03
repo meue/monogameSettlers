@@ -160,7 +160,7 @@ am Feind liegt – nicht den ganzen Weg heim.
 **`frontGarrison` – Besatzung nach Frontlage** · M · **umgesetzt** (Charakter `hothead`)
 Militärgebäude im Hinterland bekommen 1 Soldaten, Gebäude an der Grenze zum Feind voll, dort mit
 Bogenschützen. Ergebnis: deutlich mehr Soldaten frei für Angriffe.
-Werte: `frontDistance` (Abstand zu einem feindlichen Militärgebäude, ab dem ein Gebäude „Front“ ist), `backline` (Besatzung im Hinterland).
+Werte: `frontDistance` (Abstand zu einem feindlichen Militärgebäude, ab dem ein Gebäude „Front“ ist; es bleibt Front bis `frontDistance + 10` ohne feindliches Militärgebäude, damit die Besatzung nicht flackert), `backline` (Besatzung im Hinterland).
 
 **`reinforceThreatened` – Vorab aufstocken** · S
 Steht ein feindlicher Trupp in Reichweite eines Grenzturms, wird dessen Besatzung sofort auf voll
