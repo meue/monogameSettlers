@@ -3,8 +3,8 @@ using Homestead.Assets.Gfx;
 namespace Homestead.Client.Neural;
 
 /// <summary>Upscales a sprite bitmap to twice its size, or returns null to keep the 1x image (input too
-/// large, or upscaling unavailable).</summary>
-public interface IUpscaler
+/// large, or upscaling unavailable). Disposable for the model session an implementation may hold.</summary>
+public interface IUpscaler : IDisposable
 {
     GfxBitmap? Upscale(GfxBitmap bitmap);
 }
@@ -15,6 +15,10 @@ public sealed class NullUpscaler : IUpscaler
     public static readonly NullUpscaler Instance = new();
 
     public GfxBitmap? Upscale(GfxBitmap bitmap) => null;
+
+    public void Dispose()
+    {
+    }
 }
 
 /// <summary>Deterministic nearest-neighbor x2 without any model, for tests of the plumbing around the real
@@ -35,5 +39,9 @@ public sealed class FakeUpscaler : IUpscaler
                         pixels[(2 * y + dy) * bitmap.Width * 2 + 2 * x + dx] = pixel;
             }
         return new GfxBitmap(bitmap.Width * 2, bitmap.Height * 2, bitmap.OffsetX * 2, bitmap.OffsetY * 2, pixels);
+    }
+
+    public void Dispose()
+    {
     }
 }
