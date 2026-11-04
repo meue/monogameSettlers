@@ -370,6 +370,9 @@ public sealed class MapGame : Game
 
     /// <summary>Real time until which the scaling mode chosen with F2 is shown.</summary>
     private TimeSpan _scalingShownUntil;
+
+    /// <summary>Real time until which the neural upscaling chosen with F4 is shown.</summary>
+    private TimeSpan _neuralUpscaleShownUntil;
     private bool _showClock;
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
@@ -478,6 +481,7 @@ public sealed class MapGame : Game
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_COLORS") is { } captureColors)
             PlayerColors.Assign(captureColors.Split(',').Select(c => int.TryParse(c, out int color) ? color : (int?)null).ToArray(), _random);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
+        _sprites.SetNeuralUpscale(_display.NeuralUpscale);
         _shipRenderer = new ShipRenderer(_sprites);
         _statusIcons = new StatusIcons(_sprites);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
@@ -1604,6 +1608,8 @@ public sealed class MapGame : Game
     {
         SdlMouse.NextFrame();
         _now = gameTime.TotalGameTime.TotalSeconds;
+        // The only place 2x sprites may reach the GPU: this is the GL thread.
+        _sprites.Pump();
         if (_audio is not null)
         {
             // The own people's music in the game (statistics included), silence in the menus before it.
@@ -1773,10 +1779,19 @@ public sealed class MapGame : Game
     /// <summary>Switches between the window and borderless fullscreen at desktop resolution; the window keeps its size.</summary>
     private void ToggleFullScreen() => SetFullScreen(!_graphics.IsFullScreen);
 
+    /// <summary>Switches the neural 2x sprites for the session, like F11 without touching the settings file.</summary>
+    private void ToggleNeuralUpscale(GameTime gameTime)
+    {
+        _sprites.SetNeuralUpscale(!_sprites.NeuralUpscaleEnabled);
+        _neuralUpscaleShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
+    }
+
     /// <summary>The settings of the settings screen: pointer and full screen at once (the language is only stored so far).</summary>
     private void ApplyDisplay(DisplaySettings display)
     {
         _display = display;
+        if (_sprites is not null)
+            _sprites.SetNeuralUpscale(display.NeuralUpscale);
         Lang.Use(display.Language);
         IsMouseVisible = display.HardwareCursor;
         ApplyVolumes(display);
@@ -1865,6 +1880,8 @@ public sealed class MapGame : Game
                 _showPerf = !_showPerf;
             if (Pressed(Keys.T))
                 _showClock = !_showClock;
+            if (Pressed(Keys.F4))
+                ToggleNeuralUpscale(gameTime);
         }
         else
             HandleKeys(keys, cursorScreen, gameTime);
@@ -2419,6 +2436,8 @@ public sealed class MapGame : Game
             _showPerf = !_showPerf;
         if (Pressed(Keys.T))
             _showClock = !_showClock;
+        if (Pressed(Keys.F4))
+            ToggleNeuralUpscale(gameTime);
         if (Pressed(Keys.F11))
             ToggleFullScreen();
         // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again; pressed twice the camera flies to it.
@@ -3614,7 +3633,10 @@ public sealed class MapGame : Game
         if (_showClock)
             bottom = DrawCornerText(GameTime(), bottom);
         if (gameTime.TotalGameTime < _scalingShownUntil)
-            DrawCornerText($"Skalierung: {_scaling}", bottom);
+            bottom = DrawCornerText($"Skalierung: {_scaling}", bottom);
+        if (gameTime.TotalGameTime < _neuralUpscaleShownUntil)
+            DrawCornerText(Lang.T("settings.display.neuralUpscale") + ": "
+                + Lang.T(_sprites.NeuralUpscaleEnabled ? "common.on" : "common.off"), bottom);
         _spriteBatch.End();
         if (_loading is not null)
         {

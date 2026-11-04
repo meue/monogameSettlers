@@ -52,6 +52,9 @@ public sealed record DisplaySettings
     /// <summary>Chat commands (<c>/cheats</c>, <c>/attackme</c> …) work; only in the file, the settings screen keeps it as it is.</summary>
     public bool Cheats { get; init; }
 
+    /// <summary>Neural x2 upscaling of the sprites (experimental, off by default); F4 switches it for the session only.</summary>
+    public bool NeuralUpscale { get; init; }
+
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
     {
@@ -74,6 +77,7 @@ public sealed record DisplaySettings
             AutoSave = Flag("autoSave", settings.AutoSave),
             IntroVideo = Flag("introVideo", settings.IntroVideo),
             Cheats = Flag("cheats", settings.Cheats),
+            NeuralUpscale = Flag("neuralUpscale", settings.NeuralUpscale),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
                 ? Lang.Parse(language.GetString())
                 : settings.Language,
@@ -102,5 +106,6 @@ public sealed record DisplaySettings
             ["introVideo"] = IntroVideo,
             ["preferredColor"] = PlayerColors.Choices[PreferredColor].Id,
             ["cheats"] = Cheats,
+            ["neuralUpscale"] = NeuralUpscale,
         }, path);
 }
