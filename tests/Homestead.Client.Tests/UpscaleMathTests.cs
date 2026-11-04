@@ -13,7 +13,7 @@ public class UpscaleMathTests
 
     private static void AssertPlane(float[] planes, int plane, params float[] expected)
     {
-        Assert.Equal(expected.Length * 2, planes.Length / 3f * 2, 0);
+        Assert.Equal(expected.Length, planes.Length / 3f, 0);
         for (int i = 0; i < expected.Length; i++)
             Assert.Equal(expected[i], planes[plane * expected.Length + i], 5);
     }

@@ -115,6 +115,26 @@ public sealed class SettlerSprites
     public static (bool High, Vector2 Offset, float Scale) ResolveResolution(bool hiRes, Vector2 offset, float scale) =>
         hiRes ? (true, offset * 2, scale * 0.5f) : (false, offset, scale);
 
+    /// <summary>
+    /// What a clipped layer draw shows: the screen rectangle of the (possibly 2x) image reduced to
+    /// <paramref name="clip"/> and the lower <paramref name="visibleFromBottom"/> part, and the atlas
+    /// slice that lands there. Null if nothing is visible.
+    /// </summary>
+    public static (Rectangle Dest, Rectangle Source)? ClipMapping(
+        Rectangle source, Vector2 at, float visibleFromBottom, Rectangle clip, float scale)
+    {
+        // The footprint is in screen units: a 2x image draws at half scale, so one screen pixel is two of its texels.
+        var rect = new Rectangle((int)Math.Round(at.X), (int)Math.Round(at.Y),
+            (int)Math.Round(source.Width * scale), (int)Math.Round(source.Height * scale));
+        int hidden = (int)((source.Height - (int)(source.Height * Math.Min(1, visibleFromBottom))) * scale);
+        var visible = Rectangle.Intersect(new Rectangle(rect.X, rect.Y + hidden, rect.Width, rect.Height - hidden), clip);
+        if (visible.Width <= 0 || visible.Height <= 0)
+            return null;
+        return (visible, new Rectangle(
+            source.X + (int)((visible.X - rect.X) / scale), source.Y + (int)((visible.Y - rect.Y) / scale),
+            (int)(visible.Width / scale), (int)(visible.Height / scale)));
+    }
+
     private AtlasImage?[] Array(SpriteLayerKind kind) => kind switch
     {
         SpriteLayerKind.Body => _hiResBody,
@@ -154,17 +174,10 @@ public sealed class SettlerSprites
             AtlasImage? hiRes)
         {
             var image = hiRes ?? Image;
-            // Clipped drawing is 1:1: the 2x image's texels are half a screen pixel, its anchor the same point.
             float scale = hiRes is null ? 1 : 0.5f;
-            var source = image.Source;
-            var at = anchor + Offset;
-            var rect = new Rectangle((int)Math.Round(at.X), (int)Math.Round(at.Y), source.Width, source.Height);
-            int hidden = source.Height - (int)(source.Height * Math.Min(1, visibleFromBottom));
-            var visible = Rectangle.Intersect(new Rectangle(rect.X, rect.Y + hidden, rect.Width, rect.Height - hidden), clip);
-            if (visible.Width <= 0 || visible.Height <= 0)
+            if (ClipMapping(image.Source, anchor + Offset, visibleFromBottom, clip, scale) is not { } part)
                 return;
-            batch.Draw(image.Texture, new Vector2(visible.X, visible.Y),
-                new Rectangle(source.X + visible.X - rect.X, source.Y + visible.Y - rect.Y, visible.Width, visible.Height),
+            batch.Draw(image.Texture, new Vector2(part.Dest.X, part.Dest.Y), part.Source,
                 tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
         }
 

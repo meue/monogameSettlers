@@ -8,7 +8,11 @@ namespace Homestead.Client.Tests;
 /// <summary>
 /// The real model with a real execution provider (CoreML on macOS, CPU elsewhere). Only on demand via
 /// HOMESTEAD_NN_TEST=1: it loads and compiles the network, which has no place in the regular test run.
+/// Without the env var the test returns without asserting anything, so the green default run proves
+/// nothing about the ONNX contract; the RequiresModel trait makes that skip visible and machine-filterable
+/// (`dotnet test --filter Category=RequiresModel`).
 /// </summary>
+[Trait("Category", "RequiresModel")]
 public class OnnxRealModelTests(ITestOutputHelper output)
 {
     [Fact]

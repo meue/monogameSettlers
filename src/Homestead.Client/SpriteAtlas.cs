@@ -125,7 +125,7 @@ public sealed class SpriteLibrary : IDisposable
     private readonly Dictionary<(int File, int Sequence), SettlerSprites> _sequences = new();
     private readonly SpriteUpscaleState _upscale = new();
     private readonly Func<IUpscaler> _upscalerFactory;
-    private readonly ConcurrentQueue<(GfxFile File, int Number, int Sequence)> _pending = new();
+    private readonly BlockingCollection<(GfxFile File, int Number, int Sequence)> _pending = new();
     private readonly ConcurrentQueue<(int File, int Sequence, int Frame, SpriteLayerKind Layer, GfxBitmap Bitmap)> _completed = new();
     private readonly HashSet<(int File, int Sequence)> _attempted = new();
     private Thread? _worker;
@@ -203,6 +203,7 @@ public sealed class SpriteLibrary : IDisposable
         if (_worker is not null)
         {
             _workerRunning = false;
+            _pending.CompleteAdding(); // Wakes the worker's blocking take.
             _worker.Join(TimeSpan.FromSeconds(2));
             _worker = null;
         }
@@ -218,7 +219,16 @@ public sealed class SpriteLibrary : IDisposable
     {
         if (ShouldQueueUpscale(_upscale.Enabled, _attempted.Contains((file, sequence)))
             && _attempted.Add((file, sequence)))
-            _pending.Enqueue((Gfx.Open(file), file, sequence));
+        {
+            try
+            {
+                _pending.Add((Gfx.Open(file), file, sequence));
+            }
+            catch (InvalidOperationException)
+            {
+                // Adding is finished (Dispose): a late enqueue must not throw into gameplay code.
+            }
+        }
     }
 
     private void StartWorker()
@@ -235,11 +245,8 @@ public sealed class SpriteLibrary : IDisposable
         using var upscaler = _upscalerFactory();
         while (_workerRunning)
         {
-            if (!_pending.TryDequeue(out var job))
-            {
-                Thread.Sleep(1);
-                continue;
-            }
+            if (!_pending.TryTake(out var job, Timeout.Infinite))
+                break; // Adding is finished: Dispose is stopping the worker.
             try
             {
                 int frames = job.File.GetSettlerFrameCount(job.Sequence);
@@ -250,9 +257,10 @@ public sealed class SpriteLibrary : IDisposable
                     Upscale(upscaler, job, frame, SpriteLayerKind.Shadow, job.File.ReadSettlerShadow(job.Sequence, frame));
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 // A sequence that cannot be read stays 1x; the worker lives on.
+                Console.WriteLine($"Neural upscale: file {job.Number} sequence {job.Sequence} stays 1x ({e.Message})");
             }
         }
     }

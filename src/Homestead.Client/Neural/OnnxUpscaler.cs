@@ -57,17 +57,20 @@ public sealed class OnnxUpscaler : IUpscaler, IDisposable
             {
                 options.Dispose();
             }
+            Console.WriteLine("Neural upscale: CoreML execution provider");
         }
-        catch (OnnxRuntimeException)
+        catch (OnnxRuntimeException e)
         {
             // Without CoreML (other platforms): the CPU execution provider, which every platform ships.
             try
             {
                 _session = new InferenceSession(model);
+                Console.WriteLine($"Neural upscale: CPU execution provider ({e.Message})");
             }
-            catch (OnnxRuntimeException)
+            catch (OnnxRuntimeException inner)
             {
                 _session = null;
+                Console.WriteLine($"Neural upscale off: {inner.Message}");
             }
         }
         return _session is not null;
