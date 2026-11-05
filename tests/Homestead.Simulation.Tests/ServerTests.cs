@@ -123,7 +123,7 @@ public class ServerTests : IAsyncLifetime
 
         var mine = GameFingerprint.Of();
         var files = mine.Files.ToDictionary(f => f.Key, f => f.Value);
-        files["production.json"] = "0";
+        files["production.json"] = new string('0', 64);
         await using var other = await Connect("Ben", mine with { Files = files });
         other.Join(id);
         var refused = await other.WaitForAsync([ServerMessages.Refused, ServerMessages.Lobby], Wait);
@@ -156,7 +156,7 @@ public class ServerTests : IAsyncLifetime
         outgoing!.Writer.TryWrite("{\"type\":\"join\",\"game\":42}");
         outgoing.Writer.TryWrite("{\"type\":\"dance\"}");
         Assert.Equal("unreadable message", (await client.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
-        Assert.Equal("unknown message 'dance'", (await client.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
+        Assert.Equal("unknown message", (await client.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
         client.ListGames();
         await client.WaitForAsync([ServerMessages.Games], Wait);
         Assert.True(client.IsOpen);

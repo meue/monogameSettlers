@@ -1,3 +1,4 @@
+using System.Text;
 using Homestead.Simulation.Commands;
 
 namespace Homestead.Simulation.Lockstep;
@@ -16,15 +17,19 @@ public interface ILockstepLink
 /// the next one begins and applied <paramref name="DelayTurns"/> turns later – the time it has to reach everybody. Every
 /// <paramref name="CheckTurns"/> turns (default: a second) the input carries the world's checksums, to notice a desync.
 /// </summary>
-public sealed record LockstepOptions(int TurnTicks = 2, int DelayTurns = 2, int CheckTurns = 10);
+public sealed record LockstepOptions(int TurnTicks = 2, int DelayTurns = 2, int CheckTurns = 10)
+{
+    /// <summary>Within what a game can run with (they may come from any server).</summary>
+    public bool IsValid => TurnTicks is >= 1 and <= 20 && DelayTurns is >= 0 and <= 50 && CheckTurns is >= 1 and <= 1000;
+}
 
 /// <summary>A player whose world differed from this computer's, and in which parts (<see cref="WorldChecksums.Differences"/>).</summary>
 public sealed record DesyncedPlayer(int Player, IReadOnlyList<string> Parts);
 
 /// <summary>
 /// The worlds went apart: when <paramref name="Turn"/> began (tick <paramref name="Tick"/>), these players' checksums differed
-/// from this computer's. With three or more players, the one differing from everybody else is likely the odd one – this one,
-/// if every other player is listed.
+/// from this computer's, and no majority stood with this computer – with one, the odd ones are dropped by the server and the game
+/// goes on (a client lying about its checksums must not end a game).
 /// </summary>
 public sealed record DesyncReport(long Turn, long Tick, IReadOnlyList<DesyncedPlayer> Players);
 
@@ -52,8 +57,8 @@ public sealed class LockstepSession
     public LockstepSession(World world, int localPlayer, CommandCodec codec, ILockstepLink link, LockstepOptions? options = null)
     {
         Options = options ?? new LockstepOptions();
-        if (Options.TurnTicks < 1 || Options.DelayTurns < 0 || Options.CheckTurns < 1)
-            throw new ArgumentException("a turn takes a tick at least, the delay is never negative", nameof(options));
+        if (!Options.IsValid)
+            throw new ArgumentException("a turn takes a tick at least, the delay is never negative, nothing is out of all proportion", nameof(options));
         if (world.Tick % Options.TurnTicks != 0)
             throw new ArgumentException("the game starts at a turn's beginning", nameof(world));
         _world = world;
@@ -89,6 +94,9 @@ public sealed class LockstepSession
     /// <summary>The worlds went apart: the game stops for good (<see cref="TryStep"/> returns false).</summary>
     public DesyncReport? Desync { get; private set; }
 
+    /// <summary>What the server sent makes no sense: the game stops for good (<see cref="TryStep"/> returns false), the reason for the console.</summary>
+    public string? Failure { get; private set; }
+
     /// <summary>How many turns' checksums were compared with the other players' (and agreed, as long as there is no <see cref="Desync"/>).</summary>
     public int ChecksCompared { get; private set; }
 
@@ -110,13 +118,8 @@ public sealed class LockstepSession
     public bool TryStep()
     {
         foreach (string message in _link.Receive())
-        {
-            var bundle = _codec.DecodeBundle(message);
-            _bundles[bundle.Turn] = bundle.Commands;
-            _newest = Math.Max(_newest, bundle.Newest);
-            Compare(bundle.Checks ?? []);
-        }
-        if (Desync is not null)
+            TakeBundle(message);
+        if (Desync is not null || Failure is not null)
         {
             Waiting = false;
             return false;
@@ -134,8 +137,7 @@ public sealed class LockstepSession
                     _ownChecks[turn] = checksums;
                     check = new StateCheck(turn, checksums);
                 }
-                _link.Send(_codec.Encode(new TurnInput(LocalPlayer, _sentThrough, _outgoing.ToList(), check)));
-                _outgoing.Clear();
+                _link.Send(_codec.Encode(new TurnInput(LocalPlayer, _sentThrough, TakeOutgoing(), check)));
             }
             if (turn >= FirstTurn)
             {
@@ -152,7 +154,61 @@ public sealed class LockstepSession
         return true;
     }
 
-    /// <summary>The other players' checksums against this computer's of the same turn; the first difference is the <see cref="Desync"/>.</summary>
+    /// <summary>
+    /// What fits into an input: what the server takes of one (<see cref="TurnRelay"/>), the rest waits for the next. A single command
+    /// too large for any input (only a selection beyond all sense can be) cannot go at all.
+    /// </summary>
+    private List<GameCommand> TakeOutgoing()
+    {
+        var taken = new List<GameCommand>();
+        int bytes = 2, used = 0; // the array's brackets
+        for (; used < _outgoing.Count && taken.Count < TurnRelay.MaxCommands; used++)
+        {
+            int size = Encoding.UTF8.GetByteCount(_codec.Encode(_outgoing[used])) + 1;
+            if (size > TurnRelay.MaxInputBytes)
+                continue;
+            if (bytes + size > TurnRelay.MaxInputBytes)
+                break;
+            bytes += size;
+            taken.Add(_outgoing[used]);
+        }
+        _outgoing.RemoveRange(0, used);
+        return taken;
+    }
+
+    /// <summary>A bundle from the server. One not to be read or for a turn out of all reach can only be a broken or hostile server.</summary>
+    private void TakeBundle(string message)
+    {
+        if (Failure is not null)
+            return;
+        TurnBundle bundle;
+        try
+        {
+            bundle = _codec.DecodeBundle(message);
+        }
+        catch (Exception e) when (e is System.Text.Json.JsonException or NotSupportedException or InvalidOperationException or ArgumentException)
+        {
+            Failure = "unreadable turn from the server";
+            return;
+        }
+        if (bundle.Turn > Turn + MaxTurnsAhead || _bundles.Count >= MaxTurnsAhead)
+        {
+            Failure = "turns out of reach from the server";
+            return;
+        }
+        if (bundle.Turn >= Turn)
+            _bundles[bundle.Turn] = bundle.Commands;
+        _newest = Math.Max(_newest, bundle.Newest);
+        Compare(bundle.Checks ?? []);
+    }
+
+    /// <summary>Turns ahead of this computer the server can have handed out (a computer lagging far behind the others stays below it too: they wait).</summary>
+    private const int MaxTurnsAhead = 10_000;
+
+    /// <summary>
+    /// The other players' checksums against this computer's of the same turn: the first difference this computer has no majority
+    /// for is the <see cref="Desync"/>. In a majority of three or more it goes on: the server drops the odd ones.
+    /// </summary>
     private void Compare(IReadOnlyList<PlayerCheck> checks)
     {
         foreach (var turn in checks.Select(c => c.Check.Turn).Distinct())
@@ -160,12 +216,13 @@ public sealed class LockstepSession
             if (!_ownChecks.Remove(turn, out var own))
                 continue;
             ChecksCompared++;
-            var differing = checks
-                .Where(c => c.Check.Turn == turn && c.Player != LocalPlayer)
+            var others = checks.Where(c => c.Check.Turn == turn && c.Player != LocalPlayer).DistinctBy(c => c.Player).ToArray();
+            var differing = others
                 .Select(c => new DesyncedPlayer(c.Player, own.Differences(c.Check.Checksums)))
                 .Where(d => d.Parts.Count > 0)
                 .ToArray();
-            if (differing.Length > 0)
+            bool majority = (others.Length + 1 - differing.Length) * 2 > others.Length + 1;
+            if (differing.Length > 0 && !majority)
                 Desync ??= new DesyncReport(turn, own.Tick, differing);
         }
     }

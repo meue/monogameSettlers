@@ -1,6 +1,7 @@
 using FontStashSharp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Homestead.Simulation;
 
 namespace Homestead.Client;
 
@@ -40,11 +41,11 @@ public sealed class UiFont : IDisposable
     public void Draw(SpriteBatch batch, string text, Vector2 position, Color color, int size = 14)
     {
         if (_system is not null)
-            batch.DrawString(_system.GetFont(size), text, position, color);
+            batch.DrawString(_system.GetFont(size), PlayerText.Drawable(text), position, color);
     }
 
     public Vector2 Measure(string text, int size = 14) =>
-        _system?.GetFont(size).MeasureString(text) ?? Vector2.Zero;
+        _system?.GetFont(size).MeasureString(PlayerText.Drawable(text)) ?? Vector2.Zero;
 
     /// <summary>Breaks <paramref name="text"/> into lines no wider than <paramref name="width"/>.</summary>
     public IEnumerable<string> Wrap(string text, int width, int size = 14)

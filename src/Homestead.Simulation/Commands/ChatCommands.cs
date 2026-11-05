@@ -5,7 +5,8 @@ namespace Homestead.Simulation.Commands;
 /// <summary>A chat line of the player (or of a computer player, in the voice the AI chat gave it).</summary>
 public sealed record Say(int Player, string Text) : GameCommand(Player)
 {
-    internal override object? Apply(World world) => world.Say(Player, Text);
+    internal override object? Apply(World world) =>
+        world.Multiplayer && world.Chat.IsFlooding(Player, world.Tick) ? null : world.Say(Player, Text);
 }
 
 /// <summary>

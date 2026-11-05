@@ -254,6 +254,13 @@ public sealed class Logistics
         : _world.Production.Config.Distribution.TryGetValue(material, out var defaults) ? defaults.GetValueOrDefault(target)
         : 1;
 
+    /// <summary>Targets with shares a player may have (far more than goods × buildings using them): a share is kept for any name.</summary>
+    private const int MaxShares = 1024;
+
+    /// <summary>Whether a share of the target can be set: at most so many targets, of a sensible name's length.</summary>
+    public bool TakesShare(int player, Material material, string target) =>
+        target.Length <= 64 && (_shares.ContainsKey((player, material, target)) || _shares.Keys.Count(k => k.Item1 == player) < MaxShares);
+
     /// <summary>Sets a share (clamped to 0–1).</summary>
     public void SetShare(int player, Material material, string target, double share) =>
         _shares[(player, material, target)] = Math.Clamp(share, 0, 1);

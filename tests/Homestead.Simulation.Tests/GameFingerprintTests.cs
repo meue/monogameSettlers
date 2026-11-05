@@ -64,14 +64,14 @@ public class GameFingerprintTests : IDisposable
         Assert.Equal(["data/buildings/handmade.json missing there", "data/new.json missing here", "data/production.json differs"],
             before.Differences(after).Order());
         Assert.NotEqual(before.Data, after.Data);
-        Assert.Equal(["program version 1.0 ≠ " + before.Version, "network protocol 2 ≠ 1"],
-            (before with { Protocol = 2, Version = "1.0" }).Differences(before).Order().Reverse());
+        Assert.Equal(["program version 1.0 ≠ " + before.Version, $"network protocol 99 ≠ {GameFingerprint.CurrentProtocol}"],
+            (before with { Protocol = 99, Version = "1.0" }).Differences(before).Order().Reverse());
     }
 
     [Fact]
     public void A_game_set_up_on_other_data_does_not_start()
     {
-        var setup = new GameSetup { Map = MapChoice.Generated(new RandomMapSettings(Players: 2), 1), Fingerprint = GameFingerprint.Of(_data) };
+        var setup = new GameSetup { Map = MapChoice.Generated(new RandomMapSettings(Players: 2), 1), Players = [new PlayerSetup(Human: true), new PlayerSetup()], Fingerprint = GameFingerprint.Of(_data) };
         var map = setup.Map.Open("");
         Assert.NotNull(setup.Start(map, _data).World);
 
