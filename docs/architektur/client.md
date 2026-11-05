@@ -31,7 +31,7 @@ MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
   hierher, bzw. Video und danach zurück; Esc/„Zurück“ → Volkswahl). Videos über `MapGame.PlayVideo(pfad, danach)`. Laufende Mission `MissionRef` (`settlers/Roman/0`, `amazons/peoples/3`) steht im
   Spielstand (Client-Wert `mission`, Kopf `SaveInfo.Mission` – Listen zeigen „Kampagne Römer, Mission 1“).
   Sieg/Niederlage: `World.Goals` (`MissionGoals`, nur in Missionen, mitgespeichert) prüft sekündlich für Spieler 1 (`MissionGoals.Player`): kein eigenes Gebäude
-  (auch Baustellen) mehr, nachdem es eins gab, oder keins und keine Siedler (G06 beginnt ohne Gebäude) → verloren, kein fremdes mehr (zerstört/erobert) → gewonnen; einmal entschieden, bleibt es. Missionsspezifische Bedingungen
+  (auch Baustellen) mehr, nachdem es eins gab, oder keins und keine Siedler (G06 beginnt ohne Gebäude) → verloren, kein fremdes, das nicht verbündet ist, mehr (zerstört/erobert) → gewonnen; einmal entschieden, bleibt es. Missionsspezifische Bedingungen
   aus den Texten (Vorposten halten, Goldmengen …) noch nicht.
   Freie Partien (Startscreen, auch alte Spielstände): `ConquestGoals` (`World.Goals` ist `IGameGoals`) – wer kein fertiges Militärgebäude
   (Turm, großer Turm, Burg) mehr hat, nachdem er eins hatte, ist endgültig besiegt (`IsDefeated`); seine KI denkt nicht mehr (`World` überspringt sie),

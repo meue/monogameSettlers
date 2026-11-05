@@ -37,6 +37,8 @@ Nicht alles soll abschaltbar sein. Ohne folgendes Grundverhalten wäre eine KI k
 - Verteidigung zuerst (Feinde im eigenen Land werden immer bekämpft)
 - Kein Abriss eines Militärgebäudes, dessen Land eigene Gebäude trägt (seit Abriss Land
   ungeschützt zurücklässt, würde die KI sich sonst selbst verwundbar machen)
+- Kein Abriss der letzten fertigen Garnison – ohne sie ist das Spiel verloren (`ConquestGoals`);
+  die KI fragt nie darauf.
 
 Das eingebaute Verhalten (Guerilla, Feldzug bei 1,5:1, Besatzung voll) ist der Charakter **Standard**
 (`standard`, ohne Charakterzüge). Die Bewachung nach Bedrohung ist bereits ein Charakterzug
@@ -160,7 +162,7 @@ am Feind liegt – nicht den ganzen Weg heim.
 **`frontGarrison` – Besatzung nach Frontlage** · M · **umgesetzt** (Charakter `hothead`)
 Militärgebäude im Hinterland bekommen 1 Soldaten, Gebäude an der Grenze zum Feind voll, dort mit
 Bogenschützen. Ergebnis: deutlich mehr Soldaten frei für Angriffe.
-Werte: `frontDistance` (Abstand zu einem feindlichen Militärgebäude, ab dem ein Gebäude „Front“ ist), `backline` (Besatzung im Hinterland).
+Werte: `frontDistance` (Abstand zu einem feindlichen Militärgebäude, ab dem ein Gebäude „Front“ ist; es bleibt Front bis `frontDistance + 10` ohne feindliches Militärgebäude, damit die Besatzung nicht flackert), `backline` (Besatzung im Hinterland).
 
 **`reinforceThreatened` – Vorab aufstocken** · S
 Steht ein feindlicher Trupp in Reichweite eines Grenzturms, wird dessen Besatzung sofort auf voll

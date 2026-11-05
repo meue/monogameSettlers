@@ -42,7 +42,6 @@ public sealed partial class AiPlayer
             .OrderBy(b => _world.Production.WorkerOf(b) is null ? 0 : 1).FirstOrDefault();
         if (smithy is null)
             return;
-        Note($"tears down {smithy.Definition.Name} at {smithy.Position.X},{smithy.Position.Y}: its smith for the toolsmith");
-        _world.RemoveBuilding(smithy);
+        TearDown(smithy, "its smith for the toolsmith");
     }
 }

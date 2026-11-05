@@ -6,6 +6,7 @@ using Homestead.Simulation.Economy;
 using Homestead.Simulation.Magic;
 using Homestead.Simulation.Map;
 using Homestead.Simulation.Pathfinding;
+using Homestead.Simulation.Persistence;
 using Xunit.Abstractions;
 
 namespace Homestead.Simulation.Tests;
@@ -587,6 +588,69 @@ public class AiTests(ITestOutputHelper output)
         int Wanted(Building b) => Enum.GetValues<SoldierType>().Sum(type => world.Military.Wanted(b, type));
         Assert.Equal(1, Wanted(back));
         Assert.Equal(Romans["tower"].Occupiers.Count, Wanted(front));
+    }
+
+    [Fact]
+    public void Front_garrison_stays_front_up_to_ten_fields_beyond_the_last_enemy()
+    {
+        var world = new World(new GameMap(160), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var own = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(20, 80), force: true)!;
+        var near = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(64, 80), force: true)!;
+        var far = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(70, 80), force: true)!;
+        world.SpawnSoldier(own.Door, SoldierType.Swordsman);
+        world.Step();
+        world.AiPlayers.Add(new AiPlayer(world, Romans, 0, character: "frontGarrison"));
+
+        for (int t = 0; t < 10 * World.TicksPerSecond; t++)
+            world.Step();
+
+        int Wanted(Building b) => Enum.GetValues<SoldierType>().Sum(type => world.Military.Wanted(b, type));
+        Assert.Equal(Romans["tower"].Occupiers.Count, Wanted(own)); // 44 fields to the enemy: front
+
+        world.RemoveBuilding(near); // the nearest enemy stands 50 fields off: front up to 45 + 10
+        for (int t = 0; t < 10 * World.TicksPerSecond; t++)
+            world.Step();
+        Assert.Equal(Romans["tower"].Occupiers.Count, Wanted(own));
+
+        world.RemoveBuilding(far); // no enemy left: one transition to the backline
+        for (int t = 0; t < 10 * World.TicksPerSecond; t++)
+            world.Step();
+        Assert.Equal(1, Wanted(own));
+
+        for (int t = 0; t < 15 * World.TicksPerSecond; t++) // and no flicker afterwards
+        {
+            world.Step();
+            Assert.Equal(1, Wanted(own));
+        }
+    }
+
+    [Fact]
+    public void Front_garrison_classification_survives_save_load()
+    {
+        var world = new World(new GameMap(160), TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 2 };
+        var own = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(20, 80), force: true)!;
+        var near = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(64, 80), force: true)!;
+        world.PlaceBuilding(Romans["tower"], 1, new GridPoint(70, 80), force: true);
+        world.SpawnSoldier(own.Door, SoldierType.Swordsman);
+        world.Step();
+        world.AiPlayers.Add(new AiPlayer(world, Romans, 0, character: "frontGarrison"));
+
+        for (int t = 0; t < 10 * World.TicksPerSecond; t++)
+            world.Step();
+        world.RemoveBuilding(near); // the enemy left stands 50 fields off: front only via the saved classification
+        for (int t = 0; t < 10 * World.TicksPerSecond; t++)
+            world.Step();
+
+        var stream = new MemoryStream();
+        Snapshot.Write(stream, world);
+        stream.Position = 0;
+        var loaded = Snapshot.Read<World>(stream);
+        for (int t = 0; t < 3 * World.TicksPerSecond; t++)
+            loaded.Step();
+
+        var tower = loaded.Buildings.Single(b => b.Player == 0 && b.Position == own.Position);
+        int Wanted(Building b) => Enum.GetValues<SoldierType>().Sum(type => loaded.Military.Wanted(b, type));
+        Assert.Equal(Romans["tower"].Occupiers.Count, Wanted(tower));
     }
 
     [Theory]
