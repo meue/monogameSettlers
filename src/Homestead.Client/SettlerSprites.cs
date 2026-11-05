@@ -5,6 +5,16 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Homestead.Client;
 
+/// <summary>Which resolution the layers draw: the session's neural-upscale mode, one instance shared by all
+/// sprites of a library (the setting starts it, F4 flips it for the session).</summary>
+public sealed class SpriteUpscaleState
+{
+    public bool Enabled { get; set; }
+}
+
+/// <summary>The layers a settler frame consists of.</summary>
+public enum SpriteLayerKind { Body, Torso, Shadow }
+
 /// <summary>
 /// Images of one settler sequence (body, torso, shadow per frame, packed into a <see cref="SpriteAtlas"/>), plus the knowledge how
 /// walk sequences are laid out: six blocks of 12 frames (SW, W, NW, NE, E, SE), frame 0 of a
@@ -18,13 +28,21 @@ public sealed class SettlerSprites
     private readonly Layer?[] _body;
     private readonly Layer?[] _torso;
     private readonly Layer?[] _shadow;
+    private readonly AtlasImage?[] _hiResBody;
+    private readonly AtlasImage?[] _hiResTorso;
+    private readonly AtlasImage?[] _hiResShadow;
+    private readonly SpriteUpscaleState _upscale;
 
-    public SettlerSprites(SpriteAtlas atlas, GfxFile file, int sequence)
+    public SettlerSprites(SpriteAtlas atlas, GfxFile file, int sequence, SpriteUpscaleState upscale)
     {
+        _upscale = upscale;
         int frames = file.GetSettlerFrameCount(sequence);
         _body = new Layer?[frames];
         _torso = new Layer?[frames];
         _shadow = new Layer?[frames];
+        _hiResBody = new AtlasImage?[frames];
+        _hiResTorso = new AtlasImage?[frames];
+        _hiResShadow = new AtlasImage?[frames];
         for (int f = 0; f < frames; f++)
         {
             _body[f] = Layer.From(atlas, file.ReadSettler(sequence, f));
@@ -34,6 +52,14 @@ public sealed class SettlerSprites
     }
 
     public int FrameCount => _body.Length;
+
+    /// <summary>Attaches the 2x image of one frame's layer, as the background upscaler finishes it.</summary>
+    public void AttachHiRes(int frame, SpriteLayerKind kind, AtlasImage image)
+    {
+        if ((uint)frame >= (uint)FrameCount)
+            return;
+        Array(kind)[frame] = image;
+    }
 
     public static int WalkFrame(Direction facing, float stepProgress)
     {
@@ -56,9 +82,9 @@ public sealed class SettlerSprites
             return;
         var white = tint ?? Color.White;
         if (visibleFromBottom >= 1 && shadow)
-            _shadow[frame]?.Draw(batch, anchor, scale, white, 1, clip);
-        _body[frame]?.Draw(batch, anchor, scale, white, visibleFromBottom, clip);
-        _torso[frame]?.Draw(batch, anchor, scale, Multiply(playerColor, white), visibleFromBottom, clip);
+            _shadow[frame]?.Draw(batch, anchor, scale, white, 1, clip, HiRes(_hiResShadow, frame));
+        _body[frame]?.Draw(batch, anchor, scale, white, visibleFromBottom, clip, HiRes(_hiResBody, frame));
+        _torso[frame]?.Draw(batch, anchor, scale, Multiply(playerColor, white), visibleFromBottom, clip, HiRes(_hiResTorso, frame));
     }
 
     /// <summary>Draws the frame unscaled like <see cref="Draw"/>, but only what lies within <paramref name="clip"/>.</summary>
@@ -81,6 +107,43 @@ public sealed class SettlerSprites
         var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
         return (new Vector2(box.Center.X, box.Center.Y) - center * scale, scale);
     }
+
+    /// <summary>
+    /// Which image a layer draws, at which offset and scale: the 2x image at half the scale with the doubled
+    /// offset covers exactly the 1x image's screen area, so layout math can stay with the 1x sizes.
+    /// </summary>
+    public static (bool High, Vector2 Offset, float Scale) ResolveResolution(bool hiRes, Vector2 offset, float scale) =>
+        hiRes ? (true, offset * 2, scale * 0.5f) : (false, offset, scale);
+
+    /// <summary>
+    /// What a clipped layer draw shows: the screen rectangle of the (possibly 2x) image reduced to
+    /// <paramref name="clip"/> and the lower <paramref name="visibleFromBottom"/> part, and the atlas
+    /// slice that lands there. Null if nothing is visible.
+    /// </summary>
+    public static (Rectangle Dest, Rectangle Source)? ClipMapping(
+        Rectangle source, Vector2 at, float visibleFromBottom, Rectangle clip, float scale)
+    {
+        // The footprint is in screen units: a 2x image draws at half scale, so one screen pixel is two of its texels.
+        var rect = new Rectangle((int)Math.Round(at.X), (int)Math.Round(at.Y),
+            (int)Math.Round(source.Width * scale), (int)Math.Round(source.Height * scale));
+        int hidden = (int)((source.Height - (int)(source.Height * Math.Min(1, visibleFromBottom))) * scale);
+        var visible = Rectangle.Intersect(new Rectangle(rect.X, rect.Y + hidden, rect.Width, rect.Height - hidden), clip);
+        if (visible.Width <= 0 || visible.Height <= 0)
+            return null;
+        return (visible, new Rectangle(
+            source.X + (int)((visible.X - rect.X) / scale), source.Y + (int)((visible.Y - rect.Y) / scale),
+            (int)(visible.Width / scale), (int)(visible.Height / scale)));
+    }
+
+    private AtlasImage?[] Array(SpriteLayerKind kind) => kind switch
+    {
+        SpriteLayerKind.Body => _hiResBody,
+        SpriteLayerKind.Torso => _hiResTorso,
+        SpriteLayerKind.Shadow => _hiResShadow,
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    private AtlasImage? HiRes(AtlasImage?[] images, int frame) => _upscale.Enabled ? images[frame] : null;
 
     private static Color Multiply(Color a, Color b) =>
         new(a.R * b.R / 255, a.G * b.G / 255, a.B * b.B / 255, a.A * b.A / 255);
@@ -107,36 +170,37 @@ public sealed class SettlerSprites
         }
 
         /// <summary>Unscaled, only the lower <paramref name="visibleFromBottom"/> part within <paramref name="clip"/>.</summary>
-        private void DrawClipped(SpriteBatch batch, Vector2 anchor, Rectangle clip, Color tint, float visibleFromBottom)
+        private void DrawClipped(SpriteBatch batch, Vector2 anchor, Rectangle clip, Color tint, float visibleFromBottom,
+            AtlasImage? hiRes)
         {
-            var source = Image.Source;
-            var at = anchor + Offset;
-            var rect = new Rectangle((int)Math.Round(at.X), (int)Math.Round(at.Y), source.Width, source.Height);
-            int hidden = source.Height - (int)(source.Height * Math.Min(1, visibleFromBottom));
-            var visible = Rectangle.Intersect(new Rectangle(rect.X, rect.Y + hidden, rect.Width, rect.Height - hidden), clip);
-            if (visible.Width <= 0 || visible.Height <= 0)
+            var image = hiRes ?? Image;
+            float scale = hiRes is null ? 1 : 0.5f;
+            if (ClipMapping(image.Source, anchor + Offset, visibleFromBottom, clip, scale) is not { } part)
                 return;
-            batch.Draw(Image.Texture, new Vector2(visible.X, visible.Y),
-                new Rectangle(source.X + visible.X - rect.X, source.Y + visible.Y - rect.Y, visible.Width, visible.Height), tint);
+            batch.Draw(image.Texture, new Vector2(part.Dest.X, part.Dest.Y), part.Source,
+                tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
         }
 
-        public void Draw(SpriteBatch batch, Vector2 anchor, float scale, Color tint, float visibleFromBottom, Rectangle? clip)
+        public void Draw(SpriteBatch batch, Vector2 anchor, float scale, Color tint, float visibleFromBottom,
+            Rectangle? clip, AtlasImage? hiRes)
         {
             if (clip is { } box)
             {
-                DrawClipped(batch, anchor, box, tint, visibleFromBottom);
+                DrawClipped(batch, anchor, box, tint, visibleFromBottom, hiRes);
                 return;
             }
-            var source = Image.Source;
+            AtlasImage image = hiRes ?? Image;
+            var (_, offset, drawScale) = ResolveResolution(hiRes is not null, Offset, scale);
+            var source = image.Source;
             if (visibleFromBottom >= 1)
             {
-                batch.Draw(Image.Texture, anchor + Offset * scale, source, tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+                batch.Draw(image.Texture, anchor + offset * drawScale, source, tint, 0, Vector2.Zero, drawScale, SpriteEffects.None, 0);
                 return;
             }
             int visible = (int)(source.Height * visibleFromBottom);
             int hidden = source.Height - visible;
-            batch.Draw(Image.Texture, anchor + (Offset + new Vector2(0, hidden)) * scale,
-                new Rectangle(source.X, source.Y + hidden, source.Width, visible), tint, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            batch.Draw(image.Texture, anchor + (offset + new Vector2(0, hidden)) * drawScale,
+                new Rectangle(source.X, source.Y + hidden, source.Width, visible), tint, 0, Vector2.Zero, drawScale, SpriteEffects.None, 0);
         }
     }
 }

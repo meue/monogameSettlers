@@ -57,6 +57,7 @@ Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–21
 - Gelände-Atlas: Texturkoordinaten einen halben Texel innerhalb der Zelle, sonst Linien aus Nachbarzellen.
 - Sprites nur über `SpriteLibrary` (gemeinsame Atlas-Seiten, `SpriteAtlas`); keine eigene `Texture2D` je Bild (Draw-Calls).
 - Lauf-Sequenzen: 72 Frames = 6 Richtungen à 12 (SW, W, NW, NE, O, SO); Frame 0 stehen, 1–11 Zyklus je Rasterschritt.
+- Sprites optional x2 über neurale Hochskalierung (nur `SpriteLibrary`-Pfad, Real-ESRGAN/ONNX in `Neural/`); Standard aus, F4 sitzungsweise (Details: docs/architektur/client.md).
 
 ## Installation des Originals
 `HOMESTEAD_GAME_DIR` oder `gameDirectory` in `~/.config/homestead/settings.json`; der erste gültige gilt (`GameInstallation.TryLocate`).

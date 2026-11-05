@@ -23,10 +23,14 @@
     <EmbeddedResource Include="Shaders\Upscale.mgfx">
       <LogicalName>Upscale.mgfx</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Neural\realesr-animevideov3-x4.onnx">
+      <LogicalName>realesr-animevideov3-x4.onnx</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Anthropic" />
     <PackageReference Include="FontStashSharp.MonoGame" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
     <PackageReference Include="MonoGame.Framework.DesktopGL" />
   </ItemGroup>
   <ItemGroup>
