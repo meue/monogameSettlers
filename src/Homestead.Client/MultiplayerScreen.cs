@@ -22,9 +22,6 @@ public enum MultiplayerAction
     Started,
 }
 
-/// <summary>A started game as the server tells it: the setup, the own player and the lockstep values.</summary>
-public sealed record StartedGame(GameSetup Setup, int Player, LockstepOptions Options);
-
 /// <summary>
 /// Multiplayer before the game, on the original's list background (<c>missionScreen</c> in <c>data/ui.json</c>): first the
 /// name and the server's address (<see cref="MultiplayerSettings"/>, remembered once connected), then the open games of the
@@ -267,7 +264,11 @@ public sealed class MultiplayerScreen : IDisposable
 
     /// <summary>The color after <paramref name="color"/> among those nobody else has (null: drawn, then the palette in order).</summary>
     private static Civilization? PeopleOf(JsonObject seat) =>
-        Enum.TryParse<Civilization>(seat["people"]?.GetValue<string>(), out var people) ? people : null;
+        Enum.TryParse<Civilization>(seat["people"]?.GetValue<string>(), out var people) && Enum.IsDefined(people) ? people : null;
+
+    /// <summary>A seat's color, if it is one of the palette: the list draws by it.</summary>
+    private static int? ColorOf(JsonObject seat) =>
+        seat["color"]?.GetValue<int>() is { } color && color >= 0 && color < PlayerColors.Palette.Length ? color : null;
 
     private static int? NextColor(int? color, IReadOnlySet<int> taken)
     {
@@ -330,43 +331,61 @@ public sealed class MultiplayerScreen : IDisposable
             Disconnect(Lang.T("multiplayer.lost", connection.ClosedBecause ?? ""), problem: true);
             return null;
         }
-        foreach (var message in connection.Receive())
-            switch (ServerMessages.TypeOf(message))
-            {
-                case ServerMessages.Games:
-                    _games = (message["games"] as JsonArray ?? []).OfType<JsonObject>().Select(g => (
-                        g["id"]!.GetValue<string>(), g["name"]!.GetValue<string>(), g["host"]!.GetValue<string>(),
-                        g["seats"]!.GetValue<int>(), g["taken"]!.GetValue<int>())).ToArray();
-                    break;
-                case ServerMessages.Lobby:
-                    _step = Step.Lobby;
-                    _lobby = new Lobby(message["name"]!.GetValue<string>(), message["host"]!.GetValue<int>(), message["you"]!.GetValue<int>(),
-                        (message["seats"] as JsonArray ?? []).OfType<JsonObject>().Select(s => new Seat(s["player"]!.GetValue<int>(),
-                                s["name"]?.GetValue<string>(), PeopleOf(s), s["color"]?.GetValue<int>()))
-                            .Concat((message["computers"] as JsonArray ?? []).OfType<JsonObject>().Select(c => new Seat(c["player"]!.GetValue<int>(),
-                                null, PeopleOf(c), c["color"]?.GetValue<int>(), Computer: true, c["character"]?.GetValue<string>())))
-                            .OrderBy(s => s.Player).ToArray(),
-                        (message["colors"] as JsonArray ?? []).Select(c => c!.GetValue<int>()).ToHashSet());
-                    Status(Full ? Lang.T(_lobby.Host == _lobby.You ? "multiplayer.allThere" : "multiplayer.hostStarts")
-                        : Lang.T("multiplayer.waiting"));
-                    if (_automatic is not null && Full && _lobby.Host == _lobby.You)
-                        connection.Start();
-                    break;
-                case ServerMessages.Closed:
-                    ToBrowse();
-                    Status(Lang.T("multiplayer.closed"), problem: true);
-                    break;
-                case ServerMessages.Refused:
-                    Status(Lang.T("multiplayer.refused", string.Join("; ", ServerConnection.Reasons(message))), problem: true);
-                    break;
-                case ServerMessages.Error:
-                    Status(message["message"]?.GetValue<string>() ?? "?", problem: true);
-                    break;
-                case ServerMessages.Started:
-                    Started = new StartedGame(GameSetup.FromJson(message["setup"]!.ToJsonString()), message["player"]!.GetValue<int>(),
-                        ServerMessages.Options(message["options"] as JsonObject));
-                    return MultiplayerAction.Started;
-            }
+        try
+        {
+            foreach (var message in connection.Receive())
+                if (Take(message, connection) is { } action)
+                    return action;
+        }
+        catch (Exception e) when (e is InvalidOperationException or FormatException or ArgumentException or NullReferenceException
+            or InvalidDataException or System.Text.Json.JsonException or NotSupportedException)
+        {
+            // A server is anybody's: what it says may be nonsense, and that must not end the program.
+            Console.WriteLine($"bad message from the server: {e.Message}");
+            Disconnect(Lang.T("multiplayer.badServer"), problem: true);
+        }
+        return null;
+    }
+
+    /// <summary>One message of the server, read with its fields as they must be (an exception otherwise, see <see cref="Poll"/>).</summary>
+    private MultiplayerAction? Take(JsonObject message, ServerConnection connection)
+    {
+        static string Text(JsonNode? node, int length) => PlayerText.Clean(node?.GetValue<string>(), length);
+        switch (ServerMessages.TypeOf(message))
+        {
+            case ServerMessages.Games:
+                _games = (message["games"] as JsonArray ?? []).OfType<JsonObject>().Select(g => (
+                    g["id"]!.GetValue<string>(), Text(g["name"], ServerMessages.MaxGameNameLength), Text(g["host"], ServerMessages.MaxNameLength),
+                    g["seats"]!.GetValue<int>(), g["taken"]!.GetValue<int>())).ToArray();
+                break;
+            case ServerMessages.Lobby:
+                _step = Step.Lobby;
+                _lobby = new Lobby(Text(message["name"], ServerMessages.MaxGameNameLength), message["host"]!.GetValue<int>(), message["you"]!.GetValue<int>(),
+                    (message["seats"] as JsonArray ?? []).OfType<JsonObject>().Select(s => new Seat(s["player"]!.GetValue<int>(),
+                            s["name"] is { } name ? Text(name, ServerMessages.MaxNameLength) : null, PeopleOf(s), ColorOf(s)))
+                        .Concat((message["computers"] as JsonArray ?? []).OfType<JsonObject>().Select(c => new Seat(c["player"]!.GetValue<int>(),
+                            null, PeopleOf(c), ColorOf(c), Computer: true, c["character"] is { } character ? Text(character, ServerMessages.MaxNameLength) : null)))
+                        .OrderBy(s => s.Player).ToArray(),
+                    (message["colors"] as JsonArray ?? []).Select(c => c!.GetValue<int>()).ToHashSet());
+                Status(Full ? Lang.T(_lobby.Host == _lobby.You ? "multiplayer.allThere" : "multiplayer.hostStarts")
+                    : Lang.T("multiplayer.waiting"));
+                if (_automatic is not null && Full && _lobby.Host == _lobby.You)
+                    connection.Start();
+                break;
+            case ServerMessages.Closed:
+                ToBrowse();
+                Status(Lang.T("multiplayer.closed"), problem: true);
+                break;
+            case ServerMessages.Refused:
+                Status(Lang.T("multiplayer.refused", string.Join("; ", ServerConnection.Reasons(message))), problem: true);
+                break;
+            case ServerMessages.Error:
+                Status(message["message"] is { } text ? Text(text, 200) : "?", problem: true);
+                break;
+            case ServerMessages.Started:
+                Started = ServerMessages.ParseStarted(message);
+                return MultiplayerAction.Started;
+        }
         return null;
     }
 

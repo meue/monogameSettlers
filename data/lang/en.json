@@ -691,6 +691,7 @@
     "playerLeft": "{0} left the game.",
     "desync": "The games went apart ({0}) – the game stands still.",
     "connectionLost": "Connection to the server lost.",
+    "badServer": "The server sent something invalid.",
     "noPause": "Pausing multiplayer games is still to come.",
     "desyncBanner": "Out of sync",
     "desyncHint": "The computers no longer play the same game – Esc: quit",

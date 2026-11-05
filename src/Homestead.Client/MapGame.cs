@@ -6,6 +6,7 @@ using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
+using System.Text.Json.Nodes;
 using Homestead.Simulation.Commands;
 using Homestead.Simulation.Events;
 using Homestead.Simulation.Lockstep;
@@ -665,9 +666,15 @@ public sealed class MapGame : Game
                 {
                     map = started.Setup.Map.Open(_mapDirectory);
                 }
-                catch (Exception e) when (e is FileNotFoundException or IOException or InvalidDataException)
+                catch (Exception e) when (e is FileNotFoundException or IOException or InvalidDataException or UnauthorizedAccessException)
                 {
-                    screen.Fail(Lang.T("multiplayer.noMap", e.Message));
+                    screen.Fail(Lang.T("multiplayer.noMap", PlayerText.Clean(e.Message, 200)));
+                    break;
+                }
+                if (started.Setup.Problems(map.Players.Count) is { Count: > 0 } problems)
+                {
+                    Console.WriteLine($"bad game from the server: {string.Join("; ", problems)}");
+                    screen.Fail(Lang.T("multiplayer.badServer"));
                     break;
                 }
                 var connection = screen.TakeConnection();
@@ -709,10 +716,16 @@ public sealed class MapGame : Game
         if (_connection is not { } connection || _session is not { } session)
             return;
         foreach (var message in connection.Receive())
-            if (ServerMessages.TypeOf(message) == ServerMessages.Left && message["player"]?.GetValue<int>() is { } player)
+            switch (ServerMessages.TypeOf(message))
             {
-                string name = PlayerNames.Of(_world, player);
-                _info.Add(Lang.T("multiplayer.playerLeft", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
+                case ServerMessages.Left when message["player"] is JsonValue left && left.TryGetValue(out int player) && player >= 0 && player < GameSetup.MaxPlayers:
+                    string name = PlayerNames.Of(_world, player);
+                    _info.Add(Lang.T("multiplayer.playerLeft", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
+                    break;
+                case ServerMessages.Refused:
+                    // Dropped by the server (not responding, out of sync …): why it ends.
+                    _info.Add(Lang.T("multiplayer.refused", string.Join("; ", ServerConnection.Reasons(message))), _now);
+                    break;
             }
         if (_networkTroubleTold)
             return;
@@ -723,6 +736,12 @@ public sealed class MapGame : Game
             Console.WriteLine($"desync at turn {desync.Turn} (tick {desync.Tick}): " +
                               string.Join("; ", desync.Players.Select(p => $"player {p.Player + 1}: {string.Join(", ", p.Parts)}")));
             _info.Add(Lang.T("multiplayer.desync", parts), _now);
+        }
+        else if (session.Failure is { } failure)
+        {
+            _networkTroubleTold = true;
+            Console.WriteLine($"lockstep stopped: {failure}");
+            _info.Add(Lang.T("multiplayer.badServer"), _now);
         }
         else if (!connection.IsOpen)
         {
@@ -2900,7 +2919,8 @@ public sealed class MapGame : Game
             return;
         // Only the own commands: in a lockstep game the others' carry their own numbers.
         foreach (var (command, result) in _world.Commands.Applied)
-            if (command.Player == _local && _awaiting.Remove(command.Sequence, out var then))
+            // A refused command has no outcome to show: the callers read the result of one that was applied.
+            if (command.Player == _local && _awaiting.Remove(command.Sequence, out var then) && result != CommandQueue.Refused)
                 then(result);
     }
 

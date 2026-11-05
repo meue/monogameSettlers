@@ -691,6 +691,7 @@
     "playerLeft": "{0} hat das Spiel verlassen.",
     "desync": "Die Spielstände sind auseinandergelaufen ({0}) – das Spiel steht.",
     "connectionLost": "Verbindung zum Server verloren.",
+    "badServer": "Der Server hat etwas Ungültiges gesendet.",
     "noPause": "Pause im Mehrspieler kommt noch.",
     "desyncBanner": "Asynchron",
     "desyncHint": "Die Rechner rechnen nicht mehr dasselbe Spiel – Esc: beenden",

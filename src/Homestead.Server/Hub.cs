@@ -25,6 +25,9 @@ internal sealed class Game(string id, string name, Connection host, GameSetup se
 
     /// <summary>How many of the relay's desyncs are in the log already.</summary>
     public int DesyncsLogged { get; set; }
+
+    /// <summary>When the last turn was handed out (<see cref="Environment.TickCount64"/>).</summary>
+    public long LastTurn { get; set; }
 }
 
 /// <summary>
@@ -32,14 +35,24 @@ internal sealed class Game(string id, string name, Connection host, GameSetup se
 /// open and join games – joining needs the host's program and game data (<see cref="GameFingerprint"/>), the reasons go back
 /// otherwise – and the host starts a game once every seat is taken: each computer gets the setup, its player and the
 /// <see cref="LockstepOptions"/>, then the turns go through a <see cref="TurnRelay"/>. Leaving the lobby frees the seat (the
-/// host leaving closes the game); leaving a running game is told to the others (who then wait: taking over by a computer
-/// player is still to come). Everything happens under one lock; sending is queued per connection.
+/// host leaving closes the game); leaving a running game is told to the others, who go on without the player (taking over by a
+/// computer player is still to come). Everything happens under one lock; sending is queued per connection.
+/// Nothing a computer sends is trusted (docs/MULTIPLAYER.md): whatever it says is checked here or by the relay, whoever breaks a
+/// rule no honest client breaks is dropped, and <see cref="ServerLimits"/> bounds what anybody can hold on to.
 /// </summary>
-public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
+public sealed class Hub(LockstepOptions options, ServerLimits limits, ILogger<Hub> log)
 {
+    /// <summary>What a lobby request costs of the message budget, a turn's input costing 1: they do more work and bring larger answers.</summary>
+    private const double LobbyCost = 5;
+
+    /// <summary>Games in one list, refusal reasons in one message: to stay well below <see cref="ServerMessages.MaxLength"/>.</summary>
+    private const int MaxListed = 200, MaxReasons = 20;
+
     private readonly object _gate = new();
     private readonly Dictionary<string, Game> _games = new();
     private readonly HashSet<Connection> _connections = new();
+    private readonly Dictionary<string, int> _addresses = new();
+    private int _admitted;
     private int _nextId;
 
     /// <summary>Games and connections, for the status line.</summary>
@@ -52,17 +65,49 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
         }
     }
 
+    /// <summary>
+    /// Makes room for a connection from the address before its WebSocket is accepted; false: too many. Every true needs its
+    /// <see cref="Release"/>.
+    /// </summary>
+    public bool Admit(string address)
+    {
+        lock (_gate)
+        {
+            int fromAddress = _addresses.GetValueOrDefault(address);
+            if (_admitted >= limits.MaxConnections || fromAddress >= limits.MaxConnectionsPerAddress)
+                return false;
+            _admitted++;
+            _addresses[address] = fromAddress + 1;
+            return true;
+        }
+    }
+
+    public void Release(string address)
+    {
+        lock (_gate)
+        {
+            _admitted--;
+            if (_addresses[address] > 1)
+                _addresses[address]--;
+            else
+                _addresses.Remove(address);
+        }
+    }
+
     public async Task RunAsync(WebSocket socket, CancellationToken cancel)
     {
         Connection connection;
         lock (_gate)
-            _connections.Add(connection = new Connection(++_nextId, socket));
+            _connections.Add(connection = new Connection(++_nextId, socket, limits));
         var writing = connection.WriteAsync(cancel);
         try
         {
             await foreach (var message in connection.ReadAsync(cancel))
                 lock (_gate)
                 {
+                    if (connection.IsDropped)
+                        break;
+                    connection.LastHeard = Environment.TickCount64;
                     try
                     {
                         Handle(connection, message);
@@ -70,8 +115,14 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
                     catch (Exception e) when (e is InvalidOperationException or FormatException or ArgumentException or System.Text.Json.JsonException)
                     {
                         // A field of the wrong kind (a number for a name, …): the message is answered, the connection stays.
-                        log.LogWarning("{Id}: unreadable {Message}: {Error}", connection.Id, message?.ToJsonString(), e.Message);
+                        log.LogDebug("{Id}: unreadable message: {Kind}", connection.Id, e.GetType().Name);
                         Error(connection, "unreadable message");
+                    }
+                    catch (Exception e) when (e is not OutOfMemoryException)
+                    {
+                        // A bug, or something nobody thought of: this connection ends, the others must not notice.
+                        log.LogError(e, "{Id}: message failed", connection.Id);
+                        Kick(connection, "server error");
                     }
                 }
         }
@@ -87,6 +138,55 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
         }
     }
 
+    /// <summary>
+    /// Once a second: drops connections that never said hello or fell silent outside a game, players a running game has been
+    /// waiting for while another has sent its turn, and closes running games nobody sends to any more.
+    /// </summary>
+    public void Sweep()
+    {
+        long now = Environment.TickCount64;
+        bool Over(long since, double seconds) => now - since > seconds * 1000;
+        lock (_gate)
+        {
+            foreach (var connection in _connections.ToArray())
+                if (connection.Fingerprint is null && Over(connection.Connected, limits.HandshakeSeconds))
+                    Kick(connection, "no hello");
+                else if (connection.Game is not { Started: true } && Over(connection.LastHeard, limits.IdleSeconds))
+                    Kick(connection, "idle too long");
+            foreach (var game in _games.Values.Where(g => g.Started).ToArray())
+            {
+                int[] missing = game.Relay!.Missing.ToArray();
+                if (Over(game.LastTurn, limits.AbandonedSeconds))
+                {
+                    log.LogInformation("game {Game} abandoned", game.Id);
+                    foreach (var member in game.Taken.Values.ToArray())
+                        Kick(member, "game abandoned");
+                    _games.Remove(game.Id);
+                }
+                else if (Over(game.LastTurn, limits.StallSeconds) && missing.Length < game.Relay.PlayerCount)
+                    foreach (int player in missing)
+                    {
+                        log.LogInformation("game {Game}: player {Player} stalled it", game.Id, player);
+                        if (game.Taken.TryGetValue(player, out var member))
+                            Kick(member, "not responding");
+                        else
+                            Hand(game, game.Relay.Remove(player));
+                    }
+            }
+        }
+    }
+
+    /// <summary>Tells the computer why, takes it out of its game and drops it. Under the lock.</summary>
+    private void Kick(Connection connection, string reason)
+    {
+        if (connection.IsDropped)
+            return;
+        log.LogInformation("{Id} dropped: {Reason}", connection.Id, reason);
+        Refuse(connection, reason);
+        LeaveGame(connection);
+        connection.Drop();
+    }
+
     private void Handle(Connection connection, JsonObject? message)
     {
         string? type = message is null ? null : ServerMessages.TypeOf(message);
@@ -95,10 +195,14 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
             Error(connection, "not a message");
             return;
         }
+        if (type != ServerMessages.Input && !connection.Charge(LobbyCost))
+        {
+            Kick(connection, "too many requests");
+            return;
+        }
         if (connection.Fingerprint is null && type != ServerMessages.Hello)
         {
-            Refuse(connection, "say hello first");
-            connection.Drop();
+            Kick(connection, "say hello first");
             return;
         }
         switch (type)
@@ -128,32 +232,41 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
                 Input(connection, message["input"] as JsonObject);
                 break;
             default:
-                Error(connection, $"unknown message '{type}'");
+                Error(connection, "unknown message");
                 break;
         }
     }
 
     private void Hello(Connection connection, JsonObject message)
     {
+        if (connection.Fingerprint is not null)
+        {
+            Error(connection, "hello already said");
+            return;
+        }
         GameFingerprint? fingerprint;
         try
         {
             fingerprint = message["fingerprint"] is JsonObject node ? GameFingerprint.FromJson(node.ToJsonString()) : null;
         }
-        catch (System.Text.Json.JsonException)
+        catch (Exception e) when (e is System.Text.Json.JsonException or NotSupportedException)
         {
             fingerprint = null;
         }
         if (fingerprint is null || fingerprint.Protocol != GameFingerprint.CurrentProtocol)
         {
-            Refuse(connection, fingerprint is null
+            Kick(connection, fingerprint is null
                 ? "no fingerprint"
                 : $"network protocol {fingerprint.Protocol} ≠ {GameFingerprint.CurrentProtocol} (server {GameFingerprint.ProgramVersion})");
-            connection.Drop();
             return;
         }
-        string name = (message["name"]?.GetValue<string>() ?? "").Trim();
-        connection.Name = name.Length == 0 ? $"Player {connection.Id}" : name[..Math.Min(name.Length, 32)];
+        if (fingerprint.Problems() is [var problem, ..])
+        {
+            Kick(connection, problem);
+            return;
+        }
+        string name = PlayerText.Clean(message["name"]?.GetValue<string>(), ServerMessages.MaxNameLength);
+        connection.Name = name.Length == 0 ? $"Player {connection.Id}" : name;
         connection.Fingerprint = fingerprint;
         log.LogInformation("{Name} ({Id}) connected, {Version}", connection.Name, connection.Id, fingerprint.Version);
         connection.Send(ServerMessages.Of(ServerMessages.Welcome, new JsonObject
@@ -162,7 +275,7 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
         }));
     }
 
-    private JsonArray GameList() => new(_games.Values.Where(g => !g.Started).OrderBy(g => g.Name, StringComparer.Ordinal).Select(g => (JsonNode)new JsonObject
+    private JsonArray GameList() => new(_games.Values.Where(g => !g.Started).OrderBy(g => g.Name, StringComparer.Ordinal).Take(MaxListed).Select(g => (JsonNode)new JsonObject
     {
         ["id"] = g.Id, ["name"] = g.Name, ["host"] = g.Host.Name, ["seats"] = g.Seats.Length, ["taken"] = g.Taken.Count,
         ["data"] = g.Setup.Fingerprint!.Data,
@@ -170,15 +283,20 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
 
     private void Create(Connection connection, JsonObject message)
     {
-        LeaveGame(connection);
         GameSetup setup;
         try
         {
-            setup = GameSetup.FromJson(message["setup"]!.ToJsonString());
+            // The host's fingerprint goes in below, whatever the setup says.
+            setup = GameSetup.FromJson(message["setup"]!.ToJsonString()) with { Fingerprint = null };
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or NullReferenceException or NotSupportedException)
         {
             Error(connection, "no game setup");
+            return;
+        }
+        if (setup.Problems() is [var problem, ..])
+        {
+            Error(connection, problem);
             return;
         }
         int[] seats = setup.Players.Select((p, player) => (p, player)).Where(s => s.p.Human).Select(s => s.player).ToArray();
@@ -187,12 +305,18 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
             Error(connection, "a game needs a human player");
             return;
         }
+        LeaveGame(connection);
+        if (_games.Count >= limits.MaxGames)
+        {
+            Error(connection, "the server is full");
+            return;
+        }
         string id;
         do
             id = Convert.ToHexStringLower(BitConverter.GetBytes(Random.Shared.Next()))[..6];
         while (_games.ContainsKey(id));
-        string name = (message["name"]?.GetValue<string>() ?? "").Trim();
-        var game = new Game(id, name.Length == 0 ? $"{connection.Name}'s game" : name[..Math.Min(name.Length, 40)], connection,
+        string name = PlayerText.Clean(message["name"]?.GetValue<string>(), ServerMessages.MaxGameNameLength);
+        var game = new Game(id, name.Length == 0 ? PlayerText.Clean($"{connection.Name}'s game", ServerMessages.MaxGameNameLength) : name, connection,
             setup with { Fingerprint = connection.Fingerprint }, seats);
         _games[id] = game;
         Seat(connection, game, seats[0]);
@@ -211,7 +335,7 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
         var differences = connection.Fingerprint!.Differences(game.Setup.Fingerprint!);
         if (differences.Count > 0)
         {
-            Refuse(connection, differences.ToArray());
+            Refuse(connection, differences.Take(MaxReasons).ToArray());
             return;
         }
         if (game.Seats.Where(s => !game.Taken.ContainsKey(s)).Cast<int?>().FirstOrDefault() is not { } seat)
@@ -296,6 +420,7 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
             return;
         }
         game.Relay = new TurnRelay(game.Seats, firstTurn: options.DelayTurns);
+        game.LastTurn = Environment.TickCount64;
         var setup = JsonNode.Parse(game.Setup.ToJson());
         foreach (var member in game.Taken.Values)
             member.Send(ServerMessages.Of(ServerMessages.Started, new JsonObject
@@ -312,14 +437,38 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
             Error(connection, "no game running");
             return;
         }
-        int refused = relay.Refused;
-        foreach (string bundle in relay.Receive(connection.Seat, input.ToJsonString()))
-            foreach (var member in game.Taken.Values)
-                member.Send($"{{\"type\":\"{ServerMessages.Bundle}\",\"bundle\":{bundle}}}");
-        if (relay.Refused > refused)
-            log.LogWarning("{Name} in game {Game}: input refused (too far ahead or too many commands)", connection.Name, game.Id);
+        int broken = relay.Refused + relay.Dropped;
+        string text;
+        try
+        {
+            text = input.ToJsonString();
+        }
+        catch (InvalidOperationException)
+        {
+            // Text that cannot be written again (a lone surrogate).
+            Kick(connection, "input against the rules");
+            return;
+        }
+        Hand(game, relay.Receive(connection.Seat, text));
         for (; game.DesyncsLogged < relay.DesyncedTurns.Count; game.DesyncsLogged++)
             log.LogWarning("game {Game}: desync at turn {Turn}", game.Id, relay.DesyncedTurns[game.DesyncsLogged]);
+        // A majority agrees on the world: the others are out, lying or not.
+        foreach (int player in relay.TakeOutOfLine())
+            if (game.Taken.TryGetValue(player, out var member))
+                Kick(member, "out of sync");
+        if (relay.Refused + relay.Dropped > broken)
+            Kick(connection, "input against the rules");
+    }
+
+    /// <summary>The bundles to everyone in the game.</summary>
+    private static void Hand(Game game, IReadOnlyList<string> bundles)
+    {
+        foreach (string bundle in bundles)
+        {
+            game.LastTurn = Environment.TickCount64;
+            foreach (var member in game.Taken.Values)
+                member.Send($"{{\"type\":\"{ServerMessages.Bundle}\",\"bundle\":{bundle}}}");
+        }
     }
 
     private void LeaveGame(Connection connection)
@@ -348,6 +497,8 @@ public sealed class Hub(LockstepOptions options, ILogger<Hub> log)
         {
             foreach (var member in game.Taken.Values)
                 member.Send(ServerMessages.Of(ServerMessages.Left, new JsonObject { ["game"] = game.Id, ["player"] = connection.Seat }));
+            // Nobody waits for the player: what the turns still needed from it is off the list.
+            Hand(game, game.Relay!.Remove(connection.Seat));
             if (game.Taken.Count == 0)
                 _games.Remove(game.Id);
             log.LogInformation("{Name} left running game {Game}", connection.Name, game.Id);

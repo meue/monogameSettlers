@@ -691,6 +691,7 @@
     "playerLeft": "{0} opuścił(a) grę.",
     "desync": "Gry się rozjechały ({0}) – gra stoi.",
     "connectionLost": "Utracono połączenie z serwerem.",
+    "badServer": "Serwer wysłał nieprawidłowe dane.",
     "noPause": "Pauza w grach wieloosobowych dopiero będzie.",
     "desyncBanner": "Brak synchronizacji",
     "desyncHint": "Komputery nie grają już tej samej gry – Esc: zakończ",

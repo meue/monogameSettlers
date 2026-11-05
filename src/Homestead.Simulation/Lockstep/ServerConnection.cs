@@ -70,7 +70,13 @@ public sealed class ServerConnection : IAsyncDisposable
 
     /// <summary>The reasons of a <see cref="ServerMessages.Refused"/> message.</summary>
     public static IReadOnlyList<string> Reasons(JsonObject refused) =>
-        (refused["reasons"] as JsonArray ?? []).Select(r => r?.GetValue<string>() ?? "").ToArray();
+        (refused["reasons"] as JsonArray ?? []).Take(MaxReasons).Select(r => r is JsonValue value && value.TryGetValue(out string? text) ? PlayerText.Clean(text, 200) : "")
+        .ToArray();
+
+    private const int MaxReasons = 20;
+
+    /// <summary>Messages kept for the game loop: an honest server never gets near (the game loop takes them every frame), so more end the connection.</summary>
+    private const int MaxQueued = 100_000;
 
     public void ListGames() => Send(ServerMessages.List);
 
@@ -170,12 +176,18 @@ public sealed class ServerConnection : IAsyncDisposable
                     else
                         lock (_messages)
                             _messages.Add(received);
+                    if (_bundles.Count + _messages.Count > MaxQueued)
+                    {
+                        ClosedBecause ??= "too many messages";
+                        return;
+                    }
                 }
                 message.SetLength(0);
             }
         }
-        catch (Exception e) when (e is OperationCanceledException or WebSocketException or ObjectDisposedException or System.Text.Json.JsonException)
+        catch (Exception e) when (e is not OutOfMemoryException)
         {
+            // Whatever a server sends: this task ending quietly would look like a server keeping silent.
             ClosedBecause ??= e.Message;
         }
     }

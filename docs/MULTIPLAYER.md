@@ -140,9 +140,9 @@ Done (first stage, C# in the same repo – shares `TurnRelay`, `GameSetup`, `Gam
     seat name, people, color, the AI players (`computers`: player, people, color, character) and all taken colors (the AIs' fixed ones too).
   - `start` (host only, all seats taken) → `started` to each: setup with fingerprint, own player, `LockstepOptions`
     (server configuration `Lockstep__TurnTicks`/`DelayTurns`/`CheckTurns`). Then `input` → `TurnRelay` → `bundle` to everyone.
-  - Leaving a running game → `left` to the others (who then wait). Unreadable fields → `error`, the connection stays.
-- `TurnRelay` with flooding limits: turns at most `maxAhead` (100) beyond the next one, at most `maxCommands` (200) per input
-  (`Refused`, in the log); desyncs into the log.
+  - Leaving a running game → `left` to the others, who go on without the player (`TurnRelay.Remove`; its people stand idle until a computer
+    player can take over). Unreadable fields → `error`, the connection stays.
+- `TurnRelay` with limits, see Security below; desyncs into the log.
 - Client side: `ServerConnection` (Simulation/Lockstep, `ClientWebSocket`, read/write task, `Receive` for polling from the
   game loop, `WaitForAsync` for tools/tests, `Link` as `ILockstepLink` for the `LockstepSession`).
 - Docker: `src/Homestead.Server/Dockerfile` (context = repo root because of MinVer/.git, else `--build-arg VERSION=…`; aspnet image,
@@ -172,42 +172,76 @@ Done (first stage, C# in the same repo – shares `TurnRelay`, `GameSetup`, `Gam
 
 Open:
 - Client: shared pause, saving for everyone, desync savegame, chat in the lobby, statistics without halting.
-- A player gone in a running game: the seat to an AI (on all computers at the same turn) instead of waiting; reconnecting.
+- A player gone in a running game: the seat to an AI (on all computers at the same turn) instead of standing idle; reconnecting.
 - A CI job that builds the image (and pushes it to ghcr.io on tags); maybe Native AOT for a smaller image.
-- Security hardening, see below.
+- Security: keeping someone out of a lobby (host's kick, password), see below.
 
-### Security hardening
-The server is open to anyone who can reach it (no accounts), and every client trusts what comes from the others through the server. Goal:
-no client can crash, stall or take over the server or other players' games, and a malicious server can't harm a client's computer.
-Lockstep can't hide the game state: every computer simulates the whole world, so a map hack (ignoring the fog of war) can't be prevented –
-only cheats that change the world, and those are prevented by the simulation itself (commands only for their own player).
+### Security
+The server is open to anyone who can reach it (no accounts), and every client trusts nothing that comes from the others through the
+server. Goal: no client can crash, stall or take over the server or other players' games, and a malicious server can't harm a client's
+computer beyond the game. Lockstep can't hide the game state: every computer simulates the whole world, so a map hack can't be prevented;
+cheats that change the world are prevented by the simulation itself (commands only for their own player, all rules checked on every computer).
+For operators: [the server's README](../src/Homestead.Server/README.md) (limits, TLS, Docker flags, what isn't covered).
 
-- **Flooding**: `TurnRelay` keeps every input whose turn hasn't been handed out yet – a malicious client could fill the memory with inputs
-  for turns far in the future (or very many or very large commands). Done: turns at most `maxAhead` ahead, at most `maxCommands` per input,
-  messages at most 256 KB. Open: a rate limit per connection (messages and bytes per second); whoever violates the limits gets kicked.
-- **Connections and games**: upper limits for connections in total and per IP address, games in total and open games per connection;
-  a timeout for the handshake (connected without `hello`) and for idle lobby connections. Kestrel's own limits (request headers,
-  slow clients) set explicitly.
-- **Validating the setup on the server**: `create` takes a whole `GameSetup` from the host – limits for players (≤ 8), random map size and
-  options, `GameSettings` within sensible ranges (no 0 or huge values), known peoples/characters, colors 0–63; refused otherwise. Otherwise one
-  host could make every joining computer run out of memory or crash while building the world.
-- **Validating the setup on the client** (against a malicious server or host): the same checks before `GameSetup.Start`; `MapChoice.MapFile`
-  only inside the map directory (no `..`, no absolute path – today `Locate` combines it unchecked and hashes whatever file it points to).
-- **Commands must never crash**: every `GameCommand` checks ownership already; also check ranges (coordinates on the map, existing IDs,
-  amounts ≥ 0, text lengths for chat) and turn invalid ones into a deterministic "refused" result. An exception while applying a command
-  would stop the game on every computer at once – a cheap way to end any game. A fuzz test (`LockstepTests`): random values for every command
-  type, the world must survive and stay the same on two computers.
-- **Names and texts**: length limits are done (name 32, game name 40); also strip control characters and line breaks, which could garble
-  the lobby or the log; check how the client draws glyphs its font doesn't have.
-- **Fake desyncs**: a client can send wrong checksums and so end a game for everyone (griefing). With three or more players the majority shows
-  who is out of line; then only that player should be dropped, not the game.
-- **Fingerprint**: self-reported, so only a compatibility check, not protection – a modified client can claim anything. Nothing on the server
-  may rely on it beyond refusing honest mismatches.
-- **Transport**: plain `ws://` is fine on a LAN; a public server only behind TLS (`wss://`, e.g. a reverse proxy like Caddy or Traefik), described
-  in the server's README. No cookies or credentials, so cross-site WebSocket hijacking has nothing to steal; checking `Origin` isn't needed.
-- **Container**: non-root is done; additionally recommend `--read-only`, `--cap-drop ALL`, `--security-opt no-new-privileges`, memory/CPU limits
-  (`--memory`, `--cpus`); keep the base image current (Dependabot for the Dockerfile and NuGet).
-- **Logging**: structured logging only (no names spliced into the message text), no chat contents or whole messages in the log.
+Server (`Hub`, `Connection`, `ServerLimits`; every limit is configuration, section `Limits`):
+- **Connections**: `Admit` before accepting – totals and per address (IPv6 per /64; behind a proxy `X-Forwarded-For`, only with
+  `TrustForwardedHeaders`); `Origin` header → 403 (browsers only, so no web page can use visitors as clients); Kestrel's limits set explicitly
+  (headers, request size, timeouts), no `Server` header; WebSocket pings with a timeout.
+- **Rate limits**: token buckets per connection for frames (not messages: empty fragments cost too) and bytes; lobby requests cost 5.
+- **Output**: bytes queued per connection are bounded, one send has a timeout – a client that stops reading is dropped instead of filling the
+  memory or blocking its task forever. The queue was unbounded, and `await writing` could hang for good.
+- **`Sweep`** once a second: no `hello` in time, idle outside a game, a game stalled by some players (they're dropped, it goes on), a game
+  nobody sends to (closed).
+- **Kicking** (`Kick`): whoever breaks a rule no honest client breaks gets `refused` with the reason and is dropped. All other exceptions in a
+  message end that connection only. Under the hub's lock nothing may run another connection's continuation (`CancelAsync`, not `Cancel`).
+- **Logging**: structured, no message contents, no chat; names are cleaned, so a name can't forge log lines.
+
+`TurnRelay` (reads JSON only, no game logic):
+- Inputs are refused (`Refused`) when unreadable, for someone else, for a turn gone or sent already, more than `maxAhead` (100) ahead, with more than
+  `MaxCommands` (50) commands or `MaxInputBytes` (28 KiB), or with a check that isn't one for the turn it was sent in. Commands of another player or of no
+  known `$type` are dropped (`Dropped`). The server kicks for either. An honest client never gets there: `LockstepSession.TakeOutgoing` keeps what
+  doesn't fit for the next input.
+- `MaxInputBytes` × 8 players stays below `ServerMessages.MaxLength`: otherwise two large inputs would make a bundle every client refuses, ending the
+  connection of everyone. `MaxPendingBytes` (512 KiB) bounds what a player holds on the server.
+- `Remove(player)`: a player gone is no longer waited for, including what it sent ahead. Every computer learns it from the bundles alone, so all stay equal.
+
+Commands (`Commands/CommandGuard`, `GameCommand.IsValid`):
+- `CommandGuard` checks every command by reflection (new commands are covered) before `Apply`: player in range, enums defined, points on the map, no null
+  where the type says so, lists and texts bounded, numbers finite. Refused → `CommandQueue.Refused` as result, the client calls no callback.
+- `IsValid` for what the fields can't tell: `ConvertCarriers` only to what the menu offers (any other profession was a free unit – and a soldier without
+  a type crashed `World.Step` on every computer), trade stops in range, share targets bounded. New command → think about what a *forged* value does, the
+  fuzz test only finds exceptions, not cheats.
+- In a multiplayer game an exception in `Apply` is caught as a last resort (same on every computer, so they stay equal); alone it stays a visible bug.
+- `CommandCodec.DecodeBundle` reads each command and check on its own and leaves out what is broken (the same everywhere: same program and data). Enums by
+  name only (a number could be any value). Before, one command of an unknown type threw in `TryStep` – on every computer at once.
+- Chat: `PlayerText.Clean`, at most 10 lines per 10 s per player in multiplayer. Lists kept by every computer are bounded (`WarMachines.MaxOrders`, shares).
+- Tests `HardeningTests`: any values for every command type with the safety net off (`Multiplayer` false), broken JSON through two computers.
+
+Setup (`GameSetup.Problems`, on the server at `create`, on the client in `ServerMessages.ParseStarted` and `Start`):
+- Players ≤ 8 and ≤ the map's, map options, peoples, colors 0–63, teams 0–4, known AI characters, positions in range and distinct, `GameSettings` in range.
+- `MapChoice.IsSafeMapFile`: relative, no `..`, a `.map` file (`/dev/zero` would have been read for ever); only files ≤ 64 MiB are hashed.
+- `GameFingerprint.Problems`: small and harmless (it goes on to others); still only self-reported: nothing relies on it beyond refusing honest mismatches.
+
+Client against a malicious server:
+- `LockstepSession.Failure`: a bundle that isn't one or a turn out of reach stops the game with a message, not with an exception; `LockstepOptions.IsValid`.
+- `ServerConnection`: bounded queues, the reading task ends with `ClosedBecause` whatever happens (it used to die silently, the game then looked like waiting).
+- `MultiplayerScreen.Poll`: nonsense from the server disconnects (`multiplayer.badServer`).
+- Texts: `PlayerText.Clean` for everything received. **The font throws on unpaired surrogates** (tested: FontStashSharp, `ArgumentException` while drawing) – and
+  cutting a name with `text[..n]` made them out of honest emojis. `UiFont` makes every text `Drawable` too. Missing glyphs and control characters are harmless.
+
+Fake desyncs: the relay compares the checks; with a strict majority (three players or more) the others are kicked, and a computer in the majority doesn't stop
+(`LockstepSession.Compare`). Without a majority (two players) nobody can tell, the game stops as before.
+
+Known limits (not solved, on purpose or not yet):
+- Lobby griefing: anyone can take a free seat; no kick for the host, no passwords. Needs protocol and UI.
+- Lag griefing: within the limits a player can order pathfinding for a large army every turn, which costs every computer time. A budget per turn would
+  need game knowledge in the relay.
+- Two colluding players of three outvote the honest one. Two players: a false checksum ends the game (as leaving does).
+- A malicious server can forge commands within its games; it can't reach beyond them.
+- Raw TCP floods: firewall or proxy. Transport: `ws://` on a LAN, `wss://` through a proxy (no credentials, so nothing to steal, but chat and commands are readable).
+
+Rule for new code: whatever comes over the network is hostile until checked – server and client alike. New message field → check it on both sides;
+new text → `PlayerText.Clean`; new list kept by every computer → a bound. `CurrentProtocol` goes up with every change to the wire format or to what counts as valid.
 
 ### 3. Later
 - Dropouts/reconnecting, spectators, rankings, accounts (mind data protection).
