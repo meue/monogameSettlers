@@ -2178,11 +2178,11 @@ public sealed class MapGame : Game
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "distribution")
             {
-                if (onMenu && _distributionMenu!.Hover(panelCursor) is { } hover)
+                if (onMenu && _distributionMenu!.Hover(panelCursor, _font) is { } hover)
                     _message = hover;
                 bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_distributionMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
+                if (_distributionMenu!.Update(panelCursor, _font, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "transport" && onMenu)
