@@ -350,21 +350,82 @@ public sealed partial class BuildingInfo
         }
 
         // Goods: on a construction site delivered of needed, otherwise what lies in the piles (as far as there is room).
-        if (goods.Count == 0 || y + 8 + 16 + 30 > limit)
+        bool fitsBelowLimit = goods.Count > 0 && y + GoodsLabelDrop + GoodsLabelLineHeight + GoodsCellHeight <= limit;
+        if (!fitsBelowLimit)
             return;
-        y += 8;
+        DrawGoodsBlock(batch, font, economy, world, building, goods, y, limit);
+    }
+
+    /// <summary>How far the goods' label drops below the state text, clear of the frame's vine that dips into its topmost line.</summary>
+    private const int GoodsLabelDrop = 14;
+    private const int GoodsLabelLineHeight = 16;
+    private const int GoodsRowPitch = 32;
+    private const int GoodsCellHeight = 30;
+    private const int GoodsIconWidth = 26;
+    private const int GoodsIconHeight = 28;
+
+    /// <summary>Where a good's count text starts: right of the icon, with a gap.</summary>
+    private const int GoodsTextOffset = 29;
+    private const int GoodsTextDrop = 6;
+
+    /// <summary>The goods below the state text: their label, then the goods centered in the space that remains down to <paramref name="limit"/>.</summary>
+    private void DrawGoodsBlock(SpriteBatch batch, UiFont font, EconomyRenderer economy, World world, Building building,
+        List<(Material Material, string Text)> goods, int y, int limit)
+    {
+        y += GoodsLabelDrop;
         bool assembling = world.Shipping.Building(building) is not null || world.WarMachines.Current(building) is not null;
-        Write(batch, font, Lang.T(building.State == BuildingState.Finished && !assembling ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
-        y += 16;
+        bool holdsGoods = building.State == BuildingState.Finished && !assembling;
+        Write(batch, font, Lang.T(holdsGoods ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
+        y += GoodsLabelLineHeight;
+
+        var layout = MeasureGoodsBlock(font, goods);
+        // The goods sit midway between the label and the panel's end.
+        y += Math.Max(0, (limit - y - layout.Rows * GoodsRowPitch) / 2);
         for (int i = 0; i < goods.Count; i++)
         {
-            var cell = new Rectangle(Left + i % 2 * (Inner / 2), y + i / 2 * 32, Inner / 2, 30);
+            var cell = GoodsCellRect(i, layout, y);
             if (cell.Bottom > limit)
                 break;
-            economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, 26, 28));
-            Write(batch, font, goods[i].Text, new Vector2(cell.X + 29, cell.Y + 6), Text);
+            economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, GoodsIconWidth, GoodsIconHeight));
+            Write(batch, font, goods[i].Text, new Vector2(cell.X + GoodsTextOffset, cell.Y + GoodsTextDrop), Text);
         }
     }
+
+    /// <summary>
+    /// The goods block's geometry: columns only as wide as their widest content (icon, gap, number), the whole
+    /// block centered - it would otherwise hug the panel's left edge, where the frame's vines hang. Texts too
+    /// wide to center span the panel's width instead.
+    /// </summary>
+    private GoodsBlockLayout MeasureGoodsBlock(UiFont font, List<(Material Material, string Text)> goods)
+    {
+        int columns = goods.Count == 1 ? 1 : 2;
+        int rows = (goods.Count + columns - 1) / columns;
+        var cellWidths = goods.Select(g => GoodsTextOffset + (int)Math.Round(font.Measure(g.Text).X)).ToList();
+        var columnWidths = new int[columns];
+        for (int i = 0; i < goods.Count; i++)
+            columnWidths[i % columns] = Math.Max(columnWidths[i % columns], cellWidths[i]);
+        const int ColumnGap = 8;
+        var columnAt = new int[columns];
+        for (int left = 1; left < columns; left++)
+            columnAt[left] = columnAt[left - 1] + columnWidths[left - 1] + ColumnGap;
+        int blockWidth = columnAt[columns - 1] + columnWidths[columns - 1];
+        return new(columns, rows, blockWidth > Inner, blockWidth, columnAt, cellWidths);
+    }
+
+    /// <summary>One good's cell of the block: icon and count text side by side, in its column.</summary>
+    private Rectangle GoodsCellRect(int i, GoodsBlockLayout layout, int top)
+    {
+        int column = i % layout.Columns;
+        return new Rectangle(
+            layout.TooWideToCenter ? Left + column * Inner / layout.Columns
+                : Left + (Inner - layout.BlockWidth) / 2 + layout.ColumnAt[column],
+            top + i / layout.Columns * GoodsRowPitch,
+            layout.TooWideToCenter ? Inner / layout.Columns : layout.CellWidths[i],
+            GoodsCellHeight);
+    }
+
+    /// <summary>The measured goods block: its columns and rows, whether it spans the panel's width instead of being centered, where each column starts, how wide each cell is.</summary>
+    private sealed record GoodsBlockLayout(int Columns, int Rows, bool TooWideToCenter, int BlockWidth, int[] ColumnAt, List<int> CellWidths);
 
     /// <summary>
     /// The storehouse's goods: without a specialization a dot on each from the player's rule (green: stored,
