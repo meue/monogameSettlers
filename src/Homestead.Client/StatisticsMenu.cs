@@ -120,6 +120,9 @@ public sealed class StatisticsMenu
     public string? Hover(Vector2 panel, World world, int player) =>
         _grid.GoodAt(panel, GridTop, RowHeight) is { } good ? Describe(good, world, player) : null;
 
+    /// <summary>The tooltip of the good under the panel point (its name), or null.</summary>
+    public string? TooltipAt(Vector2 panel) => _grid.GoodAt(panel, GridTop, RowHeight) is { } good ? good.Name : null;
+
     private string Describe(GoodsGrid.Good good, World world, int player)
     {
         if (!_grid.IsMakeable(good.Material))

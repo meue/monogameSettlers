@@ -578,13 +578,28 @@
     "divine": "Divine upgrade: {0}%",
     "manual": "Manual",
     "automatic": "Automatic",
-    "recruitment": "Recruitment"
+    "recruitment": "Recruitment",
+    "upgrade": "Divine upgrade: {0}",
+    "planMore": "Planned recruits +{0}",
+    "planFewer": "Planned recruits −{0}"
   },
   "professions": {
     "carriers": "Carriers",
     "diggers": "Diggers",
     "builders": "Builders",
-    "special": "Special professions"
+    "special": "Special professions",
+    "geologists": "Geologists",
+    "pioneers": "Pioneers",
+    "scouts": "Scouts",
+    "share": "{0} share: ±5 %",
+    "findWorld": "Select all {0} on the map",
+    "findScreen": "Select all {0} on the screen",
+    "findOne": "Fly to the next of the {0}",
+    "convert": "{0} carriers become {1}",
+    "toCarriers": "{0} pioneers become carriers",
+    "shareMax": "{0} at most (up/down: 5 % more/less)",
+    "carriersMin": "Carriers kept at least (up/down: 5 % more/less)",
+    "notYet": " (not there yet)"
   },
   "selection": {
     "steal": "Steal goods",
@@ -608,6 +623,26 @@
   },
   "distribution": {
     "construction": "Construction site"
+  },
+  "settlers": {
+    "bearer": "Carrier",
+    "digger": "Digger",
+    "bricklayer": "Bricklayer",
+    "worker": "Worker",
+    "mage": "Priest",
+    "geologist": "Geologist",
+    "thief": "Thief",
+    "pioneer": "Pioneer",
+    "donkey": "Donkey"
+  },
+  "transport": {
+    "store": "Store",
+    "doNotStore": "Do not store",
+    "top": "To the very front",
+    "up": "One place up",
+    "down": "One place down",
+    "bottom": "To the very back",
+    "place": "Place {0} in the transport order"
   },
   "cheats": {
     "swordsman": "swordsmen",

@@ -578,13 +578,28 @@
     "divine": "Awans: {0}%",
     "manual": "Ręczna",
     "automatic": "Automatyczna",
-    "recruitment": "Rekrutacja"
+    "recruitment": "Rekrutacja",
+    "upgrade": "Boski awans: {0}",
+    "planMore": "Zaplanowani rekruci +{0}",
+    "planFewer": "Zaplanowani rekruci −{0}"
   },
   "professions": {
     "carriers": "Tragarze",
     "diggers": "Kopacze",
     "builders": "Robotnicy",
-    "special": "Specjaliści"
+    "special": "Specjaliści",
+    "geologists": "Geolodzy",
+    "pioneers": "Pionierzy",
+    "scouts": "Zwiadowcy",
+    "share": "Udział – {0}: ±5 %",
+    "findWorld": "Zaznacz wszystkich na mapie: {0}",
+    "findScreen": "Zaznacz wszystkich na ekranie: {0}",
+    "findOne": "Przejdź do następnego: {0}",
+    "convert": "Zamień {0} tragarzy: {1}",
+    "toCarriers": "{0} pionier(ów) na tragarzy",
+    "shareMax": "{0}: najwyżej (góra/dół: 5 % więcej/mniej)",
+    "carriersMin": "Tragarze: co najmniej (góra/dół: 5 % więcej/mniej)",
+    "notYet": " (jeszcze nie ma)"
   },
   "selection": {
     "steal": "Kradnij materiały",
@@ -608,6 +623,26 @@
   },
   "distribution": {
     "construction": "Plac budowy"
+  },
+  "settlers": {
+    "bearer": "Tragarz",
+    "digger": "Kopacz",
+    "bricklayer": "Murarz",
+    "worker": "Robotnik",
+    "mage": "Kapłan",
+    "geologist": "Geolog",
+    "thief": "Złodziej",
+    "pioneer": "Pionier",
+    "donkey": "Osiół"
+  },
+  "transport": {
+    "store": "Do magazynu",
+    "doNotStore": "Nie przechowuj",
+    "top": "Na sam przód",
+    "up": "O pozycję w górę",
+    "down": "O pozycję w dół",
+    "bottom": "Na sam koniec",
+    "place": "Pozycja {0} w kolejce transportu"
   },
   "cheats": {
     "swordsman": "rycerze",

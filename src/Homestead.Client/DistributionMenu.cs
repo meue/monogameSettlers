@@ -174,6 +174,15 @@ public sealed class DistributionMenu
         return null;
     }
 
+    /// <summary>The name of the good whose icon lies under the point, or null.</summary>
+    public string? TooltipAt(Vector2 panel)
+    {
+        for (int i = 0; i < _goods.Count; i++)
+            if (Icon(i).Contains(panel))
+                return _goods[i].Good.Name;
+        return null;
+    }
+
     private static void Frame(SpriteBatch batch, Texture2D pixel, Rectangle rect)
     {
         batch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), Selected);

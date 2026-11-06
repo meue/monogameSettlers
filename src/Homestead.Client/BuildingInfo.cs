@@ -190,7 +190,7 @@ public sealed partial class BuildingInfo
         }
     }
 
-    public string SoldierName(SoldierType type) => Lang.Find("soldiers.types." + type) ?? type.ToString();
+    public string SoldierName(SoldierType type) => SettlerKinds.TypeName(type.ToString().ToUpperInvariant());
 
     public string LevelName(int level) => Lang.T("soldiers.levels." + Math.Clamp(level, 1, 3));
 

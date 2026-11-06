@@ -578,13 +578,28 @@
     "divine": "Göttl. Aufwertung: {0}%",
     "manual": "Manuell",
     "automatic": "Automatisch",
-    "recruitment": "Rekrutierung"
+    "recruitment": "Rekrutierung",
+    "upgrade": "Göttliche Aufwertung: {0}",
+    "planMore": "Geplante Rekruten +{0}",
+    "planFewer": "Geplante Rekruten −{0}"
   },
   "professions": {
     "carriers": "Träger",
     "diggers": "Planierer",
     "builders": "Bauarb.",
-    "special": "Spezialberufe"
+    "special": "Spezialberufe",
+    "geologists": "Geologen",
+    "pioneers": "Pioniere",
+    "scouts": "Späher",
+    "share": "Anteil {0}: ±5 %",
+    "findWorld": "Alle {0} auf der Karte auswählen",
+    "findScreen": "Alle {0} im Bild auswählen",
+    "findOne": "Zum nächsten der {0} fliegen",
+    "convert": "{0} Träger werden {1}",
+    "toCarriers": "{0} Pioniere werden Träger",
+    "shareMax": "{0} höchstens (rauf/runter: 5 % mehr/weniger)",
+    "carriersMin": "Träger mindestens (rauf/runter: 5 % mehr/weniger)",
+    "notYet": " (noch nicht vorhanden)"
   },
   "selection": {
     "steal": "Waren stehlen",
@@ -608,6 +623,26 @@
   },
   "distribution": {
     "construction": "Baustelle"
+  },
+  "settlers": {
+    "bearer": "Träger",
+    "digger": "Planierer",
+    "bricklayer": "Bauarbeiter",
+    "worker": "Arbeiter",
+    "mage": "Priester",
+    "geologist": "Geologe",
+    "thief": "Dieb",
+    "pioneer": "Pionier",
+    "donkey": "Esel"
+  },
+  "transport": {
+    "store": "Einlagern",
+    "doNotStore": "Nicht einlagern",
+    "top": "Ganz nach vorn",
+    "up": "Eins nach vorn",
+    "down": "Eins nach hinten",
+    "bottom": "Ganz nach hinten",
+    "place": "Platz {0} in der Transportreihenfolge"
   },
   "cheats": {
     "swordsman": "Schwertkämpfer",

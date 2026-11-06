@@ -105,7 +105,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
   - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
     Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
   - Hauptreiter Bauen/Waren/Siedler (`PanelTabs`: Original-Buttons Datei 03, aktiver gedrückt; Klick hebt Auswahl auf; Untermenüs `panelTabs` in `ui.json`).
-    - Bauen: Baumenü (Kategorien aus `data/ui.json`, Original-Buttons; Klick aufs Icon → Platzieren; eigenes Volk; Zahl fertiger (weiß) und im Bau (orange); Tooltip mit dem Namen nach 1 s Verweilen auf einem Icon, weg beim Verlassen – `BuildMenu.DrawTooltip`, im Bildschirmraum, darf über die Karte ragen).
+    - Bauen: Baumenü (Kategorien aus `data/ui.json`, Original-Buttons; Klick aufs Icon → Platzieren; eigenes Volk; Zahl fertiger (weiß) und im Bau (orange); Tooltip mit dem Namen nach 1 s Verweilen auf einem Icon, weg beim Verlassen – `BuildMenu.DrawTooltip`, im Bildschirmraum, darf über die Karte ragen). Dieselbe Box neben dem Cursor (`UiTooltip`, ebenfalls nach 1 s) nennt auch die reinen Icon-Steuerungen der Untermenüs (Lagerbestand, Herstellung, Warentransport, Verteilung, Siedlerstatistik, Berufe, Krieger, Produktion).
     - Waren › Lagerbestand (`StockMenu`, `World.InStock`: Lager-, Ausgabe-, lose Stapel; nicht Eingang/Baustellen).
     - Waren › Herstellung (`ManufactureMenu`): je Produkt Bestellung mit Auf/Ab (`Production.Ordered`/`ChangeOrdered`, zuerst gemacht) und
       Anteilsbalken (`ShareBar`: Klick setzt, Ziehen, 5-%-Schritte, nahe Enden 0/100 %).

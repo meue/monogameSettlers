@@ -1460,6 +1460,29 @@ public sealed class MapGame : Game
     private ILookup<int, (GridPoint Point, int Ring, Color? Tint)>? _marks;
     private (Building?, bool, GridPoint?, string) _marksKey;
 
+    private readonly UiTooltip.Hover _menuHover = new();
+
+    /// <summary>The tooltip of the icon-only control under the panel point (its text is the hover timing's key), or null.</summary>
+    private string? MenuTooltip(Vector2 panel)
+    {
+        // The sub-menus' icon controls are reachable only while a sub-menu is the panel's content.
+        bool showsSubMenu = !ShowsBuildingInfo && !ShowsSelection && _tabs.Current is (PanelTab.Goods or PanelTab.Settlers);
+        if (!showsSubMenu)
+            return null;
+        return _tabs.CurrentMenu switch
+        {
+            PanelMenuIds.Transport => _transportMenu!.TooltipAt(panel, _world, _local),
+            PanelMenuIds.Professions => _professionsMenu!.TooltipAt(panel),
+            PanelMenuIds.Soldiers => _soldiersMenu!.TooltipAt(panel, _world, _local, _buildingInfo),
+            PanelMenuIds.Overview => _settlersOverview!.TooltipAt(panel),
+            PanelMenuIds.Statistics => _statisticsMenu!.TooltipAt(panel),
+            PanelMenuIds.Stock => _stockMenu!.TooltipAt(panel),
+            PanelMenuIds.Tools => _manufactureMenu!.TooltipAt(panel),
+            PanelMenuIds.Distribution => _distributionMenu!.TooltipAt(panel),
+            _ => null,
+        };
+    }
+
     /// <summary>The selected market's route, to notice when it changes.</summary>
     private string RouteKey() =>
         _selectedBuilding is { Exists: true } market && _world.Trade.IsTradingPost(market)
@@ -3603,6 +3626,10 @@ public sealed class MapGame : Game
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, SdlMouse.GetState().Position.ToVector2());
         _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
             SidePanel.Scale(viewport.Height), _now);
+        string? tooltip = MenuTooltip(panelMouse);
+        if (_menuHover.Update(tooltip, _now))
+            UiTooltip.Draw(_spriteBatch, _pixel, _font, tooltip!, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
+                SidePanel.Scale(viewport.Height));
         DrawOutcome(viewport);
         float infoLeft = SidePanel.Width * SidePanel.Scale(viewport.Height) + 12;
         _info.Draw(_spriteBatch, _pixel, _font, infoLeft, viewport.Height - 10, viewport.Width - infoLeft - 12,

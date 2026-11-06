@@ -171,6 +171,20 @@ public sealed class SoldiersMenu : IDisposable
         return null;
     }
 
+    /// <summary>The tooltip of the upgrade button or arrow under the panel point, or null.</summary>
+    public string? TooltipAt(Vector2 panel, World world, int player, BuildingInfo names)
+    {
+        for (int i = 0; i < Types.Length; i++)
+            if (UpgradeButton(i).Contains(panel))
+                return Lang.T("soldiersMenu.upgrade", names.SoldierName(Types[i]));
+        if (world.Military.IsManualRecruitment(player))
+            for (int row = 0; row < Types.Length; row++)
+                for (int i = 0; i < ArrowSteps.Length; i++)
+                    if (Arrow(row, i).Contains(panel))
+                        return Lang.T(ArrowSteps[i] > 0 ? "soldiersMenu.planMore" : "soldiersMenu.planFewer", Math.Abs(ArrowSteps[i]));
+        return null;
+    }
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
     public string? Hover(Vector2 panel, World world, int player, BuildingInfo names)
     {
