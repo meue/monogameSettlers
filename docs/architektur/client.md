@@ -114,7 +114,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
       Ware: einlagern/nicht, ganz hoch, hoch, runter, ganz runter (Bilder `transportMenu`); Icons gleiten.
     - Siedler › Siedlerstatistik (`SettlersOverview`): Wohnraum, Bedarf, alle Siedler, Soldaten, je Art Porträt + Anzahl (Esel 0; ohne Porträt Figur im Rahmen).
     - Siedler › Berufe (`ProfessionsMenu`): Anteile ±5 % (Träger mindestens, Planierer/Bauarbeiter höchstens; `Recruitment.ShareOf`/`SetShare`,
-      Vorgaben `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25 %); Spezialberufe Geologen, Pioniere, Späher, Pioniere→Träger (Träger-Porträt)
+      Vorgaben `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25 %, Summe ≤ 100 %, die gesperrte Erhöhungs-Hälfte grau); Spezialberufe Geologen, Pioniere, Späher, Pioniere→Träger (Träger-Porträt)
       mit Such-Buttons (alle auf Karte, alle im Bild, nächster reihum mit Kameraflug) und 5/1 umwandeln
       (`Geology.ConvertCarriers` mit `among`: nur Träger im Bild, der Bildmitte nächste zuerst – keiner im Bild: Hinweis; `Geology.PioneersToCarriers`); Umgewandelte sind sofort gewählt (das Menü bleibt offen, `_menuOverSelection`), noch Liefernde kommen nach der Umwandlung dazu.
     - Siedler › Krieger (`SoldiersMenu`): Kampfkraft, göttliche Aufwertung (Mana-Fortschritt, je Typ Waffen-Button, verziert ab Stufe 2),

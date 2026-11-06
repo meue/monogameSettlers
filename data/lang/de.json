@@ -592,6 +592,8 @@
     "pioneers": "Pioniere",
     "scouts": "Späher",
     "share": "Anteil {0}: ±5 %",
+    "shareFull": "{0}: Die Anteile summieren sich bereits auf 100 %",
+    "shareZero": "{0}: Der Anteil ist bereits 0 %",
     "findWorld": "Alle {0} auf der Karte auswählen",
     "findScreen": "Alle {0} im Bild auswählen",
     "findOne": "Zum nächsten der {0} fliegen",

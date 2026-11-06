@@ -75,7 +75,7 @@ auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
   - `Housing`: Wohnhäuser entlassen Träger und geben so viel Wohnraum (plus Startbevölkerung, `SettleStartPopulation`). Platz brauchen
     Träger und Arbeiter (auch Planierer/Bauarbeiter – Baustellen rekrutieren höchstens Anteil `Share.Diggers`/`Builders`, mind. je einer),
     nicht Soldaten, Geologen, Späher, Pioniere. Ohne Platz streiken (`Settler.IsStriking`): erst untätige Träger, dann Arbeiter (bleiben drin).
-  - `Recruitment`: Träger holen Werkzeug, werden Spezialisten. Tests ohne Werkzeugthema: `TestConfig.NoTools`.
+  - `Recruitment`: Träger holen Werkzeug, werden Spezialisten; die drei Anteile zusammen ≤ 100 % (`SetShare` begrenzt). Tests ohne Werkzeugthema: `TestConfig.NoTools`.
   - `Idling`: Gestrandete Träger/Berufe außerhalb des eigenen Lands fliehen zum nächsten erreichbaren eigenen Feld (`RefugeRadius` 64, sonst
     eigene Gebäudetür); ohne irren sie umher und sterben nach 30–60 s (je Siedler fest per Hash, Geist, Todesgeräusch), zurück auf eigenem Land gerettet.
     Untätige (Träger, Soldaten, Planierer, Bauarbeiter, Geologen, Späher, Pioniere, Arbeitslose) gehen aus dem Weg

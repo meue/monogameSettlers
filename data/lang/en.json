@@ -592,6 +592,8 @@
     "pioneers": "Pioneers",
     "scouts": "Scouts",
     "share": "{0} share: ±5 %",
+    "shareFull": "{0}: The shares already sum to 100 %",
+    "shareZero": "{0}: The share is already 0 %",
     "findWorld": "Select all {0} on the map",
     "findScreen": "Select all {0} on the screen",
     "findOne": "Fly to the next of the {0}",

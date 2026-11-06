@@ -592,6 +592,8 @@
     "pioneers": "Pionierzy",
     "scouts": "Zwiadowcy",
     "share": "Udział – {0}: ±5 %",
+    "shareFull": "{0}: udziały sumują się już do 100 %",
+    "shareZero": "{0}: udział wynosi już 0 %",
     "findWorld": "Zaznacz wszystkich na mapie: {0}",
     "findScreen": "Zaznacz wszystkich na ekranie: {0}",
     "findOne": "Przejdź do następnego: {0}",

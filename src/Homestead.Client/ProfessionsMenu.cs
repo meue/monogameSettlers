@@ -92,17 +92,28 @@ public sealed class ProfessionsMenu : IDisposable
 
     private static Rectangle ConvertButton(int entry, int i) => new(Cell(entry).X + 62, Cell(entry).Y + i * 30, 30, 30);
 
+    /// <summary>A raise the other two shares leave no room for (the spinner's upper half is greyed out and refuses the click).</summary>
+    private static bool RaiseBlocked(World world, int player, Share share) =>
+        world.Recruitment.BudgetOf(player, share) <= world.Recruitment.ShareOf(player, share);
+
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Portraits portraits, SettlerRenderer settlers,
         Civilization people, Vector2 cursor)
     {
+        const float BlockedAlpha = 0.55f;
         for (int row = 0; row < Shares.Length; row++)
         {
             var (share, sign, key) = Shares[row];
             string name = Lang.T("professions." + key);
             var spinner = Spinner(row);
             batch.Draw(_spinner, spinner, Color.White);
-            if (spinner.Contains(cursor))
-                batch.Draw(pixel, SpinnerHalf(spinner, cursor.Y < spinner.Center.Y), Color.White * 0.15f);
+            // A raise the other two shares leave no room for is greyed out (like the garrison's blocked halves).
+            bool raiseBlocked = RaiseBlocked(world, player, share);
+            bool upperHalf = cursor.Y < spinner.Center.Y;
+            bool upperHalfBlocked = raiseBlocked && upperHalf;
+            if (raiseBlocked)
+                batch.Draw(pixel, SpinnerHalf(spinner, upper: true), Color.Black * BlockedAlpha);
+            if (spinner.Contains(cursor) && !upperHalfBlocked)
+                batch.Draw(pixel, SpinnerHalf(spinner, upperHalf), Color.White * 0.15f);
             int percent = (int)Math.Round(world.Recruitment.ShareOf(player, share) * 100);
             Write(batch, font, $"{sign} {percent} % {name}", new Vector2(spinner.Right + 8, spinner.Y + 6), Text, 15);
         }
@@ -151,10 +162,15 @@ public sealed class ProfessionsMenu : IDisposable
         for (int row = 0; row < Shares.Length; row++)
             if (Spinner(row).Contains(panel))
             {
-                var (share, _, name) = Shares[row];
+                var (share, _, key) = Shares[row];
                 bool up = panel.Y < Spinner(row).Center.Y;
+                // The half Draw greys out neither commands nor sounds, like the garrison's blocked halves.
+                if (up && RaiseBlocked(world, player, share))
+                    return Lang.T("professions.shareFull", Lang.T(LangKeys.Professions + key));
+                if (!up && world.Recruitment.ShareOf(player, share) <= 0)
+                    return Lang.T("professions.shareZero", Lang.T(LangKeys.Professions + key));
                 issue(new SetRecruitmentShare(player, share, world.Recruitment.ShareOf(player, share) + (up ? Step : -Step)),
-                    _ => $"{name}: {world.Recruitment.ShareOf(player, share) * 100:0} %");
+                    _ => $"{key}: {world.Recruitment.ShareOf(player, share) * 100:0} %");
                 UiSounds.Step(up);
                 return null;
             }
