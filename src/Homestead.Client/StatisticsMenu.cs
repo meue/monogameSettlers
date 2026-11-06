@@ -36,7 +36,12 @@ public sealed class StatisticsMenu
     private static int Left => BuildMenu.Content.X + 4;
     private static int Width => BuildMenu.Content.Width - 8;
     private static int Top => BuildMenu.Content.Y + 24; // below the title
-    private static Rectangle Chart => new(Left + 2, Top + 4, Width - 4, 106);
+    /// <summary>The chart begins below the chosen good's name, which takes this row.</summary>
+    private const int SeriesLabelRow = 18;
+    private const int ChartHeight = 92;
+    private static Rectangle Chart => new(Left + 2, Top + SeriesLabelRow, Width - 4, ChartHeight); // below the good's name
+    /// <summary>Width kept free at the chart's right for the gridline values.</summary>
+    private const int ValueStrip = 34;
     private static int GridTop => Chart.Bottom + 22;
 
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, World world, int player, Vector2 cursor)
@@ -55,30 +60,37 @@ public sealed class StatisticsMenu
             .ToArray();
         double scale = Scales.FirstOrDefault(s => s >= perMinute.Max(), Scales[^1]);
 
-        // Bars, then the dotted lines with their values over them, the axes, the minutes below.
+        // The chosen good's name, then the bars, the dashed gridlines with their values in the strip at the
+        // right, the axes, the minutes below; the plot stops short of the values so nothing touches the frame.
+        string series = _grid.Goods.FirstOrDefault(g => g.Material == _chosen)?.Name ?? _chosen.ToString();
+        var seriesSize = font.Measure(series, 13);
+        Write(batch, font, series, new Vector2(Left + (Width - seriesSize.X) / 2, Top), 13);
+        var plot = new Rectangle(chart.X, chart.Y, chart.Width - ValueStrip, chart.Height);
         for (int i = 0; i < periods; i++)
         {
             if (perMinute[i] <= 0)
                 continue;
-            int x0 = chart.X + i * chart.Width / periods, x1 = chart.X + (i + 1) * chart.Width / periods;
-            int height = (int)Math.Round(Math.Min(1, perMinute[i] / scale) * chart.Height);
-            batch.Draw(pixel, new Rectangle(x0, chart.Bottom - height, Math.Max(1, x1 - x0), height), Bar);
+            int x0 = plot.X + i * plot.Width / periods, x1 = plot.X + (i + 1) * plot.Width / periods;
+            int height = (int)Math.Round(Math.Min(1, perMinute[i] / scale) * plot.Height);
+            batch.Draw(pixel, new Rectangle(x0, plot.Bottom - height, Math.Max(1, x1 - x0), height), Bar);
         }
+        const int Dash = 3, DashGap = 3;
+        const float GridlineAlpha = 0.65f, AxisAlpha = 0.9f;
         for (int line = 1; line <= 5; line++)
         {
-            int y = chart.Bottom - line * chart.Height / 5;
-            for (int x = chart.X; x < chart.Right; x += 3)
-                batch.Draw(pixel, new Rectangle(x, y, 1, 1), Color.White * 0.8f);
+            int y = plot.Bottom - line * plot.Height / 5;
+            for (int x = plot.X; x < plot.Right; x += Dash + DashGap)
+                batch.Draw(pixel, new Rectangle(x, y, Math.Min(Dash, plot.Right - x), 1), Color.White * GridlineAlpha);
             string value = (scale * line / 5).ToString("0.##", CultureInfo.GetCultureInfo("de-DE"));
             var size = font.Measure(value, 13);
-            Write(batch, font, value, new Vector2(chart.Center.X - size.X / 2, y - size.Y / 2 - 1), 13);
+            Write(batch, font, value, new Vector2(chart.Right - size.X, y - size.Y / 2 - 1), 13);
         }
-        batch.Draw(pixel, new Rectangle(chart.X, chart.Bottom, chart.Width, 1), Color.White * 0.9f);
-        batch.Draw(pixel, new Rectangle(chart.Right - 1, chart.Y - 4, 1, chart.Height + 8), Color.White * 0.9f);
+        batch.Draw(pixel, new Rectangle(chart.X, chart.Bottom, chart.Width, 1), Color.White * AxisAlpha);
+        batch.Draw(pixel, new Rectangle(plot.Right - 1, chart.Y - 4, 1, chart.Height + 8), Color.White * AxisAlpha);
         for (int minutes = Minutes; minutes > 0; minutes -= 15)
         {
-            int x = chart.Right - minutes * chart.Width / Minutes;
-            batch.Draw(pixel, new Rectangle(x, chart.Bottom, 1, 4), Color.White * 0.9f);
+            int x = plot.Right - minutes * plot.Width / Minutes;
+            batch.Draw(pixel, new Rectangle(x, chart.Bottom, 1, 4), Color.White * AxisAlpha);
             string label = minutes.ToString(CultureInfo.InvariantCulture);
             var size = font.Measure(label, 13);
             Write(batch, font, label, new Vector2(Math.Max(Left, x - size.X / 2), chart.Bottom + 4), 13);
