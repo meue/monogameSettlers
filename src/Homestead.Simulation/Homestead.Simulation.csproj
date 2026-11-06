@@ -7,5 +7,6 @@
   <ItemGroup>
     <!-- Game data (no original assets): copied next to every program that uses the simulation. -->
     <None Include="../../data/**/*.json" LinkBase="data" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../data/ui-icons/*.png" LinkBase="data/ui-icons" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

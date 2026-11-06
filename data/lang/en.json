@@ -241,6 +241,19 @@
     "unload": "Unload ship",
     "cargo": "Cargo: {0}"
   },
+  "dockyard": {
+    "dockAim": "Click into the water: the dock goes to the best place near it (right click: cancel)",
+    "setDockFirst": "Set a dock first (the hammer)",
+    "onStocks": "{0} on the stocks: {1}% built",
+    "ordered": "{0} ordered: carriers bring its material",
+    "dockStays": "The dock stays while a ship is built",
+    "dockElsewhere": "Dock at {0},{1}: set it elsewhere",
+    "setDock": "Set the dock (then click into the water)",
+    "buildFerry": "Order ferry",
+    "buildShip": "Order trade ship",
+    "noDockPlace": "No place for a dock there (open water on own land near the building)",
+    "dockPlaced": "Dock at {0},{1}"
+  },
   "buildingStatus": {
     "active": "Active",
     "pausing": "Pausing",
@@ -661,6 +674,12 @@
     "fog": "Fog of war on/off"
   },
   "building": {
+    "workArea": "Move work area",
+    "workAreaArmed": "Click where the work area goes, right-click cancels",
+    "workAreaUndone": "Work area choice undone",
+    "workAreaMoved": "Work area moved to {0},{1}",
+    "workAreaMovedCapped": "Work area moved to {0},{1} (at most {2} fields away)",
+    "gatheringPointMoved": "Gathering point moved to {0},{1}",
     "ammoLoads": "Ammunition: {0}",
     "trade": "Trade – land",
     "seaTrade": "Trade – sea",

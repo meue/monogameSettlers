@@ -241,6 +241,19 @@
     "unload": "Rozładuj statek",
     "cargo": "Ładunek: {0}"
   },
+  "dockyard": {
+    "dockAim": "Kliknij w wodę: przystań trafi w najlepsze miejsce obok (prawy przycisk: anuluj)",
+    "setDockFirst": "Najpierw ustaw przystań (młotek)",
+    "onStocks": "{0} w budowie: ukończono {1}%",
+    "ordered": "Zamówiono {0}: tragarze dostarczą materiał",
+    "dockStays": "Przystań pozostaje, dopóki budowany jest statek",
+    "dockElsewhere": "Przystań na {0},{1}: ustaw ją w innym miejscu",
+    "setDock": "Ustaw przystań (potem kliknij w wodę)",
+    "buildFerry": "Buduj prom",
+    "buildShip": "Buduj statek handlowy",
+    "noDockPlace": "Tam nie ma miejsca na przystań (otwarta woda na własnym lądzie koło budynku)",
+    "dockPlaced": "Przystań na {0},{1}"
+  },
   "buildingStatus": {
     "active": "Aktywny",
     "pausing": "Wstrzymywanie",
@@ -661,6 +674,12 @@
     "fog": "Mgła wojny wł./wył."
   },
   "building": {
+    "workArea": "Ustal nowy rejon prac",
+    "workAreaArmed": "Wybierz nowy rejon prac.",
+    "workAreaUndone": "Cofnięto wybór rejonu prac",
+    "workAreaMoved": "Przesunięto rejon prac na {0},{1}",
+    "workAreaMovedCapped": "Przesunięto rejon prac na {0},{1} (najwyżej {2} pól)",
+    "gatheringPointMoved": "Przesunięto punkt zbiórki na {0},{1}",
     "ammoLoads": "Amunicja: {0}",
     "trade": "Handel-Ląd",
     "seaTrade": "Handel-Statek",

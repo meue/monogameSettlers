@@ -127,7 +127,9 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
     `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, oben rechts Abriss-Icon wie im Original (Datei 03 GUI 199, `buildingInfo` in `ui.json`) mit Rückfrage wie im Original (nur das Gebäudebild bleibt an seinem Platz, Frage unten, Ja/Nein als helle Texte; jede andere Aktion – Klick daneben beim Loslassen, andere Auswahl, Esc – bricht ab);
     oben links wie im Original „Arbeit einstellen“ (Haus, GUI 395)/„Arbeit fortsetzen“ (Hand, 194) für Produktion und Baustellen (`World.SetPaused`:
     Arbeit fertig, dann drinnen; Baustelle: keine Lieferungen/Arbeiter, Anwesende nach ihrem Takt frei), bei Baustellen daneben „Höchste Priorität“
-    (Zahnräder 197, gedrückt mit „!“ 380; `World.SetPriority`), Name dann unter den Icons, Hinweistext über ihnen unter der Maus; Militär: Besatzung je Typ (da/Soll, +/−);
+    (Zahnräder 197, gedrückt mit „!“ 380; `World.SetPriority`), bei fertigen eigenen Gebäuden mit Arbeitsbereich in der waagerechten Mitte der Knopf dafür
+    (eigenes Icon: konzentrische Ringe in Spektralfarben, generierte Grafik `data/ui-icons/work-area.png` (regenerierbar per `tools/gen-ui-icons.py`), kein Atlas-Bild; Klick rahmt ihn, der nächste Linksklick versetzt den Arbeitsbereich wie der Rechtsklick, dieser/Esc bricht ab; `BuildingInfo.WorkArea`),
+    Name dann unter den Icons, Hinweistext über ihnen unter der Maus; Militär: Besatzung je Typ (da/Soll, +/−);
     Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf);
     Markt (`BuildingInfo.Market`, „Handel – Land“, ohne Bild; Hafen „Handel – Meer“: Leiste GUI 377 `seaRoute`, Schiff vor ×1 setzt den Steg wie
     der Hammer der Werft, Routenpunkte aufs Wasser, Route ab dem Liegeplatz): Leiste ×1 ×2 ×3 Paket (Datei 03 GUI 374, `market` in `ui.json`; nicht gesetzt

@@ -15,12 +15,12 @@ namespace Homestead.Client;
 /// for own buildings also its state, the goods in its piles (construction sites: material delivered
 /// of needed) and a mine's hit rate, at the top right the original's tear-down icon (then only the image stays, the question over it),
 /// at the top left for production buildings and construction sites the original's icon to stop or restart them, for construction
-/// sites beside it the highest priority (the name below these icons). A finished
+/// sites beside it the highest priority, finished buildings with a work area their button to move it (the name below these icons). A finished
 /// military building also offers its garrison per soldier type with buttons for more or fewer (the soldier
 /// upgrades are in Siedler › Krieger, <see cref="SoldiersMenu"/>); a market its trade route and goods (BuildingInfo.Market).
 /// Names and states come from <c>data/ui.json</c>.
 /// </summary>
-public sealed partial class BuildingInfo
+public sealed partial class BuildingInfo : IDisposable
 {
     // The content area of the blue panel (like the build menu), no background of its own.
     private static readonly int Left = BuildMenu.Content.X + 4; // clear of the vines on the panel's frame
@@ -49,8 +49,9 @@ public sealed partial class BuildingInfo
 
     private int _demolishImage;
 
-    /// <summary>Stop work (house), go on (hand), the highest priority and the same given (<c>buildingInfo</c> in <c>ui.json</c>).</summary>
-    private Texture2D? _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon;
+    /// <summary>Stop work (house), go on (hand), the highest priority and the same given (<c>buildingInfo</c> in <c>ui.json</c>);
+    /// the work area's own rings come from <see cref="LoadWorkAreaIcon"/>.</summary>
+    private Texture2D? _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon;
 
     private readonly int[] _headImages;
 
@@ -82,9 +83,29 @@ public sealed partial class BuildingInfo
             return texture;
         }).ToArray();
         (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon) = (head[0], head[1], head[2], head[3]);
+        _workAreaIcon = LoadWorkAreaIcon(device);
         LoadMarketIcons(device, gui);
         LoadDockyardIcons(device, gfx, gui);
         LoadWarWorksIcons(device, gfx);
+    }
+
+    /// <summary>Frees the icon textures of all the panel's parts (called once by <see cref="MapGame"/>'s unload).</summary>
+    public void Dispose()
+    {
+        _demolishIcon?.Dispose();
+        foreach (var icon in new[] { _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon })
+            icon?.Dispose();
+        _dockIcon?.Dispose();
+        foreach (var ships in _shipIcons.Values)
+            foreach (var texture in ships)
+                texture.Dispose();
+        foreach (var icon in new[] { _routeStrip, _seaRouteStrip, _allIcon, _noneIcon })
+            icon?.Dispose();
+        foreach (var arrow in _tradeArrows)
+            arrow.Dispose();
+        foreach (var icons in _warIcons.Values)
+            foreach (var texture in icons)
+                texture.Dispose();
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
@@ -208,8 +229,11 @@ public sealed partial class BuildingInfo
     /// <summary>The icon stopping or restarting work, at the top left (as in the original).</summary>
     private static Rectangle PauseButton(int height) => new(Left, Top, DemolishSize, DemolishSize);
 
-    /// <summary>The highest priority of a construction site, beside it.</summary>
+    /// <summary>The highest priority of a construction site, beside the pause icon.</summary>
     private static Rectangle PriorityButton(int height) => new(Left + DemolishSize + 4, Top, DemolishSize, DemolishSize);
+
+    /// <summary>The work-area button of a finished own building with a work area, centered in the panel's width (as in the original).</summary>
+    private static Rectangle WorkAreaButton(int height) => new(Left + (Inner - DemolishSize) / 2, Top, DemolishSize, DemolishSize);
 
     private static bool OffersPause(World world, Building building) =>
         world.CanPause(building) && !OffersGarrison(building);
@@ -267,7 +291,7 @@ public sealed partial class BuildingInfo
         string title = own && OffersMarket(world, building) ? Lang.T(world.Trade.IsHarbor(building) ? "building.seaTrade" : "building.trade")
             : NameOf(building.Definition);
         // Icons at the top left too: the name below them (as in the original).
-        bool head = own && (OffersPause(world, building) || OffersPriority(building));
+        bool head = own && (OffersPause(world, building) || OffersPriority(building) || OffersWorkArea(building));
         if (head)
             y = HeadBottom;
         foreach (string line in font.Wrap(title, own && !head ? Inner - DemolishSize - 4 : Inner, 16))
@@ -327,6 +351,12 @@ public sealed partial class BuildingInfo
             Icon(batch, pixel, building.IsPaused ? _pausedIcon : _pauseIcon, PauseButton(height), cursor);
         if (OffersPriority(building))
             Icon(batch, pixel, building.HasPriority ? _priorityOnIcon : _priorityIcon, PriorityButton(height), cursor);
+        if (OffersWorkArea(building))
+        {
+            Icon(batch, pixel, _workAreaIcon, WorkAreaButton(height), cursor);
+            if (AimsWorkCenter(building))
+                Frame(batch, pixel, WorkAreaButton(height), Color.White);
+        }
         DrawHint(batch, font, world, building, cursor);
         if (OffersGarrison(building))
             DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
@@ -501,6 +531,7 @@ public sealed partial class BuildingInfo
         string? hint = DemolishButton(0).Contains(cursor) ? Lang.T("building.demolish")
             : OffersPause(world, building) && PauseButton(0).Contains(cursor) ? Lang.T(building.IsPaused ? "building.resume" : "building.pause")
             : OffersPriority(building) && PriorityButton(0).Contains(cursor) ? Lang.T("building.priority")
+            : OffersWorkArea(building) && WorkAreaButton(0).Contains(cursor) ? Lang.T("building.workArea")
             : null;
         if (hint is not null)
             Write(batch, font, hint, new Vector2(Left, Top), Color.White, 16);
