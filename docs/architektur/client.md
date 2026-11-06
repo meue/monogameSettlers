@@ -123,7 +123,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
     - Siedler › Produktion (`StatisticsMenu`): Diagramm letzte 60 min einer Ware (Einheiten/min, 2-min-Mittel, Skala passt sich an);
       Warenauswahl `GoodsGrid` (mit Lagerbestand geteilt: Icons `goodsGrid` in `ui.json`, Indizes aus JSettlers' EMaterialType, nicht herstellbar dunkel);
       gezählt in `World.Statistics` (`ProductionStatistics`, 30-s-Abschnitte).
-  - Gebäude-Klick ersetzt das Baumenü (ohne eigenen Hintergrund): Name, Bild (unskaliert, unten zentriert, beschnitten –
+  - Gebäude-Klick ersetzt das Baumenü (ohne eigenen Hintergrund): Name, Bild (unten zentriert, auf die Box verkleinert – nie beschnitten –
     `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, oben rechts Abriss-Icon wie im Original (Datei 03 GUI 199, `buildingInfo` in `ui.json`) mit Rückfrage wie im Original (nur das Gebäudebild bleibt an seinem Platz, Frage unten, Ja/Nein als helle Texte; jede andere Aktion – Klick daneben beim Loslassen, andere Auswahl, Esc – bricht ab);
     oben links wie im Original „Arbeit einstellen“ (Haus, GUI 395)/„Arbeit fortsetzen“ (Hand, 194) für Produktion und Baustellen (`World.SetPaused`:
     Arbeit fertig, dann drinnen; Baustelle: keine Lieferungen/Arbeiter, Anwesende nach ihrem Takt frei), bei Baustellen daneben „Höchste Priorität“
