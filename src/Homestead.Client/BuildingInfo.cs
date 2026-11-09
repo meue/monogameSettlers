@@ -248,6 +248,24 @@ public sealed partial class BuildingInfo : IDisposable
     public bool PriorityAt(Vector2 screen, int height, Building building, int ownPlayer) =>
         building.Player == ownPlayer && _confirming != building && OffersPriority(building) && PriorityButton(height).Contains(screen);
 
+    /// <summary>
+    /// One of the header icons by name ("demolish", "pause", "priority", "workArea") in panel space, when this
+    /// building draws it; capture runs rest the mouse there (<c>HOMESTEAD_CAPTURE_TOOLTIP</c>).
+    /// </summary>
+    public Rectangle? HeaderButton(string name, World world, Building building, int ownPlayer)
+    {
+        if (building.Player != ownPlayer || _confirming == building)
+            return null;
+        return name switch
+        {
+            "demolish" => DemolishButton(0),
+            "pause" => OffersPause(world, building) ? PauseButton(0) : null,
+            "priority" => OffersPriority(building) ? PriorityButton(0) : null,
+            "workArea" => OffersWorkArea(building) ? WorkAreaButton(0) : null,
+            _ => null,
+        };
+    }
+
     // Plain "Ja"/"Nein" at the bottom corners, as in "Spiel beenden" (SystemMenu).
     private static Rectangle YesButton(int height) => new(Left, Bottom - 28, 70, 24);
 

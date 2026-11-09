@@ -5,7 +5,8 @@ Offscreen-PNGs zur Prüfung, nur in temporäre Verzeichnisse (keine Original-Ass
 - **Capture** (`--capture <dir>`, offscreen PNGs, nur temporäre Verzeichnisse): ignoriert Eingaben, ohne VSync, 4× Tempo; gibt am Ende Zähler und
   Gebäudezustände aus. Umgebungsvariablen `HOMESTEAD_CAPTURE_…`:
   `ZOOM=4`; `EVERY=<n>` (PNG alle n Frames, sonst 120); `SIZE=1920x1080` (sonst 960×600); `SCALING=<Sharp|Linear|CatmullRom|Lanczos2>`;
-  `FOCUS=<gebäude>` (`site`: frische Baustelle; `temple`: kleiner Tempel mit Mana; Militärgebäude wie `castle`: voll besetzt); `FOG=1`;
+  `FOCUS=<gebäude>` (`site`: frische Baustelle; `temple`: kleiner Tempel mit Mana; Militärgebäude wie `castle`: voll besetzt);
+  `TOOLTIP=<knopf>` (mit `FOCUS`: dieser Knopf des Gebäude-Panels – `pause`, `priority`, `workArea` oder `demolish` – wie unter der Maus, falls das Gebäude ihn hat; Captures können nicht schweben); `FOG=1`;
   `EVENT=1` (springt zu Events); `BATTLE=1` (Stufe-3-Feinde greifen das fokussierte Militärgebäude an, sonst den Startturm; `=big`: zwei Armeen à 30 treffen sich südlich des Starts; `=open`: 40 gegen 40 auf freiem Feld; `=town[:n]`: n (90) gegen n mitten im Dorf; mit `ZOOM` Kamera darauf); `COLORS=2,4` (Palettenfarben je Spieler); `STRIKE=1` (Abriss des fokussierten Gebäudes + 10 Träger ohne Wohnraum);
   `GEOLOGISTS=1`; `PIONEERS=1`; `DOCK=1` (Werft am nächsten offenen Meer, Land dort eigen, mit Steg; `=none` ohne; `=build`: Fähre im Bau, Material daneben; `=ships`: Fähre und
   Handelsschiff fertig, gewählt, als Gruppe 4, losgeschickt (mit `FOCUS=none`); `=ferry`: Fähre am Steg, 8 Soldaten, 7 steigen ein, Fähre gewählt; `=harbor` (mit `FOCUS=harbor`): Hafen mit Steg, Handelsschiff, Waren, Ziel; sonst mit `FOCUS=dockyard`); `MACHINES=1` (eigene Werkstatt mit 2 Ladungen und Auftrag, Material daneben; feindlicher Turm, je Volk eine Maschine beschießt ihn, gewählt, als Gruppe 3;

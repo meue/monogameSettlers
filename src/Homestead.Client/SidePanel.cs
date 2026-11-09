@@ -74,6 +74,9 @@ public sealed class SidePanel : IDisposable
     /// <summary>A screen point in panel space (see the class remarks).</summary>
     public static Vector2 ToPanel(Vector2 screen, int viewportHeight) => screen / Scale(viewportHeight) - new Vector2(0, Top);
 
+    /// <summary>A panel point back on the screen (the inverse of <see cref="ToPanel"/>).</summary>
+    public static Vector2 ToScreen(Vector2 panel, int viewportHeight) => (panel + new Vector2(0, Top)) * Scale(viewportHeight);
+
     /// <summary>Starts a sprite batch drawing in panel space.</summary>
     public static void Begin(SpriteBatch batch, int viewportHeight) =>
         batch.Begin(samplerState: SamplerState.LinearClamp, transformMatrix: PanelTransform(viewportHeight));

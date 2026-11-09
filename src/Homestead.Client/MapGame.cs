@@ -197,6 +197,9 @@ public sealed class MapGame : Game
 
     /// <summary>HOMESTEAD_CAPTURE_EVENT=1: a capture run jumps to every new event, to show the arrows.</summary>
     private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
+
+    /// <summary>HOMESTEAD_CAPTURE_TOOLTIP=&lt;button&gt;: a capture run rests the mouse on that header button of the building panel.</summary>
+    private readonly string? _captureTooltip = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TOOLTIP");
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -3583,6 +3586,14 @@ public sealed class MapGame : Game
         _sidePanel.Draw(_spriteBatch, _pixel, _minimap?.Texture, _gameMap.Size, visible, MinimapDots());
         SidePanel.Begin(_spriteBatch, viewport.Height);
         var panelMouse = SidePanel.ToPanel(SdlMouse.GetState().Position.ToVector2(), viewport.Height);
+        var tooltipCursor = SdlMouse.GetState().Position.ToVector2();
+        // HOMESTEAD_CAPTURE_TOOLTIP=<button>: capture runs cannot hover, so the mouse rests on that header button.
+        if (_captureDirectory is not null && _captureTooltip is { } pinned && ShowsBuildingInfo
+            && _buildingInfo.HeaderButton(pinned, _world, _selectedBuilding!, _local) is { } pinnedButton)
+        {
+            panelMouse = pinnedButton.Center.ToVector2();
+            tooltipCursor = SidePanel.ToScreen(panelMouse, viewport.Height);
+        }
         if (ShowsBuildingInfo)
             _buildingInfo.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, _local,
                 panelMouse);
@@ -3642,7 +3653,7 @@ public sealed class MapGame : Game
             SidePanel.Scale(viewport.Height), _now);
         string? tooltip = MenuTooltip(panelMouse);
         if (_menuHover.Update(tooltip, _now))
-            UiTooltip.Draw(_spriteBatch, _pixel, _font, tooltip!, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
+            UiTooltip.Draw(_spriteBatch, _pixel, _font, tooltip!, tooltipCursor, viewport.Bounds,
                 SidePanel.Scale(viewport.Height));
         DrawOutcome(viewport);
         float infoLeft = SidePanel.Width * SidePanel.Scale(viewport.Height) + 12;
