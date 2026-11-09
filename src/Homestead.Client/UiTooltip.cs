@@ -44,7 +44,7 @@ public static class UiTooltip
     /// <summary>Draws the text next to the cursor, kept inside <paramref name="area"/> (screen space).</summary>
     public static void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, string text, Vector2 cursor, Rectangle area, float scale)
     {
-        const int TextSize = 14, MinTextSize = 12;
+        const int TextSize = 16, MinTextSize = 12;
         const int PaddingX = 8, PaddingY = 5;
         // The box opens to the lower right of the cursor; past the area's edge it flips to the other side.
         const int GapRight = 14, GapBelow = 18, GapAbove = 8;
@@ -57,6 +57,9 @@ public static class UiTooltip
             x = (int)cursor.X - GapRight - width;
         if (y + height > area.Bottom)
             y = (int)cursor.Y - GapAbove - height;
+        // A flipped box wider or taller than the cursor's distance to the edge stays inside the area.
+        x = Math.Max(area.X, Math.Min(x, area.Right - width));
+        y = Math.Max(area.Y, Math.Min(y, area.Bottom - height));
         var box = new Rectangle(x, y, width, height);
         batch.Draw(pixel, box, new Color(10, 10, 14) * BoxOpacity);
         Charts.Frame(batch, pixel, box, new Color(200, 170, 70) * FrameOpacity);

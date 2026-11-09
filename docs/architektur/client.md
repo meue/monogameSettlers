@@ -105,7 +105,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
   - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
     Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
   - Hauptreiter Bauen/Waren/Siedler (`PanelTabs`: Original-Buttons Datei 03, aktiver gedrückt; Klick hebt Auswahl auf; Untermenüs `panelTabs` in `ui.json`).
-    - Bauen: Baumenü (Kategorien aus `data/ui.json`, Original-Buttons; Klick aufs Icon → Platzieren; eigenes Volk; Zahl fertiger (weiß) und im Bau (orange); Tooltip mit dem Namen nach 1 s Verweilen auf einem Icon, weg beim Verlassen – `BuildMenu.DrawTooltip`, im Bildschirmraum, darf über die Karte ragen). Dieselbe Box neben dem Cursor (`UiTooltip`, ebenfalls nach 1 s) nennt auch die reinen Icon-Steuerungen der Untermenüs (Lagerbestand, Herstellung, Warentransport, Verteilung, Siedlerstatistik, Berufe, Krieger, Produktion).
+    - Bauen: Baumenü (Kategorien aus `data/ui.json`, Original-Buttons; Klick aufs Icon → Platzieren; eigenes Volk; Zahl fertiger (weiß) und im Bau (orange); Tooltip mit dem Namen nach 1 s Verweilen auf einem Icon, weg beim Verlassen – `BuildMenu.DrawTooltip`, im Bildschirmraum, darf über die Karte ragen). Dieselbe Box neben dem Cursor (`UiTooltip`, ebenfalls nach 1 s) nennt auch die reinen Icon-Steuerungen der Untermenüs (Lagerbestand, Herstellung, Warentransport, Verteilung, Siedlerstatistik, Berufe, Krieger, Produktion) und die Icons oben im Gebäude-Panel (Abriss, Arbeit einstellen/fortsetzen, Höchste Priorität, Arbeitsbereich).
     - Waren › Lagerbestand (`StockMenu`, `World.InStock`: Lager-, Ausgabe-, lose Stapel; nicht Eingang/Baustellen).
     - Waren › Herstellung (`ManufactureMenu`): je Produkt Bestellung mit Auf/Ab (`Production.Ordered`/`ChangeOrdered`, zuerst gemacht) und
       Anteilsbalken (`ShareBar`: Klick setzt, Ziehen, 5-%-Schritte, nahe Enden 0/100 %).
@@ -129,7 +129,7 @@ Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne ei
     Arbeit fertig, dann drinnen; Baustelle: keine Lieferungen/Arbeiter, Anwesende nach ihrem Takt frei), bei Baustellen daneben „Höchste Priorität“
     (Zahnräder 197, gedrückt mit „!“ 380; `World.SetPriority`), bei fertigen eigenen Gebäuden mit Arbeitsbereich in der waagerechten Mitte der Knopf dafür
     (eigenes Icon: konzentrische Ringe in Spektralfarben, generierte Grafik `data/ui-icons/work-area.png` (regenerierbar per `tools/gen-ui-icons.py`), kein Atlas-Bild; Klick rahmt ihn, der nächste Linksklick versetzt den Arbeitsbereich wie der Rechtsklick, dieser/Esc bricht ab; `BuildingInfo.WorkArea`),
-    Name dann unter den Icons, Hinweistext über ihnen unter der Maus; Militär: Besatzung je Typ (da/Soll, +/−);
+    Name dann unter den Icons (deren Bedeutung nennt die gemeinsame Tooltip-Box neben dem Cursor); Militär: Besatzung je Typ (da/Soll, +/−);
     Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf);
     Markt (`BuildingInfo.Market`, „Handel – Land“, ohne Bild; Hafen „Handel – Meer“: Leiste GUI 377 `seaRoute`, Schiff vor ×1 setzt den Steg wie
     der Hammer der Werft, Routenpunkte aufs Wasser, Route ab dem Liegeplatz): Leiste ×1 ×2 ×3 Paket (Datei 03 GUI 374, `market` in `ui.json`; nicht gesetzt

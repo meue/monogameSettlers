@@ -375,7 +375,6 @@ public sealed partial class BuildingInfo : IDisposable
             if (AimsWorkCenter(building))
                 Frame(batch, pixel, WorkAreaButton(height), Color.White);
         }
-        DrawHint(batch, font, world, building, cursor);
         if (OffersGarrison(building))
             DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
         if (OffersStorehouse(building))
@@ -543,16 +542,16 @@ public sealed partial class BuildingInfo : IDisposable
             batch.Draw(pixel, rect, HoverColor);
     }
 
-    /// <summary>What the icon at the top under the mouse does, over the icons (as in the original).</summary>
-    private static void DrawHint(SpriteBatch batch, UiFont font, World world, Building building, Vector2 cursor)
+    /// <summary>What the icon at the top under the panel point does: the shared tooltip next to the cursor (<see cref="UiTooltip"/>).</summary>
+    public string? TooltipAt(Vector2 panel, World world, Building building, int ownPlayer)
     {
-        string? hint = DemolishButton(0).Contains(cursor) ? Lang.T("building.demolish")
-            : OffersPause(world, building) && PauseButton(0).Contains(cursor) ? Lang.T(building.IsPaused ? "building.resume" : "building.pause")
-            : OffersPriority(building) && PriorityButton(0).Contains(cursor) ? Lang.T("building.priority")
-            : OffersWorkArea(building) && WorkAreaButton(0).Contains(cursor) ? Lang.T("building.workArea")
+        if (building.Player != ownPlayer || _confirming == building)
+            return null;
+        return DemolishButton(0).Contains(panel) ? Lang.T("building.demolish")
+            : OffersPause(world, building) && PauseButton(0).Contains(panel) ? Lang.T(building.IsPaused ? "building.resume" : "building.pause")
+            : OffersPriority(building) && PriorityButton(0).Contains(panel) ? Lang.T("building.priority")
+            : OffersWorkArea(building) && WorkAreaButton(0).Contains(panel) ? Lang.T("building.workArea")
             : null;
-        if (hint is not null)
-            Write(batch, font, hint, new Vector2(Left, Top), Color.White, 16);
     }
 
     /// <summary>The tear-down icon at the top right.</summary>

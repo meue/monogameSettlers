@@ -1468,8 +1468,11 @@ public sealed class MapGame : Game
     /// <summary>The tooltip of the icon-only control under the panel point (its text is the hover timing's key), or null.</summary>
     private string? MenuTooltip(Vector2 panel)
     {
+        // The building panel's header icons name themselves on hover too.
+        if (ShowsBuildingInfo)
+            return _buildingInfo.TooltipAt(panel, _world, _selectedBuilding!, _local);
         // The sub-menus' icon controls are reachable only while a sub-menu is the panel's content.
-        bool showsSubMenu = !ShowsBuildingInfo && !ShowsSelection && _tabs.Current is (PanelTab.Goods or PanelTab.Settlers);
+        bool showsSubMenu = !ShowsSelection && _tabs.Current is (PanelTab.Goods or PanelTab.Settlers);
         if (!showsSubMenu)
             return null;
         return _tabs.CurrentMenu switch
