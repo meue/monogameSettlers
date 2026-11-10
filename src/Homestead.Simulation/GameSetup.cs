@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -14,10 +15,11 @@ namespace Homestead.Simulation;
 /// <summary>
 /// One player of a game setup: <c>null</c> as people or color (palette index) means drawn; team 1–4 (0: none, against
 /// everybody); a human plays itself, every other player is a computer player (<paramref name="Character"/> from
-/// <c>ai.json</c>, null: drawn by the people's weights).
+/// <c>ai.json</c>, null: drawn by the people's weights). <paramref name="Name"/>: a human's name in a multiplayer game, filled in by
+/// the server when it starts the game (display only).
 /// </summary>
 public sealed record PlayerSetup(Civilization? People = null, int? Color = null, int Team = 0, bool Hardcore = false, bool Human = false,
-    string? Character = null);
+    string? Character = null, string? Name = null);
 
 /// <summary>
 /// The map of a game setup: a random map (<paramref name="RandomMap"/> and <paramref name="RandomSeed"/>; the generator makes
@@ -33,19 +35,32 @@ public sealed record MapChoice(string? MapFile = null, string? Hash = null, Rand
 
     public static string HashOf(string path) => Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)));
 
+    /// <summary>
+    /// Whether the path can name a map file below a map directory: relative, without <c>..</c>, a <c>.map</c> file. It comes from
+    /// another computer, and <see cref="Locate"/> reads what it names; anything else stays out (<c>/dev/zero</c> has no end).
+    /// </summary>
+    public static bool IsSafeMapFile(string? path) =>
+        path is { Length: > 0 and <= 260 } && path.EndsWith(".map", StringComparison.OrdinalIgnoreCase) && !path.Contains('\\') && !path.Contains(':')
+        && !path.StartsWith('/') && !path.Any(char.IsControl) && path.Split('/').All(part => part.Length > 0 && part != "." && part != "..");
+
+    /// <summary>Largest file taken for a map when looking for one by its hash (the original maps have a few megabytes).</summary>
+    private const long MaxMapFileLength = 64L * 1024 * 1024;
+
     /// <summary>The original map's file in this installation: at its path if the hash matches, else any map file with the hash.</summary>
     /// <exception cref="FileNotFoundException">No map file with the hash.</exception>
     public string Locate(string mapDirectory)
     {
         if (MapFile is null || Hash is null)
             throw new InvalidOperationException("not an original map");
+        if (!IsSafeMapFile(MapFile))
+            throw new FileNotFoundException("not a path of a map file", MapFile);
         string expected = Path.Combine(mapDirectory, MapFile.Replace('/', Path.DirectorySeparatorChar));
-        if (File.Exists(expected) && HashOf(expected) == Hash)
+        if (File.Exists(expected) && new FileInfo(expected) is { Length: > 0 and <= MaxMapFileLength } && HashOf(expected) == Hash)
             return expected;
         return Directory.EnumerateFiles(mapDirectory, "*", SearchOption.AllDirectories)
                    .Where(f => Path.GetExtension(f).Equals(".map", StringComparison.OrdinalIgnoreCase))
                    .Order(StringComparer.Ordinal)
-                   .FirstOrDefault(f => new FileInfo(f).Length > 0 && HashOf(f) == Hash)
+                   .FirstOrDefault(f => new FileInfo(f) is { Length: > 0 and <= MaxMapFileLength } && HashOf(f) == Hash)
                ?? throw new FileNotFoundException($"map {MapFile} ({Hash}) not found", MapFile);
     }
 
@@ -91,6 +106,84 @@ public sealed record GameSetup
 
     public Random RandomFor(Draw draw) => new(unchecked(Seed * 31 + (int)draw));
 
+    /// <summary>The most players a game can have.</summary>
+    public const int MaxPlayers = 8;
+
+    /// <summary>
+    /// What is wrong with a setup that came over the network (empty: nothing). The server asks when a game is opened, every
+    /// computer again before building the world (the server may be anybody's too): one host must not be able to crash the
+    /// others or make them run out of memory. Needs no map; what depends on it: <see cref="Problems(int, string?)"/>.
+    /// </summary>
+    public IReadOnlyList<string> Problems(string? dataDirectory = null)
+    {
+        var problems = new List<string>();
+        if (Map is null)
+            problems.Add("no map");
+        else if (Map.RandomMap is { } random)
+        {
+            if (Map.MapFile is not null || Map.Hash is not null)
+                problems.Add("a map is random or an original one");
+            if (random.Players is < RandomMapSettings.MinPlayers or > RandomMapSettings.MaxPlayers)
+                problems.Add("bad number of players on the random map");
+            if (!Enum.IsDefined(random.Symmetry) || !Enum.IsDefined(random.Rivers) || !Enum.IsDefined(random.Resources) || !Enum.IsDefined(random.Stones)
+                || !Enum.IsDefined(random.Forests) || !Enum.IsDefined(random.Decorations) || !Enum.IsDefined(random.Treasures))
+                problems.Add("bad random map option");
+            if (Players?.Count > random.Players)
+                problems.Add("more players than the random map has");
+        }
+        else if (!MapChoice.IsSafeMapFile(Map.MapFile) || !GameFingerprint.IsHash(Map.Hash))
+            problems.Add("bad map file");
+        if (Players is null || Players.Count is 0 or > MaxPlayers || Players.Any(p => p is null))
+            problems.Add("bad number of players");
+        else
+            foreach (var player in Players)
+            {
+                if (player.People is { } people && !Enum.IsDefined(people))
+                    problems.Add("no such people");
+                if (player.Color is < 0 or > MaxColor)
+                    problems.Add("no such color");
+                if (player.Team is < 0 or > MaxTeam)
+                    problems.Add("no such team");
+                if (player.Character is { } character && !KnownCharacters(dataDirectory).Contains(character))
+                    problems.Add("no such computer player");
+                if (player.Name is { } name && (name.Length is 0 or > MaxNameLength || PlayerText.Clean(name) != name))
+                    problems.Add("bad player name");
+            }
+        if (Positions is { } positions)
+        {
+            var taken = positions.OfType<int>().ToList();
+            if (positions.Count > MaxPlayers || taken.Any(p => p < 0 || p >= positions.Count) || taken.Distinct().Count() < taken.Count)
+                problems.Add("bad start positions");
+        }
+        if (Settings is { } settings
+            && (settings.Depletion is null || settings.SpellCostIncrease is < 0 or > 100
+                || settings.Depletion.Stone is < 0 or > 100 || settings.Depletion.Mountain is < 0 or > 100 || settings.Depletion.Fish is < 0 or > 100))
+            problems.Add("game values out of range");
+        if (Fingerprint is { } fingerprint)
+            problems.AddRange(fingerprint.Problems());
+        return problems.Distinct().ToArray();
+    }
+
+    /// <summary><see cref="Problems(string?)"/>, and on a map with <paramref name="mapPlayers"/> players: every human needs a place on it.</summary>
+    public IReadOnlyList<string> Problems(int mapPlayers, string? dataDirectory = null)
+    {
+        var problems = Problems(dataDirectory);
+        return Players is not null && Players.Where((p, player) => p is { Human: true } && player >= mapPlayers).Any()
+            ? [.. problems, "more human players than the map has"]
+            : problems;
+    }
+
+    /// <summary>Longest player name in a setup: a name and the number the server makes it unique with (<c>Anna (2)</c>).</summary>
+    public const int MaxNameLength = Lockstep.ServerMessages.MaxNameLength + 4;
+
+    /// <summary>Highest color (palette index) and team of a player.</summary>
+    public const int MaxColor = 63, MaxTeam = 4;
+
+    private static readonly ConcurrentDictionary<string, IReadOnlySet<string>> Characters = new();
+
+    private static IReadOnlySet<string> KnownCharacters(string? dataDirectory) =>
+        Characters.GetOrAdd(dataDirectory ?? "", _ => AiConfig.Load(dataDirectory).Characters.Keys.ToHashSet());
+
     /// <summary>
     /// Builds the world on <paramref name="map"/> (opened from <see cref="Map"/>, or a campaign's): peoples, start positions,
     /// hardcore players and teams as set up, a free game's goals (<see cref="ConquestGoals"/>), a computer player for every
@@ -102,6 +195,8 @@ public sealed record GameSetup
         if (Fingerprint is { } required && GameFingerprint.Of(dataDirectory).Differences(required) is { Count: > 0 } differences)
             throw new IncompatibleGameException(differences);
         int count = map.Players.Count;
+        if (Fingerprint is not null && Problems(count, dataDirectory) is { Count: > 0 } problems)
+            throw new InvalidGameSetupException(problems);
         var peoples = Enum.GetValues<Civilization>();
         var peopleDraw = RandomFor(Draw.Peoples);
         var chosen = Enumerable.Range(0, Math.Max(1, Math.Max(count, Players.Count)))
@@ -115,6 +210,7 @@ public sealed record GameSetup
             hardcore: Enumerable.Range(0, Math.Min(count, Players.Count)).Where(p => Players[p].Hardcore),
             positions: positions, production: settings.Apply(production), magic: settings.Apply(magic));
         world.Teams.AddRange(Players.Take(count).Select(p => p.Team));
+        world.PlayerNames.AddRange(Players.Take(count).Select(p => p.Name));
         world.Goals = new ConquestGoals();
         world.Multiplayer = Players.Count(p => p.Human) > 1;
         var characters = RandomFor(Draw.Characters);
@@ -155,4 +251,10 @@ public sealed record GameSetup
     public string ToJson() => JsonSerializer.Serialize(this, Json);
 
     public static GameSetup FromJson(string json) => JsonSerializer.Deserialize<GameSetup>(json, Json) ?? throw new JsonException("no game setup");
+}
+
+/// <summary>A setup from the network that cannot be played (<see cref="GameSetup.Problems(string?)"/>).</summary>
+public sealed class InvalidGameSetupException(IReadOnlyList<string> problems) : Exception("invalid game setup: " + string.Join("; ", problems))
+{
+    public IReadOnlyList<string> Problems { get; } = problems;
 }

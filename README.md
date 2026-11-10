@@ -79,7 +79,8 @@ at that minute, pick any good to compare its production, and jump back into the 
   so even large battles need hardly any bandwidth
 - **Mixed games**: humans and computer opponents on the same map, e.g. two players against two AIs, on random or original maps
 - **Host your own server**: a small relay server as a Docker image (`docker build -f src/Homestead.Server/Dockerfile -t homestead-server .`,
-  `docker run -p 8080:8080 homestead-server`), then connect from the title screen via "Multiplayer" with `ws://<host>:8080/ws`
+  `docker run -p 8080:8080 homestead-server`), then connect from the title screen via "Multiplayer" with `<host>:8080`;
+  running one others can reach: [server README](src/Homestead.Server/README.md)
 - **Desync detection**: the computers compare checksums of their worlds all the time and stop at once if they ever differ;
   the simulation is checked to run bit-identical on Linux, Windows and macOS
 
@@ -186,8 +187,9 @@ monoSettlers is fully playable, but not perfect. What is known so far:
 - **AI chat**: talking to the computer opponents through Claude is experimental and only configured in `settings.json`
   (section `aiChat`: `apiKey`, `model`, `effort`), not in the settings screen
 - **macOS**: only the `osx-arm64` build has been tested on a real Mac (Apple Silicon); the `osx-x64` Intel build has not
-- **Multiplayer is new**: no pause, no reconnecting after a dropout (the others wait) and no own AI, fast-forward, cheats or AI chat
-  in network games yet; a public server only behind TLS (`wss://`, e.g. via a reverse proxy)
+- **Multiplayer is new**: no pause, no reconnecting after a dropout (the others play on, the computer takes over the player's people) and no own AI,
+  fast-forward, cheats or AI chat in network games yet; a public server only behind TLS (`wss://`, e.g. via a reverse proxy), see the
+  [server's README](src/Homestead.Server/README.md)
 
 Measurements from the original, savegames showing odd behaviour and pull requests are very welcome.
 

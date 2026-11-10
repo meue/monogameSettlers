@@ -42,6 +42,8 @@ Vor Arbeit an einem System die passende Datei lesen und dort nachführen (wie bi
 
 ### Querschnittsregeln
 - Sprites nur über `SpriteLibrary` (siehe Grafik-Konventionen); Texte nur über `Lang.T` (siehe oben).
+- Simulation 100 % deterministisch (Lockstep): Zufall nur `new Random(… + World.Seed)`, keine Uhr/Threads/`GetHashCode`/`Math.Sin` & Co.
+  (`DeterministicMath`), Spieleraktionen nur als `GameCommand` – Regeln: docs/MULTIPLAYER.md, CONTRIBUTING.md.
 - Captures und Prüf-Exporte nur in temporäre Verzeichnisse; Speichern in Captures nur mit temporärem `HOMESTEAD_SAVE_DIR`.
 - Spielstände: `Snapshot` speichert per Reflection, neue Felder brauchen keinen Speichercode (Details: simulation.md, `Persistence/`).
 - Tests ohne Werkzeugthema: `TestConfig.NoTools`.

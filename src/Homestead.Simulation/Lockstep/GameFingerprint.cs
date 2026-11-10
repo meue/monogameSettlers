@@ -16,7 +16,7 @@ namespace Homestead.Simulation.Lockstep;
 public sealed record GameFingerprint(int Protocol, string Version, IReadOnlyDictionary<string, string> Files)
 {
     /// <summary>The network format's version (<see cref="CommandCodec"/>, turn messages, handshake): raise it on every change.</summary>
-    public const int CurrentProtocol = 1;
+    public const int CurrentProtocol = 2;
 
     /// <summary>Files and folders of <c>data/</c> only the client reads (relative, '/' as separator).</summary>
     public static readonly IReadOnlyList<string> ClientOnly =
@@ -60,6 +60,28 @@ public sealed record GameFingerprint(int Protocol, string Version, IReadOnlyDict
                 differences.Add($"data/{file} differs");
         return differences;
     }
+
+    /// <summary>
+    /// What is wrong with a fingerprint someone sent (empty: nothing): it is only self-reported, so this says nothing about the
+    /// sender's program – but it goes on to others (lobby, setup, refusals), so it must be small and harmless.
+    /// </summary>
+    public IReadOnlyList<string> Problems()
+    {
+        if (Version is null || Files is null)
+            return ["incomplete fingerprint"];
+        if (Version.Length > 200 || Version.Any(c => c is < ' ' or > '~'))
+            return ["bad program version"];
+        if (Files.Count > 256)
+            return ["too many data files"];
+        foreach (var (file, hash) in Files)
+            if (file is null or { Length: 0 or > 128 } || file.Contains("..", StringComparison.Ordinal) || file.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not ('/' or '.' or '_' or '-'))
+                || !IsHash(hash))
+                return ["bad data file entry"];
+        return [];
+    }
+
+    /// <summary>Whether the text is a SHA-256 as this program writes it.</summary>
+    public static bool IsHash(string? hash) => hash is { Length: 64 } && hash.All(c => char.IsAsciiDigit(c) || c is >= 'a' and <= 'f');
 
     public bool Matches(GameFingerprint other) => Differences(other).Count == 0;
 

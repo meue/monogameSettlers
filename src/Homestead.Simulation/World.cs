@@ -76,6 +76,9 @@ public sealed partial class World
     /// <summary>Team per player (index = player; set before the game starts): 1–4, 0 or missing: no team, against everybody.</summary>
     public List<int> Teams { get; } = new();
 
+    /// <summary>The human players' names in a multiplayer game, by player (null: none, e.g. a computer player). Only shown, never read by the game.</summary>
+    public List<string?> PlayerNames { get; } = new();
+
     public int TeamOf(int player) => player >= 0 && player < Teams.Count ? Teams[player] : 0;
 
     /// <summary>Whether the players are on the same team (a player is its own ally): they do not fight, take land or steal from each other.</summary>

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Homestead.Assets;
+using Homestead.Simulation.Lockstep;
 
 namespace Homestead.Client;
 
@@ -9,7 +10,8 @@ public sealed record MultiplayerSettings
 {
     private const string Section = "multiplayer";
 
-    public const string DefaultServer = "ws://localhost:8080/ws";
+    /// <summary>Host and port only: <see cref="ServerConnection.AddressOf"/> makes the WebSocket address of it.</summary>
+    public const string DefaultServer = "localhost:8080";
 
     public string Name { get; init; } = "";
 
@@ -22,7 +24,11 @@ public sealed record MultiplayerSettings
             return settings;
         string? Text(string name) =>
             section.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-        return settings with { Name = Text("name") ?? settings.Name, Server = Text("server") ?? settings.Server };
+        return settings with
+        {
+            Name = Text("name") ?? settings.Name,
+            Server = Text("server") is { } server ? ServerConnection.ShortAddress(server) : settings.Server,
+        };
     }
 
     public void Save(string? path = null) =>
