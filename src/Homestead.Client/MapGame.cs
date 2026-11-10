@@ -696,11 +696,18 @@ public sealed class MapGame : Game
     /// <summary>HOMESTEAD_CAPTURE_SERVER: a capture run playing a multiplayer game through this server.</summary>
     private string? CaptureServer => _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SERVER");
 
-    /// <summary>Ends a multiplayer game's connection (the other players are told by the server).</summary>
-    private void EndNetworkGame()
+    /// <summary>
+    /// Ends a multiplayer game's connection (the other players are told by the server). <paramref name="wait"/>: the program ends,
+    /// so the leave must be out before – otherwise a process slow to end keeps the connection open and the others wait for it.
+    /// </summary>
+    private void EndNetworkGame(bool wait = false)
     {
         if (_connection is { } connection)
-            _ = connection.DisposeAsync().AsTask();
+        {
+            var closing = connection.DisposeAsync().AsTask();
+            if (wait)
+                closing.Wait(TimeSpan.FromSeconds(3));
+        }
         _connection = null;
         _session = null;
         _waitingFor = 0;
@@ -718,15 +725,18 @@ public sealed class MapGame : Game
         foreach (var message in connection.Receive())
             switch (ServerMessages.TypeOf(message))
             {
-                case ServerMessages.Left when message["player"] is JsonValue left && left.TryGetValue(out int player) && player >= 0 && player < GameSetup.MaxPlayers:
-                    string name = PlayerNames.Of(_world, player);
-                    _info.Add(Lang.T("multiplayer.playerLeft", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
-                    break;
                 case ServerMessages.Refused:
                     // Dropped by the server (not responding, out of sync …): why it ends.
                     _info.Add(Lang.T("multiplayer.refused", string.Join("; ", ServerConnection.Reasons(message))), _now);
                     break;
             }
+        // Told when the computer player takes over (the same turn on every computer), not when the server's message comes.
+        foreach (int player in session.TakeTakenOver())
+        {
+            string name = PlayerNames.Of(_world, player);
+            _info.Add(Lang.T("multiplayer.playerLeft", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
+            _info.Add(Lang.T("multiplayer.computerTakesOver", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
+        }
         if (_networkTroubleTold)
             return;
         if (session.Desync is { } desync)
@@ -1059,6 +1069,10 @@ public sealed class MapGame : Game
     /// </summary>
     private void OpenStatistics(bool canResume)
     {
+        // Quitting a network game: it is left now, not after the statistics – this computer steps no more from here on, and the
+        // others would wait for it (then a computer player takes over the own people).
+        if (!canResume)
+            EndNetworkGame();
         _placing = _aiming = false;
         _statistics?.Dispose();
         // A decided mission leads on ("Weiter"): won to the next one, lost to the same one again; lost there is no way back.
@@ -4689,6 +4703,15 @@ public sealed class MapGame : Game
             _spriteBatch.End();
         }
         base.EndDraw();
+    }
+
+    /// <summary>The window closed or the game quit: a network game is left first, while the program still runs for sure.</summary>
+    protected override void OnExiting(object sender, ExitingEventArgs args)
+    {
+        EndNetworkGame(wait: true);
+        _multiplayerScreen?.Dispose();
+        _multiplayerScreen = null;
+        base.OnExiting(sender, args);
     }
 
     protected override void UnloadContent()

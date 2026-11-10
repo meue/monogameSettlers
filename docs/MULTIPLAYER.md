@@ -140,8 +140,10 @@ Done (first stage, C# in the same repo – shares `TurnRelay`, `GameSetup`, `Gam
     seat name, people, color, the AI players (`computers`: player, people, color, character) and all taken colors (the AIs' fixed ones too).
   - `start` (host only, all seats taken) → `started` to each: setup with fingerprint, own player, `LockstepOptions`
     (server configuration `Lockstep__TurnTicks`/`DelayTurns`/`CheckTurns`). Then `input` → `TurnRelay` → `bundle` to everyone.
-  - Leaving a running game → `left` to the others, who go on without the player (`TurnRelay.Remove`; its people stand idle until a computer
-    player can take over). Unreadable fields → `error`, the connection stays.
+  - Leaving a running game (or being dropped) → `left` to the others, who go on without the player: `TurnRelay.Remove` names it in the next
+    bundle (`left`), and with that turn `LockstepSession.TakeOver` adds a computer player for it on every computer (character drawn from the
+    world's seed). The client tells it then (`TakeTakenOver`): "XY left the game", "XY is now controlled by the computer" – not on the server's
+    `left`, which reaches each computer at another time. Unreadable fields → `error`, the connection stays.
 - `TurnRelay` with limits, see Security below; desyncs into the log.
 - Client side: `ServerConnection` (Simulation/Lockstep, `ClientWebSocket`, read/write task, `Receive` for polling from the
   game loop, `WaitForAsync` for tools/tests, `Link` as `ILockstepLink` for the `LockstepSession`).
@@ -172,7 +174,7 @@ Done (first stage, C# in the same repo – shares `TurnRelay`, `GameSetup`, `Gam
 
 Open:
 - Client: shared pause, saving for everyone, desync savegame, chat in the lobby, statistics without halting.
-- A player gone in a running game: the seat to an AI (on all computers at the same turn) instead of standing idle; reconnecting.
+- Reconnecting after a dropout (taking the seat back from the computer player).
 - A CI job that builds the image (and pushes it to ghcr.io on tags); maybe Native AOT for a smaller image.
 - Security: keeping someone out of a lobby (host's kick, password), see below.
 

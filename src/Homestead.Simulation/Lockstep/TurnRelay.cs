@@ -47,6 +47,9 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn, int maxA
 
     private readonly List<int> _outOfLine = new();
 
+    /// <summary>Players taken out whose leaving is not in a bundle yet.</summary>
+    private readonly List<int> _left = new();
+
     /// <summary>The furthest turn any player has sent an input for (handed on in every bundle).</summary>
     private long _newest;
 
@@ -147,8 +150,9 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn, int maxA
         && sums.All(part => part.Value is JsonValue number && (number.TryGetValue(out ulong _) || number.TryGetValue(out long _)));
 
     /// <summary>
-    /// Takes a player out, what it had sent included (it never arrived at the others): the game goes on with the rest, the
-    /// player's own settlers wait. Returns the bundles this completes. Every computer learns of it through the bundles alone,
+    /// Takes a player out, what it had sent included (it never arrived at the others): the game goes on with the rest. The next
+    /// bundle names the player in <c>left</c>, and with that turn a computer player takes over on every computer
+    /// (<see cref="LockstepSession"/>). Returns the bundles this completes. Every computer learns of it through the bundles alone,
     /// so all of them still apply the same commands at the same ticks.
     /// </summary>
     public IReadOnlyList<string> Remove(int player)
@@ -158,6 +162,7 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn, int maxA
         foreach (var byPlayer in _inputs.Values)
             byPlayer.Remove(player);
         _pending.Remove(player);
+        _left.Add(player);
         return Complete();
     }
 
@@ -181,6 +186,12 @@ public sealed class TurnRelay(IEnumerable<int> players, long firstTurn, int maxA
             var bundle = new JsonObject { ["turn"] = NextTurn, ["commands"] = all, ["newest"] = _newest };
             if (checks.Count > 0)
                 bundle["checks"] = checks;
+            if (_left.Count > 0)
+            {
+                // The turn a computer player takes over: the same on every computer.
+                bundle["left"] = new JsonArray(_left.Select(p => (JsonNode)p).ToArray());
+                _left.Clear();
+            }
             bundles.Add(bundle.ToJsonString());
             _inputs.Remove(NextTurn);
             NextTurn++;

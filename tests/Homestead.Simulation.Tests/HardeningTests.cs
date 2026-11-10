@@ -456,6 +456,48 @@ public class HardeningTests
         Assert.Equal([2], relay.Relay.TakeOutOfLine());
     }
 
+    [Fact]
+    public void A_player_who_leaves_is_played_on_by_the_computer_on_every_computer_alike()
+    {
+        var setup = Humans(3);
+        var relay = new LocalRelay([0, 1, 2], firstTurn: 2);
+        var computers = Enumerable.Range(0, 3).Select(player =>
+        {
+            var start = setup.Start(setup.Map.Open(""));
+            return (start.World, Session: new LockstepSession(start.World, player, new CommandCodec(start.Report.Catalogs), relay.LinkOf(player)));
+        }).ToArray();
+
+        for (int round = 0; round < 1200; round++)
+        {
+            if (round == 100)
+                relay.Remove(2); // its computer stops here
+            foreach (var (world, session) in round < 100 ? computers : computers[..2])
+                session.TryStep();
+        }
+
+        var stayed = computers[..2];
+        Assert.All(stayed, c => Assert.Equal([2], c.Session.TakeTakenOver()));
+        Assert.All(stayed, c => Assert.Empty(c.Session.TakeTakenOver()));
+        Assert.All(stayed, c => Assert.Equal([2], c.World.AiPlayers.Select(a => a.Player)));
+        Assert.All(stayed, c => Assert.Null(c.Session.Desync));
+        Assert.All(stayed, c => Assert.True(c.World.Tick > 1000));
+        Assert.Equal(WorldChecksum.Of(stayed[0].World), WorldChecksum.Of(stayed[1].World));
+        // The computer player works: something of player 3's was ordered after it took over.
+        Assert.Contains(stayed[0].World.Buildings, b => b.Player == 2 && b.State != Buildings.BuildingState.Finished);
+    }
+
+    [Fact]
+    public void Who_left_goes_out_in_the_next_bundle_once()
+    {
+        var codec = new CommandCodec();
+        var relay = new TurnRelay([0, 1], firstTurn: 2);
+        Assert.Empty(relay.Remove(1));
+        var first = codec.DecodeBundle(Assert.Single(relay.Receive(0, Input(codec, 0, 2))));
+        var second = codec.DecodeBundle(Assert.Single(relay.Receive(0, Input(codec, 0, 3))));
+        Assert.Equal([1], first.Left);
+        Assert.Null(second.Left);
+    }
+
     // ----- The setup
 
     public static readonly TheoryData<GameSetup> BadSetups = new()
@@ -476,6 +518,8 @@ public class HardeningTests
         Humans(2) with { Players = [new PlayerSetup(Human: true, Team: -1), new PlayerSetup(Human: true)] },
         Humans(2) with { Players = [new PlayerSetup(Human: true, People: (Civilization)9), new PlayerSetup(Human: true)] },
         Humans(2) with { Players = [new PlayerSetup(Human: true), new PlayerSetup(Character: "no such character")] },
+        Humans(2) with { Players = [new PlayerSetup(Human: true, Name: "Anna\nB"), new PlayerSetup(Human: true)] },
+        Humans(2) with { Players = [new PlayerSetup(Human: true, Name: new string('x', 100)), new PlayerSetup(Human: true)] },
         Humans(2) with { Positions = [5, null] },
         Humans(2) with { Positions = [-1, null] },
         Humans(2) with { Positions = [0, 0] },
