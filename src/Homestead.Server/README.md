@@ -12,7 +12,9 @@ docker build -f src/Homestead.Server/Dockerfile -t homestead-server .
 docker run -p 8080:8080 homestead-server
 ```
 
-Players connect from the title screen via "Multiplayer" with `ws://<host>:8080/ws`.
+Or without Docker, from the repository: `./run-server.sh [port]`.
+
+Players connect from the title screen via "Multiplayer" with `<host>:8080` (the client adds `ws://` and the path `/ws`).
 
 For a server others can reach, drop everything the process doesn't need and cap what it may use. All of this has been tried with the
 image, `/tmp` is the only place .NET writes to:
@@ -32,7 +34,7 @@ The image runs as a non-root user. Rebuild it now and then: the base image and .
 ## TLS: put a reverse proxy in front
 
 `ws://` is unencrypted: fine on a LAN, not across the internet. The server doesn't do TLS itself; a reverse proxy does, and players then
-connect with `wss://your.domain/ws`. With [Caddy](https://caddyserver.com) (certificates included):
+connect with `wss://your.domain`. With [Caddy](https://caddyserver.com) (certificates included):
 
 ```
 your.domain {

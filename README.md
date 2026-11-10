@@ -79,7 +79,7 @@ at that minute, pick any good to compare its production, and jump back into the 
   so even large battles need hardly any bandwidth
 - **Mixed games**: humans and computer opponents on the same map, e.g. two players against two AIs, on random or original maps
 - **Host your own server**: a small relay server as a Docker image (`docker build -f src/Homestead.Server/Dockerfile -t homestead-server .`,
-  `docker run -p 8080:8080 homestead-server`), then connect from the title screen via "Multiplayer" with `ws://<host>:8080/ws`;
+  `docker run -p 8080:8080 homestead-server`), then connect from the title screen via "Multiplayer" with `<host>:8080`;
   running one others can reach: [server README](src/Homestead.Server/README.md)
 - **Desync detection**: the computers compare checksums of their worlds all the time and stop at once if they ever differ;
   the simulation is checked to run bit-identical on Linux, Windows and macOS

@@ -254,7 +254,7 @@ public sealed class MultiplayerScreen : IDisposable
         return MultiplayerAction.None;
     }
 
-    private bool CanConnect => _name.Trim().Length > 0 && Uri.TryCreate(_server.Trim(), UriKind.Absolute, out var uri) && uri.Scheme is "ws" or "wss";
+    private bool CanConnect => _name.Trim().Length > 0 && ServerConnection.AddressOf(_server) is not null;
 
     private bool Full => _lobby is { } lobby && lobby.Seats.All(s => s.Computer || s.Name is not null);
 
@@ -280,7 +280,7 @@ public sealed class MultiplayerScreen : IDisposable
     private void Connect()
     {
         Status(Lang.T("multiplayer.connecting"));
-        _connecting = ServerConnection.ConnectAsync(new Uri(_server.Trim()), _name.Trim(), GameFingerprint.Of());
+        _connecting = ServerConnection.ConnectAsync(ServerConnection.AddressOf(_server)!, _name.Trim(), GameFingerprint.Of());
     }
 
     private void Disconnect(string why, bool problem = false)

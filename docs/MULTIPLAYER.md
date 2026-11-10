@@ -151,7 +151,7 @@ Done (first stage, C# in the same repo – shares `TurnRelay`, `GameSetup`, `Gam
   protocol refused; joining with other data/another version refused, start only when full, host gone → `closed`; broken message; status.
 
 ### Multiplayer in the client
-- Title → "Mehrspieler" (`MultiplayerScreen`, the mission list's background): name + server address (`ws://…/ws`, remembered in
+- Title → "Mehrspieler" (`MultiplayerScreen`, the mission list's background): name + server address (`host:port`, `ServerConnection.AddressOf` adds `ws://`, port 8080 and `/ws`; `wss://…` behind TLS; remembered in
   `settings.json`, section `multiplayer`, `MultiplayerSettings`; Tab/click switches the field, Ctrl+V) → connect (refusal with
   reasons) → open games (a click joins, "Refresh", "Open game") → lobby (seats, host; "Start" only for the host and when full,
   "Leave"). Esc goes back one step.

@@ -5,8 +5,8 @@ set -e
 cd "$(dirname "$0")"
 port="${1:-8080}"
 dotnet build src/Homestead.Server -c Release
-echo "Connect with ws://localhost:$port/ws, from other computers:"
+echo "In the game: localhost:$port, from other computers:"
 for ip in $(hostname -I 2>/dev/null); do
-  case "$ip" in *:*|172.17.*) ;; *) echo "  ws://$ip:$port/ws" ;; esac # IPv4 only, no Docker bridge
+  case "$ip" in *:*|172.17.*) ;; *) echo "  $ip:$port" ;; esac # IPv4 only, no Docker bridge
 done
 ASPNETCORE_URLS="http://0.0.0.0:$port" exec dotnet src/Homestead.Server/bin/Release/net9.0/Homestead.Server.dll
