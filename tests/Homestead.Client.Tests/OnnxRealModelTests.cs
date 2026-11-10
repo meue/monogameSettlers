@@ -38,11 +38,16 @@ public class OnnxRealModelTests(ITestOutputHelper output)
         output.WriteLine($"per-call latency after the first (compiling) call: {perCallMs:F1} ms");
         Assert.True(first.Pixels.SequenceEqual(second!.Pixels),
             $"per-call latency {perCallMs:F1} ms; the model is not deterministic");
-        // The 1-bit alpha comes back replicated from the source, not inferred.
+        // The alpha is reconstructed from the 1-bit coverage (Catmull-Rom, threshold 0.28): binary, but placed
+        // with 2x sub-pixel accuracy, never a value in between. The RGB is premultiplied: transparent is black.
         for (int y = 0; y < first.Height; y++)
             for (int x = 0; x < first.Width; x++)
-                Assert.Equal(source.Pixels[y / 2 * source.Width + x / 2] & 0xFF00_0000u,
-                    first.Pixels[y * first.Width + x] & 0xFF00_0000u);
+            {
+                uint pixel = first.Pixels[y * first.Width + x];
+                Assert.Equal(pixel == 0 ? 0u : 0xFF00_0000u, pixel & 0xFF00_0000u);
+                if (pixel >> 24 == 0)
+                    Assert.Equal(0u, pixel & 0xFF_FFFFu);
+            }
     }
 
     private static uint[] Pixels(int width, int height)

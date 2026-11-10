@@ -3,9 +3,14 @@ using Homestead.Assets.Gfx;
 namespace Homestead.Client.Neural;
 
 /// <summary>Upscales a sprite bitmap to twice its size, or returns null to keep the 1x image (input too
-/// large, or upscaling unavailable). Disposable for the model session an implementation may hold.</summary>
+/// large, or upscaling unavailable). Disposable for the model session an implementation may hold.
+/// <see cref="Ready"/> becomes false for good when upscaling cannot work on this system: the library
+/// stops queueing work then and tells the user, instead of retrying every sequence.</summary>
 public interface IUpscaler : IDisposable
 {
+    /// <summary>Whether this upscaler can produce images: false after a failed load, true for the fakes.</summary>
+    bool Ready { get; }
+
     GfxBitmap? Upscale(GfxBitmap bitmap);
 }
 
@@ -13,6 +18,8 @@ public interface IUpscaler : IDisposable
 public sealed class NullUpscaler : IUpscaler
 {
     public static readonly NullUpscaler Instance = new();
+
+    public bool Ready => false;
 
     public GfxBitmap? Upscale(GfxBitmap bitmap) => null;
 
@@ -25,6 +32,8 @@ public sealed class NullUpscaler : IUpscaler
 /// upscaler.</summary>
 public sealed class FakeUpscaler : IUpscaler
 {
+    public bool Ready => true;
+
     public GfxBitmap? Upscale(GfxBitmap bitmap)
     {
         if (bitmap.Width > UpscaleMath.MaxUpscaleInput || bitmap.Height > UpscaleMath.MaxUpscaleInput)
