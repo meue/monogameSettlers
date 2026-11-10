@@ -662,7 +662,7 @@
     "title": "Multiplayer",
     "name": "Your name",
     "server": "Server",
-    "serverHint": "The server's address, e.g. ws://192.168.1.10:8080/ws (your own: docker run -p 8080:8080 homestead-server).",
+    "serverHint": "The server's address, e.g. 192.168.1.10:8080 (your own: ./run-server.sh; behind TLS: wss://…).",
     "connect": "Connect",
     "connecting": "Connecting …",
     "refused": "Refused: {0}",

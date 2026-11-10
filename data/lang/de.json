@@ -662,7 +662,7 @@
     "title": "Mehrspieler",
     "name": "Dein Name",
     "server": "Server",
-    "serverHint": "Adresse des Servers, z. B. ws://192.168.1.10:8080/ws (eigener Server: docker run -p 8080:8080 homestead-server).",
+    "serverHint": "Adresse des Servers, z. B. 192.168.1.10:8080 (eigener Server: ./run-server.sh; hinter TLS: wss://…).",
     "connect": "Verbinden",
     "connecting": "Verbinde …",
     "refused": "Abgelehnt: {0}",

@@ -662,7 +662,7 @@
     "title": "Wielu graczy",
     "name": "Twoje imię",
     "server": "Serwer",
-    "serverHint": "Adres serwera, np. ws://192.168.1.10:8080/ws (własny: docker run -p 8080:8080 homestead-server).",
+    "serverHint": "Adres serwera, np. 192.168.1.10:8080 (własny: ./run-server.sh; za TLS: wss://…).",
     "connect": "Połącz",
     "connecting": "Łączenie …",
     "refused": "Odrzucono: {0}",
