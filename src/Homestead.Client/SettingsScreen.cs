@@ -102,6 +102,8 @@ public sealed class SettingsScreen : IDisposable
             Display("preferredColor", PlayerColors.Palette.Select((_, i) => ("", i)).ToArray(), d => d.PreferredColor,
                 (d, v) => d with { PreferredColor = v }, PlayerColors.Palette),
             Display("neuralUpscale", OnOff, d => d.NeuralUpscale ? 1 : 0, (d, v) => d with { NeuralUpscale = v == 1 }),
+            Display("scaling", Enum.GetValues<Scaling>().Select(s => ("settings.display.scaling." + s.ToString().ToLowerInvariant(), (int)s)).ToArray(),
+                d => (int)d.Scaling, (d, v) => d with { Scaling = (Scaling)v }),
         ], "settings.notes.immediately"),
     ];
 
@@ -114,7 +116,7 @@ public sealed class SettingsScreen : IDisposable
     private static readonly Rectangle OkButton = new(528, 555, 116, 30);
     private static readonly Rectangle CancelButton = new(656, 555, 116, 30);
 
-    private const int RowTop = 150, RowHeight = 36;
+    private const int RowTop = 148, RowHeight = 33;
 
     private static Rectangle Row(int row) => new(Content.X + 16, RowTop + row * RowHeight, Content.Width - 32, RowHeight - 6);
 

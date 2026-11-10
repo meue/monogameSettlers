@@ -130,6 +130,7 @@ public sealed class SpriteLibrary : IDisposable
     private readonly HashSet<(int File, int Sequence)> _attempted = new();
     private Thread? _worker;
     private volatile bool _workerRunning;
+    private volatile bool _workerWorking;
     private SpriteAtlas? _hiResAtlas;
 
     public SpriteLibrary(GraphicsDevice device, GfxDirectory gfx) : this(device, gfx, static () => new OnnxUpscaler())
@@ -153,12 +154,32 @@ public sealed class SpriteLibrary : IDisposable
     public bool NeuralUpscaleEnabled => _upscale.Enabled;
 
     /// <summary>
+    /// Upscaling cannot work on this system (no native ONNX Runtime library, e.g. osx-x64): it stays off for
+    /// the session whatever the setting says; the game shows a notice instead.
+    /// </summary>
+    public bool NeuralUpscaleUnavailable { get; private set; }
+
+    /// <summary>True while 2x images are still being computed or uploaded: the loading screen holds until it drains.</summary>
+    public bool NeuralUpscalePending => _pending.Count > 0 || _workerWorking || !_completed.IsEmpty;
+
+    /// <summary>
+    /// Marks the world pass of this frame: while set, sprites draw their 2x images (the game renders the world
+    /// into a 2x render target then); everything else — the UI, and the world at zoom ≤ 1 — stays 1x. Both calls
+    /// belong to the game's thread.
+    /// </summary>
+    public void BeginHiResWorldPass() => _upscale.WorldHiRes = true;
+
+    public void EndHiResWorldPass() => _upscale.WorldHiRes = false;
+
+    /// <summary>
     /// Turns the 2x sprites on or off for the session. On: the sequences loaded so far are queued, new ones
     /// follow as they load, and the background worker builds their 2x images. Off: every layer draws its 1x
     /// image again at once (the attached 2x images stay for the next turn-on).
     /// </summary>
     public void SetNeuralUpscale(bool enabled)
     {
+        if (NeuralUpscaleUnavailable && enabled)
+            return; // Cannot work here; NeuralUpscaleEnabled stays false so the game keeps showing the notice.
         if (_upscale.Enabled == enabled)
             return;
         _upscale.Enabled = enabled;
@@ -169,6 +190,23 @@ public sealed class SpriteLibrary : IDisposable
         foreach (var (file, sequence) in _sequences.Keys)
             QueueForUpscale(file, sequence);
     }
+
+    /// <summary>
+    /// Preloads every settler sequence of the given GFX files into the 1x atlas and queues it for upscaling:
+    /// with the setting on, a starting game computes its 2x atlas during the loading screen instead of the
+    /// first minutes of play. Files first in the list are done first, so the game's own people comes before
+    /// the others. Only the game's (GL) thread may call this: it fills the atlas.
+    /// </summary>
+    public void Warmup(IEnumerable<int> files)
+    {
+        if (!_upscale.Enabled)
+            return;
+        foreach (int file in files.Where(HasSettlers))
+            for (int sequence = 0; sequence < Gfx.Open(file).SettlerCount; sequence++)
+                Sequence(file, sequence);
+    }
+
+    private bool HasSettlers(int file) => Gfx.FileNumbers.Contains(file) && Gfx.Open(file).SettlerCount > 0;
 
     public SettlerSprites Sequence(int file, int sequence)
     {
@@ -217,6 +255,8 @@ public sealed class SpriteLibrary : IDisposable
 
     private void QueueForUpscale(int file, int sequence)
     {
+        if (NeuralUpscaleUnavailable)
+            return; // No worker left to drain it (no ONNX Runtime on this system).
         if (ShouldQueueUpscale(_upscale.Enabled, _attempted.Contains((file, sequence)))
             && _attempted.Add((file, sequence)))
         {
@@ -242,26 +282,51 @@ public sealed class SpriteLibrary : IDisposable
 
     private void RunWorker()
     {
-        using var upscaler = _upscalerFactory();
-        while (_workerRunning)
+        IUpscaler upscaler = _upscalerFactory();
+        // The 1x1 probe loads the model session (or fails: a platform without ONNX Runtime knows at once) before
+        // any real work, so the queue can simply be dropped and the user told that upscaling is off here.
+        if (upscaler.Upscale(new GfxBitmap(1, 1, 0, 0, new uint[1])) is null && !upscaler.Ready)
         {
-            if (!_pending.TryTake(out var job, Timeout.Infinite))
-                break; // Adding is finished: Dispose is stopping the worker.
-            try
+            NeuralUpscaleUnavailable = true;
+            _pending.CompleteAdding();
+            upscaler.Dispose();
+            return;
+        }
+        try
+        {
+            while (_workerRunning)
             {
-                int frames = job.File.GetSettlerFrameCount(job.Sequence);
-                for (int frame = 0; frame < frames && _workerRunning; frame++)
+                if (!_pending.TryTake(out var job, Timeout.Infinite))
+                    break; // Adding is finished: Dispose is stopping the worker.
+                _workerWorking = true;
+                try
                 {
-                    Upscale(upscaler, job, frame, SpriteLayerKind.Body, job.File.ReadSettler(job.Sequence, frame));
-                    Upscale(upscaler, job, frame, SpriteLayerKind.Torso, job.File.ReadSettlerTorso(job.Sequence, frame));
-                    Upscale(upscaler, job, frame, SpriteLayerKind.Shadow, job.File.ReadSettlerShadow(job.Sequence, frame));
+                    int frames = job.File.GetSettlerFrameCount(job.Sequence);
+                    for (int frame = 0; frame < frames && _workerRunning; frame++)
+                    {
+                        Upscale(upscaler, job, frame, SpriteLayerKind.Body, job.File.ReadSettler(job.Sequence, frame));
+                        Upscale(upscaler, job, frame, SpriteLayerKind.Torso, job.File.ReadSettlerTorso(job.Sequence, frame));
+                        Upscale(upscaler, job, frame, SpriteLayerKind.Shadow, job.File.ReadSettlerShadow(job.Sequence, frame));
+                    }
+                }
+                catch (Exception e)
+                {
+                    // A sequence that cannot be read stays 1x; the worker lives on.
+                    Console.WriteLine($"Neural upscale: file {job.Number} sequence {job.Sequence} stays 1x ({e.Message})");
+                }
+                finally
+                {
+                    _workerWorking = _pending.Count > 0;
                 }
             }
-            catch (Exception e)
-            {
-                // A sequence that cannot be read stays 1x; the worker lives on.
-                Console.WriteLine($"Neural upscale: file {job.Number} sequence {job.Sequence} stays 1x ({e.Message})");
-            }
+        }
+        finally
+        {
+            // An inference that started before Dispose cannot be interrupted; if the process is on its way out,
+            // the OS reclaims everything, and tearing the native session down from this dying thread could only
+            // hang the exit (the suspect hang with upscaling on). In a living process it is disposed properly.
+            if (!Environment.HasShutdownStarted)
+                upscaler.Dispose();
         }
     }
 

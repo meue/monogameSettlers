@@ -8,6 +8,14 @@ namespace Homestead.Client;
 public enum Language { German, English, Polish }
 
 /// <summary>
+/// How the world picture reaches the screen at zoom above 1 (F2): <c>Sharp</c> point-sampled pixels, the others
+/// rendered into a small target and scaled up — linearly, or with the <c>CatmullRom</c>/<c>Lanczos2</c> filter of
+/// <c>Shaders/Upscale.fx</c>. With the neural 2x sprites on, that target is double size and the filter scales by
+/// zoom / 2 (see MapGame).
+/// </summary>
+public enum Scaling { Sharp, Linear, CatmullRom, Lanczos2 }
+
+/// <summary>
 /// The look of the title and loading screens: <c>Normal</c> the Gold Edition's title and each campaign's loading
 /// screen; the others always gold, the original's orange (<c>Classic</c>) or the Amazons' purple.
 /// </summary>
@@ -55,6 +63,9 @@ public sealed record DisplaySettings
     /// <summary>Neural x2 upscaling of the sprites (experimental, off by default); F4 switches it for the session only.</summary>
     public bool NeuralUpscale { get; init; }
 
+    /// <summary>The world picture's scaling filter at zoom above 1; F2 switches it for the session only.</summary>
+    public Scaling Scaling { get; init; } = Scaling.CatmullRom;
+
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
     {
@@ -78,6 +89,10 @@ public sealed record DisplaySettings
             IntroVideo = Flag("introVideo", settings.IntroVideo),
             Cheats = Flag("cheats", settings.Cheats),
             NeuralUpscale = Flag("neuralUpscale", settings.NeuralUpscale),
+            Scaling = display.TryGetProperty("scaling", out var scaling) && scaling.ValueKind == JsonValueKind.String
+                    && Enum.TryParse<Scaling>(scaling.GetString(), ignoreCase: true, out var filter) && Enum.IsDefined(filter)
+                ? filter
+                : settings.Scaling,
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
                 ? Lang.Parse(language.GetString())
                 : settings.Language,
@@ -107,5 +122,6 @@ public sealed record DisplaySettings
             ["preferredColor"] = PlayerColors.Choices[PreferredColor].Id,
             ["cheats"] = Cheats,
             ["neuralUpscale"] = NeuralUpscale,
+            ["scaling"] = Scaling.ToString().ToLowerInvariant(),
         }, path);
 }

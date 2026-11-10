@@ -6,10 +6,15 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Homestead.Client;
 
 /// <summary>Which resolution the layers draw: the session's neural-upscale mode, one instance shared by all
-/// sprites of a library (the setting starts it, F4 flips it for the session).</summary>
+/// sprites of a library (the setting starts it, F4 flips it for the session). <see cref="WorldHiRes"/> narrows
+/// the 2x images to the world pass: only there (a 2x render target at zoom above 1) do their texels reach the
+/// screen; the UI and zoom ≤ 1 stay with the 1x images.</summary>
 public sealed class SpriteUpscaleState
 {
     public bool Enabled { get; set; }
+
+    /// <summary>Set by the game while it draws the world into its 2x render target; false everywhere else.</summary>
+    public bool WorldHiRes { get; set; }
 }
 
 /// <summary>The layers a settler frame consists of.</summary>
@@ -143,7 +148,7 @@ public sealed class SettlerSprites
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
-    private AtlasImage? HiRes(AtlasImage?[] images, int frame) => _upscale.Enabled ? images[frame] : null;
+    private AtlasImage? HiRes(AtlasImage?[] images, int frame) => _upscale.Enabled && _upscale.WorldHiRes ? images[frame] : null;
 
     private static Color Multiply(Color a, Color b) =>
         new(a.R * b.R / 255, a.G * b.G / 255, a.B * b.B / 255, a.A * b.A / 255);
