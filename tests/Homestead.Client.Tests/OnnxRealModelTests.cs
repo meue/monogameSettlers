@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Homestead.Assets.Gfx;
 using Homestead.Client.Neural;
 using Xunit.Abstractions;
@@ -48,6 +49,43 @@ public class OnnxRealModelTests(ITestOutputHelper output)
                 if (pixel >> 24 == 0)
                     Assert.Equal(0u, pixel & 0xFF_FFFFu);
             }
+
+        // A real session has run now, so the telemetry opt-out has been applied (and had its chance to fail):
+        // the variable must sit in the native environment, and no ONNX Runtime telemetry store may have appeared
+        // (1DS would leave a DeveloperTools/.onnxruntime directory with its SQLite event queue — nothing queued
+        // means nothing to upload). The black-box variant of this check, against a built binary, is
+        // tools/check-telemetry.sh.
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Equal("1", NativeGetEnvironmentVariable("ORT_DISABLE_TELEMETRY"));
+            var before = OnnxTelemetryArtifacts();
+            var probe = new GfxBitmap(2, 2, 0, 0, [0xFF00_00FF, 0xFF00_00FF, 0xFF00_00FF, 0xFF00_00FF]);
+            upscaler.Upscale(probe);
+            Assert.Equal(before, OnnxTelemetryArtifacts());
+        }
+    }
+
+    [DllImport("libc", CharSet = CharSet.Ansi)]
+    private static extern IntPtr getenv(string name);
+
+    private static string? NativeGetEnvironmentVariable(string name) =>
+        Marshal.PtrToStringAnsi(getenv(name));
+
+    /// <summary>Every ONNX Runtime telemetry directory under the user's profile (they do not exist unless 1DS ran).</summary>
+    private static List<string> OnnxTelemetryArtifacts()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var roots = new[]
+        {
+            Path.Combine(home, ".cache", "Microsoft"),
+            Path.Combine(home, "Library", "Application Support", "Microsoft"),
+            Path.Combine(home, ".local", "share", "Microsoft"),
+        };
+        var found = new List<string>();
+        foreach (string root in roots.Where(Directory.Exists))
+            foreach (string dir in Directory.EnumerateDirectories(root, ".onnxruntime", SearchOption.AllDirectories))
+                found.Add(dir);
+        return found;
     }
 
     private static uint[] Pixels(int width, int height)
