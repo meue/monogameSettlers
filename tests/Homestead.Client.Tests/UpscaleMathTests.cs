@@ -33,15 +33,41 @@ public class UpscaleMathTests
     }
 
     [Fact]
-    public void Transparent_pixels_are_filled_with_black_even_with_garbage_rgb()
+    public void Transparent_pixels_inherit_their_opaque_neighbors_color()
     {
+        // The RGB under a transparent pixel is garbage that would poison the inference; the neighbor's
+        // color gives the model something plausible at the edge instead of black seams.
         var bitmap = Bitmap(2, 1, [Px(200, 200, 200, 0), Px(1, 2, 3)]);
 
         float[] planes = UpscaleMath.ToNchwRgb(bitmap);
 
-        AssertPlane(planes, 0, 0f, 1 / 255f);
-        AssertPlane(planes, 1, 0f, 2 / 255f);
-        AssertPlane(planes, 2, 0f, 3 / 255f);
+        AssertPlane(planes, 0, 1 / 255f, 1 / 255f);
+        AssertPlane(planes, 1, 2 / 255f, 2 / 255f);
+        AssertPlane(planes, 2, 3 / 255f, 3 / 255f);
+    }
+
+    [Fact]
+    public void Fully_transparent_bitmaps_stay_black()
+    {
+        var bitmap = Bitmap(3, 2, new uint[6].Select(_ => Px(90, 80, 70, 0)).ToArray());
+
+        Assert.All(UpscaleMath.ToNchwRgb(bitmap), value => Assert.Equal(0, value, 5));
+    }
+
+    [Fact]
+    public void Transparent_regions_connected_to_opaque_fill_completely()
+    {
+        // A wide transparent stretch between two opaque ends: the fill propagates across all of it (the model
+        // gets plausible colors everywhere near the sprite, not just one ring in).
+        int width = 3 * UpscaleMath.ColorFillPasses;
+        var pixels = new uint[width];
+        pixels[0] = Px(10, 20, 30);
+        pixels[^1] = Px(10, 20, 30);
+        var bitmap = Bitmap(width, 1, pixels);
+
+        uint[] colors = UpscaleMath.FillTransparentRgb(bitmap);
+
+        Assert.All(colors, color => Assert.NotEqual(0u, color));
     }
 
     [Fact]
@@ -98,21 +124,46 @@ public class UpscaleMathTests
     }
 
     [Fact]
-    public void Combine_replicates_the_source_alpha_over_2x2_blocks()
+    public void Combine_places_a_vertical_edge_between_the_2x_pixels()
     {
-        var source = Bitmap(2, 2, [Px(0, 0, 0), Px(0, 0, 0, 0), Px(0, 0, 0, 0), Px(0, 0, 0)]);
-        var halved = new float[3 * 4 * 4];
+        // Left half opaque, right half transparent: the reconstructed contour (Catmull-Rom over the binary
+        // coverage, threshold 0.28) falls exactly where the source edge is, doubled: between output columns
+        // 3 and 4. A hard 2x2 replication would put the step two columns wide.
+        var source = Bitmap(4, 4, Enumerable.Range(0, 16).Select(i => i % 4 < 2 ? Px(0, 0, 0) : Px(0, 0, 0, 0)).ToArray());
+        var halved = new float[3 * 8 * 8];
+        for (int i = 0; i < halved.Length; i++)
+            halved[i] = 0.5f;
 
         GfxBitmap result = UpscaleMath.Combine(halved, source);
 
-        Assert.Equal(4, result.Width);
-        Assert.Equal(4, result.Height);
-        for (int y = 0; y < 4; y++)
-            for (int x = 0; x < 4; x++)
+        for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
             {
-                bool opaque = x < 2 ? y < 2 : y >= 2;
-                Assert.Equal(opaque ? (uint)0xFF00_0000 : 0u, result.Pixels[y * 4 + x] & 0xFF00_0000u);
+                uint pixel = result.Pixels[y * 8 + x];
+                if (x <= 3)
+                {
+                    Assert.Equal(0xFF00_0000u, pixel & 0xFF00_0000u);
+                    Assert.Equal(Px(128, 128, 128), pixel); // the model's color, opaque so unpremultiplied
+                }
+                else
+                    // Premultiplied: nothing of the color extrapolated past the edge may show.
+                    Assert.Equal(0u, pixel);
             }
+    }
+
+    [Fact]
+    public void Combine_keeps_a_one_pixel_line_two_pixels_wide()
+    {
+        // A single covered source column peaks at ~0.87 coverage in both of its 2x columns (and ~0.23 in the
+        // neighbors): the threshold of 0.28 keeps the line, a threshold of 0.5 would drop it entirely.
+        var source = Bitmap(4, 4, Enumerable.Range(0, 16).Select(i => i % 4 == 1 ? Px(0, 0, 0) : Px(0, 0, 0, 0)).ToArray());
+        var halved = new float[3 * 8 * 8];
+
+        GfxBitmap result = UpscaleMath.Combine(halved, source);
+
+        for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
+                Assert.Equal(x is 2 or 3 ? 0xFF00_0000u : 0u, result.Pixels[y * 8 + x] & 0xFF00_0000u);
     }
 
     [Fact]
