@@ -1,4 +1,6 @@
 using System.Text;
+using Homestead.Simulation.Ai;
+using Homestead.Simulation.Buildings;
 using Homestead.Simulation.Commands;
 
 namespace Homestead.Simulation.Lockstep;
@@ -47,7 +49,8 @@ public sealed class LockstepSession
     private readonly CommandCodec _codec;
     private readonly ILockstepLink _link;
     private readonly List<GameCommand> _outgoing = new();
-    private readonly Dictionary<long, IReadOnlyList<GameCommand>> _bundles = new();
+    private readonly Dictionary<long, TurnBundle> _bundles = new();
+    private readonly List<int> _takenOver = new();
     private long _sequence;
     /// <summary>The last turn this computer has sent its input for.</summary>
     private long _sentThrough;
@@ -141,12 +144,14 @@ public sealed class LockstepSession
             }
             if (turn >= FirstTurn)
             {
-                if (!_bundles.Remove(turn, out var commands))
+                if (!_bundles.Remove(turn, out var bundle))
                 {
                     Waiting = true;
                     return false;
                 }
-                _world.Commands.Enqueue(commands);
+                foreach (int player in bundle.Left ?? [])
+                    TakeOver(player);
+                _world.Commands.Enqueue(bundle.Commands);
             }
         }
         Waiting = false;
@@ -197,9 +202,33 @@ public sealed class LockstepSession
             return;
         }
         if (bundle.Turn >= Turn)
-            _bundles[bundle.Turn] = bundle.Commands;
+            _bundles[bundle.Turn] = bundle;
         _newest = Math.Max(_newest, bundle.Newest);
         Compare(bundle.Checks ?? []);
+    }
+
+    /// <summary>
+    /// The players a computer player took over since the last call (they left the game), for the messages. The same players at the
+    /// same tick on every computer: the server names them in a bundle.
+    /// </summary>
+    public IReadOnlyList<int> TakeTakenOver()
+    {
+        var players = _takenOver.ToArray();
+        _takenOver.Clear();
+        return players;
+    }
+
+    /// <summary>
+    /// A computer player plays on for a human who left, from the turn's first tick – its character drawn from the world's seed, so
+    /// the same on every computer. Not for a player who is gone from the game anyway (defeated, or not on the map).
+    /// </summary>
+    private void TakeOver(int player)
+    {
+        if (player >= _world.Peoples.Count || _world.AiPlayers.Any(a => a.Player == player) || _world.Goals?.IsDefeated(player) == true)
+            return;
+        var catalog = BuildingCatalog.Load(_world.PeopleOf(player));
+        _world.AiPlayers.Add(new AiPlayer(_world, catalog, player, random: new Random(unchecked(_world.Seed * 31 + 1009 * (player + 1)))));
+        _takenOver.Add(player);
     }
 
     /// <summary>Turns ahead of this computer the server can have handed out (a computer lagging far behind the others stays below it too: they wait).</summary>

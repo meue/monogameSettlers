@@ -20,21 +20,30 @@ public sealed class LocalRelay
 
     public ILockstepLink LinkOf(int player) => _links[player];
 
+    /// <summary>The player leaves the game (as the server does it): the others go on, a computer player takes over.</summary>
+    public void Remove(int player)
+    {
+        _links.Remove(player);
+        foreach (string bundle in _relay.Remove(player))
+            foreach (var link in _links.Values)
+                link.Inbox.Add(bundle);
+    }
+
     private sealed class Link(LocalRelay owner, int player) : ILockstepLink
     {
-        private readonly List<string> _inbox = new();
+        public readonly List<string> Inbox = new();
 
         public void Send(string message)
         {
             foreach (string bundle in owner._relay.Receive(player, message))
                 foreach (var link in owner._links.Values)
-                    link._inbox.Add(bundle);
+                    link.Inbox.Add(bundle);
         }
 
         public IReadOnlyList<string> Receive()
         {
-            var messages = _inbox.ToList();
-            _inbox.Clear();
+            var messages = Inbox.ToList();
+            Inbox.Clear();
             return messages;
         }
     }

@@ -35,8 +35,8 @@ internal sealed class Game(string id, string name, Connection host, GameSetup se
 /// open and join games – joining needs the host's program and game data (<see cref="GameFingerprint"/>), the reasons go back
 /// otherwise – and the host starts a game once every seat is taken: each computer gets the setup, its player and the
 /// <see cref="LockstepOptions"/>, then the turns go through a <see cref="TurnRelay"/>. Leaving the lobby frees the seat (the
-/// host leaving closes the game); leaving a running game is told to the others, who go on without the player (taking over by a
-/// computer player is still to come). Everything happens under one lock; sending is queued per connection.
+/// host leaving closes the game); leaving a running game is told to the others, who go on without the player (a computer player takes
+/// over on every computer, see <see cref="TurnRelay.Remove"/>). Everything happens under one lock; sending is queued per connection.
 /// Nothing a computer sends is trusted (docs/MULTIPLAYER.md): whatever it says is checked here or by the relay, whoever breaks a
 /// rule no honest client breaks is dropped, and <see cref="ServerLimits"/> bounds what anybody can hold on to.
 /// </summary>
@@ -288,6 +288,8 @@ public sealed class Hub(LockstepOptions options, ServerLimits limits, ILogger<Hu
         {
             // The host's fingerprint goes in below, whatever the setup says.
             setup = GameSetup.FromJson(message["setup"]!.ToJsonString()) with { Fingerprint = null };
+            // The names, too: the server puts in who took each seat when the game starts.
+            setup = setup with { Players = setup.Players?.Select(p => p is null ? null! : p with { Name = null }).ToArray()! };
         }
         catch (Exception e) when (e is System.Text.Json.JsonException or NullReferenceException or NotSupportedException)
         {
@@ -363,7 +365,7 @@ public sealed class Hub(LockstepOptions options, ServerLimits limits, ILogger<Hu
                 ["game"] = game.Id, ["name"] = game.Name, ["host"] = game.Host.Seat, ["you"] = member.Seat,
                 ["seats"] = new JsonArray(game.Seats.Select(s => (JsonNode)new JsonObject
                 {
-                    ["player"] = s, ["name"] = game.Taken.TryGetValue(s, out var taken) ? taken.Name : null,
+                    ["player"] = s, ["name"] = SeatName(game, s),
                     ["people"] = game.Setup.Players[s].People?.ToString(), ["color"] = game.Setup.Players[s].Color,
                 }).ToArray()),
                 // The computer players, so the humans see whom they play with or against.
@@ -373,6 +375,19 @@ public sealed class Hub(LockstepOptions options, ServerLimits limits, ILogger<Hu
                 }).ToArray()),
                 ["colors"] = new JsonArray(game.Setup.Players.Where(p => p.Color is not null).Select(p => (JsonNode)p.Color!.Value).ToArray()),
             }));
+    }
+
+    /// <summary>
+    /// The name of whoever took the seat, unique within the game: a name taken on an earlier seat gets a number (<c>Anna (2)</c>),
+    /// or two players of the same name would be told apart by nothing in the lobby or the chat. Null for a free seat.
+    /// </summary>
+    private static string? SeatName(Game game, int seat)
+    {
+        if (!game.Taken.TryGetValue(seat, out var connection) || connection.Name is not { } name)
+            return null;
+        int same = game.Seats.TakeWhile(s => s != seat)
+            .Count(s => game.Taken.TryGetValue(s, out var other) && string.Equals(other.Name, name, StringComparison.OrdinalIgnoreCase));
+        return same == 0 ? name : $"{name} ({same + 1})";
     }
 
     /// <summary>A player's own people and color in the lobby (null: drawn at the start); a color someone has already is refused.</summary>
@@ -419,6 +434,10 @@ public sealed class Hub(LockstepOptions options, ServerLimits limits, ILogger<Hu
             Error(connection, "not every seat is taken");
             return;
         }
+        game.Setup = game.Setup with
+        {
+            Players = game.Setup.Players.Select((p, player) => p.Human ? p with { Name = SeatName(game, player) } : p).ToArray(),
+        };
         game.Relay = new TurnRelay(game.Seats, firstTurn: options.DelayTurns);
         game.LastTurn = Environment.TickCount64;
         var setup = JsonNode.Parse(game.Setup.ToJson());

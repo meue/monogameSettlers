@@ -22,9 +22,11 @@ public sealed record PlayerCheck(int Player, StateCheck Check);
 /// <summary>
 /// Every player's commands for a turn, from the server: by player, each player's in the order issued; with the checks the
 /// turn's inputs carried, by player, and the furthest turn any player has sent an input for (<paramref name="Newest"/>: how
-/// far ahead the fastest computer is, so a slower one can catch up).
+/// far ahead the fastest computer is, so a slower one can catch up) and the players who left the game before the turn
+/// (<paramref name="Left"/>: a computer player takes each over with this turn).
 /// </summary>
-public sealed record TurnBundle(long Turn, IReadOnlyList<GameCommand> Commands, IReadOnlyList<PlayerCheck>? Checks = null, long Newest = 0);
+public sealed record TurnBundle(long Turn, IReadOnlyList<GameCommand> Commands, IReadOnlyList<PlayerCheck>? Checks = null, long Newest = 0,
+    IReadOnlyList<int>? Left = null);
 
 /// <summary>
 /// The network format of commands (JSON): every <see cref="GameCommand"/> type by its name in <c>$type</c>, found by
@@ -95,10 +97,10 @@ public sealed class CommandCodec
                 commands.Add(read);
         var checks = wire.Checks?.Select(c => TryRead(() => JsonSerializer.Deserialize<PlayerCheck>(c, _options)))
             .Where(c => c is { Check.Checksums: not null }).Select(c => c!).ToArray();
-        return new TurnBundle(wire.Turn, commands, checks, wire.Newest);
+        return new TurnBundle(wire.Turn, commands, checks, wire.Newest, wire.Left?.Where(p => p is >= 0 and < GameSetup.MaxPlayers).Distinct().ToArray());
     }
 
-    private sealed record WireBundle(long Turn, JsonElement[]? Commands, JsonElement[]? Checks, long Newest);
+    private sealed record WireBundle(long Turn, JsonElement[]? Commands, JsonElement[]? Checks, long Newest, int[]? Left);
 
     /// <summary>What was read; null for anything broken (unknown type, missing or wrong fields, unknown buildings, bad text …).</summary>
     private static T? TryRead<T>(Func<T?> read) where T : class

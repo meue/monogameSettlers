@@ -15,10 +15,11 @@ namespace Homestead.Simulation;
 /// <summary>
 /// One player of a game setup: <c>null</c> as people or color (palette index) means drawn; team 1–4 (0: none, against
 /// everybody); a human plays itself, every other player is a computer player (<paramref name="Character"/> from
-/// <c>ai.json</c>, null: drawn by the people's weights).
+/// <c>ai.json</c>, null: drawn by the people's weights). <paramref name="Name"/>: a human's name in a multiplayer game, filled in by
+/// the server when it starts the game (display only).
 /// </summary>
 public sealed record PlayerSetup(Civilization? People = null, int? Color = null, int Team = 0, bool Hardcore = false, bool Human = false,
-    string? Character = null);
+    string? Character = null, string? Name = null);
 
 /// <summary>
 /// The map of a game setup: a random map (<paramref name="RandomMap"/> and <paramref name="RandomSeed"/>; the generator makes
@@ -145,6 +146,8 @@ public sealed record GameSetup
                     problems.Add("no such team");
                 if (player.Character is { } character && !KnownCharacters(dataDirectory).Contains(character))
                     problems.Add("no such computer player");
+                if (player.Name is { } name && (name.Length is 0 or > MaxNameLength || PlayerText.Clean(name) != name))
+                    problems.Add("bad player name");
             }
         if (Positions is { } positions)
         {
@@ -169,6 +172,9 @@ public sealed record GameSetup
             ? [.. problems, "more human players than the map has"]
             : problems;
     }
+
+    /// <summary>Longest player name in a setup: a name and the number the server makes it unique with (<c>Anna (2)</c>).</summary>
+    public const int MaxNameLength = Lockstep.ServerMessages.MaxNameLength + 4;
 
     /// <summary>Highest color (palette index) and team of a player.</summary>
     public const int MaxColor = 63, MaxTeam = 4;
@@ -204,6 +210,7 @@ public sealed record GameSetup
             hardcore: Enumerable.Range(0, Math.Min(count, Players.Count)).Where(p => Players[p].Hardcore),
             positions: positions, production: settings.Apply(production), magic: settings.Apply(magic));
         world.Teams.AddRange(Players.Take(count).Select(p => p.Team));
+        world.PlayerNames.AddRange(Players.Take(count).Select(p => p.Name));
         world.Goals = new ConquestGoals();
         world.Multiplayer = Players.Count(p => p.Human) > 1;
         var characters = RandomFor(Draw.Characters);

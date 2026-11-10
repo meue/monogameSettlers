@@ -236,9 +236,17 @@ public sealed class ServerConnection : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Leaves the game (or lobby) and closes the connection: the server hears of it at once from the <c>leave</c> message, even if
+    /// the close itself never gets through (a process ending before it), and the others need not wait for a time-out.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
+        if (IsOpen)
+            Leave();
         _outgoing.Writer.TryComplete();
+        // What is queued (the leave) goes out before the close.
+        await _writing.WaitAsync(TimeSpan.FromSeconds(1)).ContinueWith(_ => { });
         try
         {
             if (_socket.State == WebSocketState.Open)
