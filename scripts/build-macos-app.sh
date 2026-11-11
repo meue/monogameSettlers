@@ -82,5 +82,9 @@ cp -R "$STAGE/monoSettlers.app" "$OUT/monoSettlers.app"
 # Locally built bundles carry no quarantine flag; this makes sure of it even if staged oddly.
 xattr -dr com.apple.quarantine "$OUT/monoSettlers.app" 2>/dev/null || true
 du -sh "$OUT/monoSettlers.app"
-echo "OK: $OUT/monoSettlers.app (ad-hoc signed, verified, $FRAMES-frame smoke passed)"
+if [ "$SMOKE" = 1 ]; then
+    echo "OK: $OUT/monoSettlers.app (ad-hoc signed, verified, $FRAMES-frame smoke passed)"
+else
+    echo "OK: $OUT/monoSettlers.app (ad-hoc signed, verified, smoke skipped)"
+fi
 echo "If you share it: recipients once run  xattr -dr com.apple.quarantine monoSettlers.app"
