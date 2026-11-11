@@ -88,6 +88,9 @@ Einzelne Sequenzen (visuell bestätigt):
 
 GUI-Bilder (Tabelle `0x11306`):
 - Gebäude-Icons (14/24/34/44): je Gebäude drei Größen hintereinander (klein, mittel, groß); JSettlers verweist auf die kleine.
+- Datei 03, Gebäude-Panel (je klein/mittel/groß): 192–194 Hand (Arbeit fortsetzen), 195–197 Zahnräder (höchste Priorität; 378–380 mit „!“),
+  198–200 einstürzendes Gebäude (Abriss), 201–203 Ringe (Arbeitsbereich: rot außen, gold, grün in der Mitte), 390–392 Hammer mit Pfeil
+  (Steg der Werft), 393–395 Haus (Arbeit einstellen).
 - Datei 03, Bau-Kategorien (je 27×24, 36×32, 45×40): 69–71 Grundgebäude, 72–74 Nahrung, 75–77 Militär,
   78–80 Soziales; 81–92 dieselben gedrückt (gewählt). 51–68: Hauptreiter (Bauen, Waren, Siedler; je 33/44/55, ab 60 gedrückt).
 - Datei 02, GUI 20 (100×600): blaue Hintergrundtextur.

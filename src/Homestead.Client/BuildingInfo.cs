@@ -49,8 +49,8 @@ public sealed partial class BuildingInfo : IDisposable
 
     private int _demolishImage;
 
-    /// <summary>Stop work (house), go on (hand), the highest priority and the same given (<c>buildingInfo</c> in <c>ui.json</c>);
-    /// the work area's own rings come from <see cref="LoadWorkAreaIcon"/>.</summary>
+    /// <summary>Stop work (house), go on (hand), the highest priority, the same given and the work area's rings,
+    /// all GUI images of file 03 (<c>buildingInfo</c> in <c>ui.json</c>).</summary>
     private Texture2D? _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon;
 
     private readonly int[] _headImages;
@@ -63,10 +63,10 @@ public sealed partial class BuildingInfo : IDisposable
             _states.Add((state[0].GetString()!, state[1].GetString()!));
         var info = root.GetProperty("buildingInfo");
         _demolishImage = info.GetProperty("demolish").GetInt32();
-        _headImages = new[] { "pause", "paused", "priority", "priorityOn" }.Select(n => info.GetProperty(n).GetInt32()).ToArray();
+        _headImages = new[] { "pause", "paused", "priority", "priorityOn", "workArea" }.Select(n => info.GetProperty(n).GetInt32()).ToArray();
     }
 
-    /// <summary>Loads the tear-down icon (once; the same for every people).</summary>
+    /// <summary>Loads the panel's icon textures from file 03's GUI images (once; the same for every people).</summary>
     public void LoadIcons(GraphicsDevice device, GfxDirectory gfx)
     {
         if (_demolishIcon is not null)
@@ -82,8 +82,7 @@ public sealed partial class BuildingInfo : IDisposable
             texture.SetData(image.Pixels);
             return texture;
         }).ToArray();
-        (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon) = (head[0], head[1], head[2], head[3]);
-        _workAreaIcon = LoadWorkAreaIcon(device);
+        (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon) = (head[0], head[1], head[2], head[3], head[4]);
         LoadMarketIcons(device, gui);
         LoadDockyardIcons(device, gfx, gui);
         LoadWarWorksIcons(device, gfx);

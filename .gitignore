@@ -9,8 +9,6 @@ obj/
 *.png
 # Exception: screenshots for the README.
 !docs/screenshots/*.png
-# Exception: our own generated UI icons (tools/gen-ui-icons.py).
-!data/ui-icons/*.png
 *.wav
 GFX/
 SND/

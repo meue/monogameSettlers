@@ -10,7 +10,7 @@ Auch Meldungen, die Klick-/Hover-Handler zurückgeben, sind Spieltexte → `Lang
 
 ## Verbindliche Regeln
 - Keine Original-Assets (GFX, SND, Karten, Musik, exportierte PNGs) in Repo oder Build. Prüf-Exporte nur in temporäre Verzeichnisse.
-  Einzige Ausnahmen: README-Screenshots in `docs/screenshots/` und die selbst generierten UI-Icons in `data/ui-icons/` (`tools/gen-ui-icons.py`, beide in `.gitignore` freigegeben).
+  Einzige Ausnahme: README-Screenshots in `docs/screenshots/` (in `.gitignore` freigegeben).
 - Original-EXE/-DLLs (auch `GFX/Siedler3_18…dat`, eine DLL) nie dekompilieren, disassemblieren, analysieren. Nur Datenformate.
 - Kein Kopierschutz/DRM umgehen.
 - JSettlers-Code (MIT) darf übernommen werden → `THIRD_PARTY_NOTICES.md` pflegen.
@@ -58,7 +58,7 @@ Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–21
 - Gelände-Atlas: Texturkoordinaten einen halben Texel innerhalb der Zelle, sonst Linien aus Nachbarzellen.
 - Sprites nur über `SpriteLibrary` (gemeinsame Atlas-Seiten, `SpriteAtlas`); keine eigene `Texture2D` je Bild (Draw-Calls).
 - Lauf-Sequenzen: 72 Frames = 6 Richtungen à 12 (SW, W, NW, NE, O, SO); Frame 0 stehen, 1–11 Zyklus je Rasterschritt.
-- Eigene generierte UI-Icons in `data/ui-icons/`; regenerieren mit `tools/gen-ui-icons.py` (committetes Skript, keine PNG-Handbearbeitung).
+- GUI-Bilder der Original-Dateien nur zur Laufzeit über `GfxDirectory`/`SpriteLibrary` aus der Installation laden (wie alle Original-Sprites).
 
 ## Installation des Originals
 `HOMESTEAD_GAME_DIR` oder `gameDirectory` in `~/.config/homestead/settings.json`; der erste gültige gilt (`GameInstallation.TryLocate`).
