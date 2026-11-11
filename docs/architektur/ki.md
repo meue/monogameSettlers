@@ -1,110 +1,136 @@
-# KI (`src/Homestead.Simulation/Ai`)
+# AI (`src/Homestead.Simulation/Ai`)
 
-Konzept der Charaktere und Taktiken: [../KI-TACTICS.md](../KI-TACTICS.md).
+Concept of the characters and tactics: [../KI-TACTICS.md](../KI-TACTICS.md).
 
-- `Ai/` – `AiPlayer`: gleiche Befehle wie ein Mensch, kennt die ganze Karte. `World.AiPlayers` jeden Tick angestoßen. `MapSurvey`: Kartenüberblick in Zellen.
-  - Bauen nach `data/ai.json` und Bedarf: Wohnhaus, solange Träger ≤ 3 × Produktionsgebäude (Größe nach fertigen Sägewerken/Steinmetzen
-    je Volk); kein Material für Türme zurückhalten; kein weiteres Gebäude einer Art, solange eins auf Arbeiter wartet; Rohstoffgebäude ohne
-    Platz probieren weitere Zellen; Wasserwerk ohne Platz → Expansion zum Fluss. Gebäude ohne Platz am Anker → geräumigste eigene Zelle.
-  - Wachstum nach der Build-Order (`AiPlayer.Growth`, `growth` in `ai.json`): je Fenster (120 s) gemessen, worauf fertige, besetzte Gebäude
-    warten; Ware, auf die eine Abnehmerart ≥ `starved` (25 %) der Zeit wartet (je Art, nicht gemittelt), ohne Lagerbestand → ein Erzeuger mehr (Werkstatt/Mine nur, wenn die
-    vorhandenen ≥ `busy` (70 %) arbeiten – sonst liegt der Engpass weiter vorn); ausgelastete Waffenschmiede/Kasernen (bei Waffen im Lager)/kleine Tempel → noch einer.
-    Je Art einer zugleich; nicht, wenn im Fenster einer fertig wurde.
-  - Minen nur ab Erfolgschance `mines.minChance` (0,3), Abriss unter `mines.abandonChance` (0,1); kein Platz → Erz fehlt → Expansion.
-    Ressourcengebäude ohne Platz (`_noSpot`) erst nach `NoSpotRetryTicks` (15 s, Konstante – Konfigfelder fehlen in alten Spielständen) wieder gesucht.
-    Schmelzen erst mit eigener Mine ihres Erzes.
-  - Vor dem Abriss erschöpfter Steinmetze/Fischer: Arbeitsbereich (bis `MaxWorkCenterDistance`) dorthin versetzen, wo mehr in Reichweite ist (`BetterWorkCenter`).
-  - Werkzeugschmiede nicht in der Build-Order, nur wenn ein Arbeiter auf Werkzeug wartet (ohne Brett-/Stein-Rücklage: fehlt die Säge, kommen keine
-    Bretter mehr). Ohne Werkzeugschmiede weitere Waffenschmiede nur, solange daneben ein Schmied bleibt (arbeitslose Schmiede + Hämmer − Schmieden
-    ohne Schmied ≥ 2, `AiPlayer.Smiths`); findet die Werkzeugschmiede trotzdem keinen, wird eine Waffenschmiede abgerissen (unbesetzte zuerst), ihr Schmied wechselt.
-  - Lagerhaus erst mit Gold/Edelsteinen (Goldschmelze/Edelsteinmine fertig oder Barren/Steine auf eigenem Land, auch erobert), dann bei `stockWhenWaiting` (8)
-    herumliegenden einlagerbaren Waren und weniger als 2 freien Lagerplätzen.
-  - Wohnhaus-Abriss, wenn danach noch `spareRoom` frei. Förster alle `forester.checkSeconds` (10) angehalten ab `forester.maxTrees` (10) Bäumen/Setzlingen im Bereich.
-    Förster der Build-Order nur als Obergrenze: gebaut am fertigen Holzfäller mit den wenigsten, unter `forester.buildBelowTrees` (15) Bäumen/Setzlingen
-    im Arbeitsbereich, dessen Mitte in keinem Förster-Arbeitsbereich liegt (voller Wald: keiner), höchstens Förster-Radius − 2 entfernt (sonst nächster
-    bedürftiger Holzfäller, sonst keiner – früher landeten sie weit weg, der Holzfäller blieb bedürftig, ein Förster nach dem anderen), einer nach dem anderen
-    (der letzte muss arbeiten); ohne Holzfäller (kein Baum auf eigenem Land) am Startpunkt.
-    Imkerei wie ein Rohstoffgebäude: Zelle mit den meisten Bäumen, Holzfäller ringsum (16) zählen dagegen; ohne Bäume keine.
-  - Kein Bau auf Ackerland oder im Feldbereich eigener Farmen (Umkreis 4 ums Arbeitszentrum); Farm braucht 35 freie Grasfelder im Bereich.
-  - Expansion: Türme gezielt zu fehlenden Rohstoffen (ferne Ziele Turm für Turm), meidet Plätze mit mehr als `maxWaterShare` Wasser.
-  - Nach der Nahrungskette: großer Tempel, Mana-Kette, kleiner Tempel; spät Goldmine/-schmelze (Ägypter: Edelsteinmine);
-    Expansion zu Gold (`lateOres`) erst, wenn die Build-Order bis zur Mine erfüllt ist.
-  - Feinde: alle Spieler außer Verbündeten (`IsEnemy` → `World.AreAllies`, Teams vom Startscreen) – deren Soldaten, Gebäude,
-    Stapel (Dieb) und Zauberziele lässt sie in Ruhe.
-  - `AiPlayer.Military`: Soll-Besatzung voll (`Staff`), kennt alle Feindsoldaten, wägt jede Sekunde neu. Untätig zählen auch Soldaten auf
-    einfachem Laufbefehl und auf Rückzug (erzwungen) – Rückziehende sind sofort frei für Verteidigung/Guerilla/Feldzug, laufen sonst weiter
-    (Bewachung schickt sie nicht um). Verteidigung zuerst; Guerilla gegen kleinere Trupps (auch Geologen, `geologistHealth`) bei deutlicher
-    Überlegenheit; herumstehende Feinde nicht tiefer als `military.hinterlandDepth` in ihrem Land (Plänklerin 8);
-    feindliche Soldaten in `military.reinforceRadius` (30) ums Ziel zählen mit (verstreute kommen zu Hilfe); Guerilla nicht, wo Turm-Bogenschützen
-    mehr als `military.towerFireRatio` (0,5) × Zielstärke ausmachen – geprüft vom Mittelpunkt der Angreifer (laufende wird abgebrochen, lockt der Feind
-    sie unter die Türme); Angriff aufs Land = kämpfen oder Laufziel außerhalb des eigenen Lands; nach Abbruch Ziel 30 s in Ruhe; Guerilla vor Zurückhalten
-    (Verteidiger dürfen angreifen, solange genug gegen andere Trupps bleiben). Rest: Charakterzug `guardByThreat` bewacht nach Bedrohung
-    (ohne: stehen bleiben); ohne Bedrohung Turmverteilung: `frontTowers` (Plänklerin), `everyOtherTower` (Feldherr, Legion),
-    `rotatingTowers` (Unbeugsamer: 30 %, minütlich neu), Hitzkopf: ein Haufen.
-  - `AiPlayer.Campaign`: sammelt Soldaten, erobert feindliche Militärgebäude bei 1,5:1 (Besatzung gewichtet `attack.garrisonWeight`, Burg doppelt).
-    Beim Sammeln Aufgabe erst unter 85 % der Abbruchschwelle; aufgegebenes/geräumtes Ziel 60 s in Ruhe.
-    Werte: `attack.armyRatio` (0 = egal), `attack.commit` (Anteil freier Soldaten, 1 = alle), `attack.abortRatio` (0 = nie aufgeben),
-    `attack.maxDistance` (0 = egal), `military.retreatRatio` (0 = nie zurück).
-  - `AiPlayer.Assault` (Cheat `/attackme`, `AssaultOn`, gespeichert): statt Strikes/Feldzug/Verteidigung/Lazarett je Militär-Takt Besatzungen auf 1,
-    alle anderen Soldaten (auch neue) gegen das Militärgebäude des Spielers nächst ihrer Mitte (`Military.Attack`; Bogenschützen und ohne
-    Militärgebäude alle per `Move` zur Tür), nie Rückzug (kein `TendWounded`); Kämpfende und schon auf ihn Angesetzte bleiben dabei; Priester folgen.
-    Ende, wenn der Spieler kein Gebäude mehr hat; Verbündete nie.
-  - `AiPlayer.Challenge` (KI-Chat, `ChallengedBy`, gespeichert): beim nächsten Militär-Takt ein Feldzug nur gegen diesen Spieler, ohne
-    `armyRatio`, `maxDistance`, Timing-Traits und freien Weg (auch wenn eigenes Land bedrängt ist); 1:1 gegen die Verteidigung genügt,
-    mindestens die Hälfte der übrigen freien Kämpfer zieht mit; danach normaler Feldzug. Nicht während Feldzug/Assault, Verbündete nie.
-    `CanTakeUpChallenge`: dieselbe Zielsuche trocken (für `cannotAttackSpeaker` in der Lage).
-  - `AiPlayer.Superiority` (`superiority` in `ai.json`, alle Charaktere; gegen Gegner außer Reichweite auf großen Karten): ab `startMinutes` (60)
-    alle `intervalSeconds` (300) plumper Vergleich der ganzen Armeen (alle Soldaten × Kampfkraft); gegen den schwächsten Feind mit
-    ≥ `armyRatio` (2):1 ein Feldzug wie bei der Herausforderung (ohne Entfernung, freien Weg, Timing-Traits), aber mit `ratio` (2) × Verteidigung
-    des Ziels; findet sich kein Ziel, der nächstschwächere. Nicht bei Feinden im eigenen Land, laufendem Feldzug/Assault, Waffenruhe.
-  - Verbündete in allen Kräftevergleichen (`AiPlayer.Allies`): die Feindseite zählt ohnehin alle Feinde; auf der eigenen Seite zählen
-    verbündete Soldaten draußen (`AlliedStrength`: Feldzug/Lazarett-Rückzug im `attack.defenseRadius` ums Ziel, Strike in
-    `reinforceRadius`, Zurückhalten/`forwardBase` in `threatRange`) und Bogenschützen verbündeter Militärgebäude in Reichweite mit –
-    so schließt sich die KI Kämpfen und Feldzügen Verbündeter an. `armyRatio` und `superiority` vergleichen Team gegen Team (`TeamArmy`).
-  - `AiPlayer.Diplomacy` (KI-Chat, gespeichert, lazy für alte Stände): `Truce(player, ticks)` beendet Feldzug/Assault/Herausforderung
-    gegen ihn (Soldaten heim), bricht Guerilla-Strikes gegen ihn ab, keine neuen bis Ablauf; Verteidigung im eigenen Land bleibt, seine
-    Soldaten im eigenen Land brechen sie, `Challenge`/`Assault` beenden sie. `Help(ally, ticks)`: die Hälfte der freien Soldaten (mind. 1,
-    nicht mehr unter `IdleSoldiers`) zur stärksten Feindgruppe im Land des Verbündeten, sonst zu dessen Militärgebäude nächst einem
-    Feindgebäude; je Militär-Takt nachgeführt, nach Ablauf / ohne Gebäude des Verbündeten heim. `CanHelp` → `cannotHelpSpeaker`.
-    Lage für den Chat: `AiSituation` (knappes JSON, Nullen/false weggelassen, je Spieler: Volk, Charakter, Armee, `powerVsSpeaker`, `distanceToSpeaker`, Feinde im Land, Land,
-    Gebäude, Kämpfe, Trend der letzten 5 min aus `GameHistory`, `doing`; dazu letzte 16 Chatzeilen).
-  - `AiPlayer.Tactics`: in kleinen Gefechten (Strike/Feldzug ≤ `military.wounded.maxSoldiers` 10) ziehen sich Kämpfende unter `withdrawHealth` (35 %)
-    zurück (erzwungen, Position halten `restDistance` vom Feind Richtung `RetreatDoor`; verfolgt → zum Gebäude; eigenes Lazarett in Rufweite, nicht
-    näher am Feind: stattdessen freigegeben zu dessen Tür), solange der Rest `holdRatio` × Gegner hat;
-    zurück bei `rejoinHealth` (geheilt), unter `needRatio` × Gegner oder Gegner fast besiegt (`mopUpRatio`); 20 s kein erneuter Rückzug. Hitzkopf: nie.
-    Lazarett (`hospital` in `ai.json`): untätige Verwundete (< `woundedHealth` 80 %) zum nächsten eigenen Lazarett bis `sendDistance` (60): der schwächste
-    auf den Heilplatz, die übrigen warten 3 Felder vor der Tür (sonst schieben sie sich gegenseitig weg, der Heiler kommt nie); mehr als `wounded` (5) solche (ohne die noch Kämpfenden) weiter als `sendDistance` von jedem Lazarett
-    (auch Baustellen) → Lazarett vor der Build-Order (wie Wohnhäuser) am Militärgebäude nächst ihnen; höchstens `max` (3), keins im Umkreis
-    `spacing` (120) eines anderen (auch Baustellen).
-    Late Game = große Armee (`army.lateSoldiers` 20 Soldaten außerhalb der Gebäude; zu groß, um Einzelne zurückzuziehen): Waffenschmied-Anteile
-    `lateShares` (Speer 100 %, Bogen 80 %, Schwert 15 %); unter ¾ davon die Anteile von vorher.
-    Strikes verfolgen alle Teile zerfallener Zielgruppen (nächster zuerst).
-  - `AiPlayer.Magic`: Priester folgen Angriffen mit Abstand, zaubern ab `magic.minTargets` noch nicht Getroffenen (Feinde nahe eigenen
-    Kämpfenden/Strike-/Feldzug-Soldaten, auch Bogenschützen und Verstärkung; Eingefrorene kurz vor dem Auftauen zählen wieder), mehrere zugleich
-    auf verschiedene Stellen, Mana laufender Zauber reserviert. Eingefrorene zählen im Kräftevergleich nichts, mit dem Auftauen wieder mehr (`Strength`).
-    Blatt wenden (`TurnWithSpell`): statt Strike-Abbruch, Feldzug-Aufgabe oder -Rückzug erst der Volkszauber (nicht Eile), solange noch
-    `magic.turnRatio` (0,6) des Nötigen da ist. Aufwertungen sofort bei genug Mana
-    (`magic.upgradeOrder`: Schwertkämpfer, Bogenschützen, Pikeniere). KI zaubert nur den Volkszauber.
-  - Charaktere/Charakterzüge (Konzept: `docs/KI-TACTICS.md`; Kennungen englisch, deutsche Namen in `ui.json` `aiCharacters`/`aiTraits`):
-    Charakter (`AiCharacter`, `characters` in `ai.json`) nennt Züge (`AiTrait`, `Ai/Traits/<Kennung>Trait`; Vorgaben unter `traits`,
-    je Charakter überschreibbar) und überschreibt Werte; `characterWeights` (je Volk) losen je Partie.
-    Entscheidungspunkte: `LeadCampaign` (Truppenführung), `LeadStrike` (Gefechtsführung, `StrikeLeader`), `Guard` (Bewachung), `AllowCampaign` (Zeitpunkt), `GarrisonLimit` (Besatzung),
-    `ArrangeBuildOrder` (Build-Order, einmal beim Start), `RunErrands` (Besorgungen, nach der Bewachung).
-    Züge: `waves` (Ruhe/Wellen im Wechsel), `frontGarrison` (nur frontnahe Gebäude voll, sonst `backline`), `earlyArmy` (Schmelze,
-    Waffenschmied, Kaserne direkt nach Holz/Stein; Schmelze auch ohne Mine bei Erz auf eigenem Land), `forwardBase` (Sammeln am frontnächsten
-    Militärgebäude, Rückzug ohne Kampf vor Stärkeren), `pincer` (Feldherr: Finte vom Sammelpunkt, Hauptgruppe im Bogen zur Flanke),
-    `thief` (Plänklerin, Hitzkopf: `scouts` Späher stehlen Stapel am Rand feindlichen Lands, `ranks` Gold/Waffen/Erze > Werkzeuge > Nahrung > Rest;
-    nicht bei feindlichen Soldaten in `soldierRadius`, sonst heimgerufen, Stapel `retrySeconds` gemieden).
-    `summoner` (Legion: Mana über `reserveSpells` × Volkszauber → „Himmlische Geschenke“ durch einen freien Priester auf eigenem Land
-    nahe ihm, `edgeDistance` vom Rand, ohne Feindsoldaten, mit `minFreeFields` freien Feldern).
-    `formation` (Legion, Feldherr, Plänklerin: Strike mit Bogen + Nahkampf gegen Feinde zu Fuß, noch außer Reichweite – Bogenschützen vor auf
-    Reichweite − 2, Nahkämpfer halten `parkDistance` dahinter; Feind ≤ `fallBackDistance` an Bogenschützen → diese halten hinter den Nahkämpfern,
-    die gehen rein; danach alle `fallBackSeconds` erneut, ohne Ziel rücken Bogenschützen nach; spätestens nach `screenSeconds` rein).
-    `buildOrderMoves` verschiebt Gebäude in der Build-Order.
-    Volks-Charaktere (`standard`/`general` nur per `--characters`): `hothead` (Ägypter: `earlyArmy`, alles greift an, Hinterland dünn, stiehlt),
-    `unyielding` (Asiaten: gibt erst unter halber Verteidigungsstärke auf), `legion` (Römer: frühes Gold, Wellen, Zange, Warenzauber),
-    `skirmisher` (Amazonen: Feldzüge erst bei 2:1, kleine Trupps, nahe Ziele, stiehlt).
-    Ausgedacht (Arena, Turnier): Züge mit `+` (`skirmisher+forwardBase`, angehängte vor den eigenen), Werte mit `@pfad=wert`
-    (`general@attack.ratio=1.3@buildOrderMoves.barrack=-5`).
-    Notizen eines Zugs beginnen mit seiner Kennung, erscheinen live (`AiPlayer.Noted`, `TraitOfNote`).
-    Werte in `ai.json`, je Volk überschreibbar (`civilizations`, dort auch die Build-Order).
+- `Ai/` – `AiPlayer`: the same commands as a human, knows the whole map. `World.AiPlayers` triggered every tick. `MapSurvey`: map overview in cells.
+  - Building according to `data/ai.json` and demand: residence as long as carriers ≤ 3 × production buildings (size by
+    finished sawmills/stonecutters per people); no holding back material for towers; no further building of a kind
+    while one is waiting for workers; raw-material buildings without a spot try further cells; waterworks without a
+    spot → expansion towards the river. Buildings without a spot at the anchor → the most spacious own cell.
+  - Growth per the build order (`AiPlayer.Growth`, `growth` in `ai.json`): per window (120 s) it measures what finished,
+    occupied buildings are waiting for; a good that one kind of consumer waits for ≥ `starved` (25%) of the time
+    (per kind, not averaged), without stock → one more producer (workshop/mine only if the existing ones work
+    ≥ `busy` (70%) – otherwise the bottleneck lies further up the chain); busy weaponsmiths/barracks (with weapons
+    in stock)/small temples → one more. One of each kind at a time; not if one was finished in the window.
+  - Mines only from success chance `mines.minChance` (0.3), demolition below `mines.abandonChance` (0.1);
+    no spot → ore missing → expansion. Resource buildings without a spot (`_noSpot`) are searched again only after
+    `NoSpotRetryTicks` (15 s, constant – config fields are missing in old save games). Smelters only with their own mine for their ore.
+  - Before demolishing exhausted stonecutters/fishermen: move the work area (up to `MaxWorkCenterDistance`) to
+    where more is in range (`BetterWorkCenter`).
+  - The toolsmith is not in the build order, only when a worker is waiting for a tool (without a plank/stone
+    reserve: if the saw is missing, no more planks come). Without a toolsmith, further weaponsmiths only as long
+    as a smith remains beside them (unemployed smiths + hammers − smithies without a smith ≥ 2, `AiPlayer.Smiths`);
+    if the toolsmith still finds none, a weaponsmith is demolished (unoccupied first), its smith switches.
+  - Storehouse only with gold/gems (gold smelter/gem mine finished or bars/gems on own land, captured too), then
+    at `stockWhenWaiting` (8) storable goods lying around and fewer than 2 free storage spots.
+  - Residence demolition if `spareRoom` is still free afterwards. Foresters checked every `forester.checkSeconds` (10),
+    stopped from `forester.maxTrees` (10) trees/saplings in their area. Foresters in the build order only as an upper limit: built at the
+    finished woodcutter with the fewest, under `forester.buildBelowTrees` (15) trees/saplings in the work area,
+    whose centre lies in no forester work area (full forest: none), at most forester radius − 2 away (otherwise the next
+    needy woodcutter, otherwise none – they used to land far away, the woodcutter stayed needy, one forester after the other),
+    one after the other (the last one must work); without a woodcutter (no tree on own land) at the starting point.
+    The beekeeper like a raw-material building: the cell with the most trees, woodcutters around it (16) count against it; without trees none.
+  - No building on farmland or in the field area of own farms (radius 4 around the work centre); a farm needs
+    35 free grass fields in its area.
+  - Expansion: towers aimed at missing raw materials (distant targets tower by tower), avoids spots with more than
+    `maxWaterShare` water.
+  - After the food chain: large temple, mana chain, small temple; late gold mine/gold smelter (Egyptians: gem mine);
+    expansion towards gold (`lateOres`) only once the build order is fulfilled up to the mine.
+  - Enemies: all players except allies (`IsEnemy` → `World.AreAllies`, teams from the start screen) – their
+    soldiers, buildings, piles (thief) and spell targets it leaves alone.
+  - `AiPlayer.Military`: target garrison full (`Staff`), knows all enemy soldiers, re-weighs every second.
+    Soldiers on a simple move order and on a (forced) retreat also count as idle – those retreating are
+    immediately free for defence/guerrilla/campaign, otherwise they keep walking (guarding does not
+    redirect them). Defence first; guerrilla against smaller squads (geologists too, `geologistHealth`) with clear
+    superiority; standing-around enemies no deeper than `military.hinterlandDepth` into their land (Skirmisher 8);
+    enemy soldiers within `military.reinforceRadius` (30) of the target count too (scattered ones come to
+    help); no guerrilla where tower bowmen make up more than `military.towerFireRatio` (0.5) × target strength –
+    checked from the centre of the attackers (a running one is cancelled if the enemy lures it under the towers);
+    attack on the land = fighting or move target outside our own land; after a cancellation the target is left
+    alone for 30 s; guerrilla before holding back (defenders may attack as long as enough remain against other
+    squads). Rest: the trait `guardByThreat` guards by threat (without it: stay put); without a threat, tower
+    distribution: `frontTowers` (Skirmisher), `everyOtherTower` (General, Legion),
+    `rotatingTowers` (Unyielding: 30%, redrawn every minute), Hothead: one heap.
+  - `AiPlayer.Campaign`: gathers soldiers, captures enemy military buildings at 1.5:1 (garrison weighted by
+    `attack.garrisonWeight`, castle double). While gathering, it gives up only below 85% of the cancellation
+    threshold; an abandoned/vacated target is left alone for 60 s.
+    Values: `attack.armyRatio` (0 = irrelevant), `attack.commit` (share of free soldiers, 1 = all), `attack.abortRatio` (0 = never give up),
+    `attack.maxDistance` (0 = irrelevant), `military.retreatRatio` (0 = never retreat).
+  - `AiPlayer.Assault` (cheat `/attackme`, `AssaultOn`, saved): instead of strikes/campaign/defence/hospital,
+    per military tick garrisons down to 1, all other soldiers (new ones too) against the player's military
+    building nearest their centre (`Military.Attack`; bowmen, and everyone if no military building, via `Move`
+    to the door), never retreat (no `TendWounded`); those fighting and those already sent against the player stay on it; priests follow.
+    Ends when the player has no building left; allies never.
+  - `AiPlayer.Challenge` (AI chat, `ChallengedBy`, saved): at the next military tick a campaign only against this
+    player, without `armyRatio`, `maxDistance`, timing traits and a free path (even if our own land is under
+    pressure); 1:1 against the defence suffices, at least half of the remaining free fighters come along; a
+    normal campaign afterwards. Not during campaign/assault, allies never.
+    `CanTakeUpChallenge`: the same target search as a dry run (for `cannotAttackSpeaker` in the situation).
+  - `AiPlayer.Superiority` (`superiority` in `ai.json`, all characters; against opponents out of range on large
+    maps): from `startMinutes` (60) every `intervalSeconds` (300) a crude comparison of the whole armies (all
+    soldiers × combat strength); against the weakest enemy with ≥ `armyRatio` (2):1 a campaign as with the
+    challenge (without distance, free path, timing traits), but with `ratio` (2) × the defence of the target;
+    if no target is found, the next weakest. Not with enemies in our own land, a running campaign/assault, or a truce.
+  - Allies in all strength comparisons (`AiPlayer.Allies`): the enemy side counts all enemies anyway; on our own
+    side, allied soldiers outside count (`AlliedStrength`: campaign/hospital retreat within `attack.defenseRadius`
+    of the target, strike within `reinforceRadius`, holding back/`forwardBase` within `threatRange`) as do bowmen
+    of allied military buildings in range – that is how the AI joins its allies' battles and campaigns.
+    `armyRatio` and `superiority` compare team against team (`TeamArmy`).
+  - `AiPlayer.Diplomacy` (AI chat, saved, lazy for old save games): `Truce(player, ticks)` ends campaign/assault/challenge
+    against them (soldiers home), cancels guerrilla strikes against them, no new ones until expiry; defence in our
+    own land remains, their soldiers in our own land break it, `Challenge`/`Assault` end it. `Help(ally, ticks)`:
+    half of the free soldiers (at least 1, no more than under `IdleSoldiers`) to the strongest enemy group in the
+    ally's land, otherwise to the ally's military building nearest to an enemy building; updated per military tick, home
+    after expiry / when the ally has no buildings. `CanHelp` → `cannotHelpSpeaker`.
+    Situation for the chat: `AiSituation` (compact JSON, zeros/false omitted, per player: people, character, army,
+    `powerVsSpeaker`, `distanceToSpeaker`, enemies in the land, land, buildings, battles, trend of the last 5 min
+    from `GameHistory`, `doing`; plus the last 16 chat lines).
+  - `AiPlayer.Tactics`: in small engagements (strike/campaign ≤ `military.wounded.maxSoldiers` 10) fighters below
+    `withdrawHealth` (35%) retreat (forced, holding position `restDistance` from the enemy towards `RetreatDoor`;
+    pursued → to the building; own hospital within call range, not closer to the enemy: released to its door
+    instead), as long as the rest has `holdRatio` × opponents; back at `rejoinHealth` (healed), below `needRatio` ×
+    opponents or enemy almost defeated (`mopUpRatio`); no renewed retreat for 20 s. Hothead: never.
+    Hospital (`hospital` in `ai.json`): idle wounded (< `woundedHealth` 80%) to the nearest own hospital up to
+    `sendDistance` (60): the weakest onto the healing spot, the others wait 3 fields in front of the door
+    (otherwise they push each other aside and the healer never comes out); more than `wounded` (5) of those (not
+    counting those still fighting) farther than `sendDistance` from every hospital (construction sites too) → a
+    hospital before the build order (like residences) at the military building nearest them; at most `max` (3),
+    none within `spacing` (120) of another (construction sites too).
+    Late game = large army (`army.lateSoldiers` 20 soldiers outside the buildings; too large to withdraw
+    individuals): weaponsmith shares `lateShares` (spear 100%, bow 80%, sword 15%); below ¾ of that, the shares from before.
+    Strikes pursue all parts of disintegrated target groups (nearest first).
+  - `AiPlayer.Magic`: priests follow attacks at a distance, cast from `magic.minTargets` at those not yet hit
+    (enemies near our own fighters/strike/campaign soldiers, bowmen and reinforcements too; frozen ones count
+    again shortly before thawing), several at the same time onto different spots, mana for running spells
+    reserved. Frozen ones count for nothing in the strength comparison, more again with the thawing (`Strength`).
+    Turning the tables (`TurnWithSpell`): instead of a strike cancellation, campaign abandonment or retreat, first
+    the people's spell (not haste), as long as `magic.turnRatio` (0.6) of what is needed is still there. Upgrades
+    immediately with enough mana (`magic.upgradeOrder`: swordsmen, bowmen, pikemen). The AI casts only the people's spell.
+  - Characters/traits (concept: `docs/KI-TACTICS.md`; ids English, German names in `ui.json` `aiCharacters`/`aiTraits`):
+    a character (`AiCharacter`, `characters` in `ai.json`) names traits (`AiTrait`, `Ai/Traits/<Id>Trait`; defaults
+    under `traits`, overridable per character) and overrides values; `characterWeights` (per people) draw one per match.
+    Decision points: `LeadCampaign` (leading the troops), `LeadStrike` (leading the engagement, `StrikeLeader`),
+    `Guard` (guarding), `AllowCampaign` (timing), `GarrisonLimit` (garrison),
+    `ArrangeBuildOrder` (build order, once at the start), `RunErrands` (errands, after guarding).
+    Traits: `waves` (calm/waves alternating), `frontGarrison` (only buildings near the front full, otherwise
+    `backline`), `earlyArmy` (smelter, weaponsmith, barracks right after wood/stone; smelter even without a mine
+    if there is ore on own land), `forwardBase` (gathering at the military building nearest the front, retreating
+    without a fight from stronger ones), `pincer` (General: feint from the gathering point, main group in an arc
+    to the flank), `thief` (Skirmisher, Hothead: `scouts` scouts steal piles at the edge of enemy land, `ranks`
+    gold/weapons/ores > tools > food > rest; not with enemy soldiers within `soldierRadius`, otherwise called home,
+    piles shunned for `retrySeconds`).
+    `summoner` (Legion: mana above `reserveSpells` × the people's spell → "Heavenly gifts" cast by a free priest
+    on own land near him, `edgeDistance` from the edge, without enemy soldiers, with `minFreeFields` free fields).
+    `formation` (Legion, General, Skirmisher: strike with bows + melee against enemies on foot, still out of
+    range – bowmen forward to range − 2, melee fighters hold `parkDistance` behind them; enemy ≤
+    `fallBackDistance` from the bowmen → they hold behind the melee fighters, who go in; after that every
+    `fallBackSeconds` again, without a target the bowmen move up; at the latest after `screenSeconds` in).
+    `buildOrderMoves` moves buildings in the build order.
+    People characters (`standard`/`general` only via `--characters`): `hothead` (Egyptians: `earlyArmy`,
+    everything attacks, hinterland thin, steals), `unyielding` (Asians: gives up only below half the defence
+    strength), `legion` (Romans: early gold, waves, pincer, goods spells), `skirmisher` (Amazons: campaigns only
+    from 2:1, small squads, near targets, steals).
+    Made up (Arena, tournament): traits with `+` (`skirmisher+forwardBase`, appended ones before their own),
+    values with `@path=value` (`general@attack.ratio=1.3@buildOrderMoves.barrack=-5`).
+    A trait's notes begin with its id, appear live (`AiPlayer.Noted`, `TraitOfNote`).
+    Values in `ai.json`, overridable per people (`civilizations`, the build order there too).
