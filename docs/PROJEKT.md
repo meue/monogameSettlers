@@ -7,7 +7,8 @@ several times over (original, Collector's Edition, GOG, among others).
 
 ## Framework conditions
 - **Engine:** MonoGame (C#, .NET 9)
-- **Single player only**, no multiplayer
+- **Single player and lockstep multiplayer** over the network (merged into `main` via #9): mixed human/AI games,
+  self-hosted relay server as a Docker image; no pause or reconnecting yet – details: [MULTIPLAYER.md](MULTIPLAYER.md)
 - **Open source** (MIT, [LICENSE.md](../LICENSE.md)), a non-commercial fan project; rules for contributors: [CONTRIBUTING.md](../CONTRIBUTING.md)
 - **Main goals compared to the original:**
   1. Strong AI
