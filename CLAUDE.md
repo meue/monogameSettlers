@@ -1,78 +1,78 @@
 # Homestead
 
-Privater Nachbau von „Die Siedler 3" in MonoGame/C#. Ziele, Roadmap: [docs/PROJEKT.md](docs/PROJEKT.md).
-Kommunikation Deutsch; Code und Kommentare Englisch.
-Spieltexte nie im Code: `data/lang/de.json`, `en.json` und `pl.json` (verschachtelt, Schlüssel mit Punkten, Platzhalter `{0}`), Zugriff `Lang.T("schlüssel", args)`
-im Client; Namen aus Daten nach ID (`buildings.<name>`, `goods.<GOOD>`, `peoples.<People>`, `soldiers.types.*`, `spells.<Kind>`, `events.texts.<id>`,
-`ai.characters/traits.*`, `panel.tabs/menus.*`, `buildingStatus.*`). Fehlt Englisch → Deutsch → Schlüssel (Konsole „Missing text“). `LanguageTests`:
-gleiche Schlüssel/Platzhalter, jeder wörtliche Schlüssel im Client, jede Daten-ID. Entwickler-Hinweise (`_message`, Fenstertitel, Konsole) englisch, unübersetzt.
+A private remake of "The Settlers III" in MonoGame/C#. Goals and roadmap: [docs/PROJEKT.md](docs/PROJEKT.md).
+Communication in German; code and comments in English.
+Never put game texts in code: `data/lang/de.json`, `en.json` and `pl.json` (nested, dot-separated keys, `{0}` placeholders), accessed via `Lang.T("key", args)`
+in the client; names come from the data by ID (`buildings.<name>`, `goods.<GOOD>`, `peoples.<People>`, `soldiers.types.*`, `spells.<Kind>`, `events.texts.<id>`,
+`ai.characters/traits.*`, `panel.tabs/menus.*`, `buildingStatus.*`). Missing English → German → key (console "Missing text"). `LanguageTests`:
+same keys/placeholders, every literal key in the client, every data ID. Developer hints (`_message`, window titles, console) stay English, untranslated.
 
-## Verbindliche Regeln
-- Keine Original-Assets (GFX, SND, Karten, Musik, exportierte PNGs) in Repo oder Build. Prüf-Exporte nur in temporäre Verzeichnisse.
-  Einzige Ausnahme: README-Screenshots in `docs/screenshots/` (in `.gitignore` freigegeben).
-- Original-EXE/-DLLs (auch `GFX/Siedler3_18…dat`, eine DLL) nie dekompilieren, disassemblieren, analysieren. Nur Datenformate.
-- Kein Kopierschutz/DRM umgehen.
-- JSettlers-Code (MIT) darf übernommen werden → `THIRD_PARTY_NOTICES.md` pflegen.
-- Open Source (MIT, `LICENSE.md`), Clean Room; Regeln für Mitwirkende: `CONTRIBUTING.md`, README auf Englisch.
-- Kein „Siedler"/„Settlers" in Typnamen (Repo/README: „monoSettlers").
+## Binding rules
+- No original assets (GFX, SND, maps, music, exported PNGs) in the repo or the build. Inspection exports go to temporary directories only.
+  Sole exception: README screenshots in `docs/screenshots/` (allowlisted in `.gitignore`).
+- Never decompile, disassemble or analyse original EXEs/DLLs (including `GFX/Siedler3_18…dat`, a DLL). Data formats only.
+- Never bypass copy protection/DRM.
+- JSettlers code (MIT) may be incorporated → keep `THIRD_PARTY_NOTICES.md` up to date.
+- Open source (MIT, `LICENSE.md`), clean room; rules for contributors: `CONTRIBUTING.md`, README in English.
+- No "Siedler"/"Settlers" in type names (repo/README: "monoSettlers").
 
-## Aufbau
-- `src/Homestead.Assets` – Parser für Originaldateien (GFX, Karten, `Sound/SoundFile`: `SND/Siedler3_00.dat`), ohne MonoGame. Formatdoku: `docs/formate/`.
-- `src/Homestead.AssetViewer` – MonoGame-Viewer (DesktopGL), ohne Content-Pipeline.
-- `src/Homestead.Server` – Mehrspieler-Server (ASP.NET Core, WebSocket, Docker), Details: `docs/MULTIPLAYER.md`.
-- `data/` – Spieldaten (keine Original-Assets), neben jedes Programm kopiert. `production.json`: eigenes Balancing
-  (Zeiten, Rezepte, Steine je Felsgröße, Erz je Mengenstufe, Regeneration, `depletion`: Verbrauch von Steinen/Bergen/Fisch in %, 0 = unendlich;
-  im Spiel über die Einstellungen überschreibbar).
-  Gebäudedaten aus JSettlers generiert (`tools/data-import/`) – nie von Hand ändern, sondern `data/buildings/overrides.json`
-  (je Volk/Gebäude, `all` für alle; z. B. römische Burg 6 Infanterie + 4 Bogenschützen wie im Original, Minen nur auf Gebirge).
-- `tests/Homestead.Simulation.Tests` – xUnit (`dotnet test`); Tests mit Originalkarten bestehen ohne lokale Installation ungeprüft.
+## Project layout
+- `src/Homestead.Assets` – parsers for the original files (GFX, maps, `Sound/SoundFile`: `SND/Siedler3_00.dat`), without MonoGame. Format docs: `docs/formate/`.
+- `src/Homestead.AssetViewer` – MonoGame viewer (DesktopGL), without the Content Pipeline.
+- `src/Homestead.Server` – multiplayer server (ASP.NET Core, WebSocket, Docker), details: `docs/MULTIPLAYER.md`.
+- `data/` – game data (no original assets), copied next to every program. `production.json`: our own balancing
+  (times, recipes, stones per rock size, ore per amount step, regeneration, `depletion`: consumption of stones/mountains/fish in %, 0 = infinite;
+  overridable in-game via the settings).
+  Building data is generated from JSettlers (`tools/data-import/`) – never edit it by hand, use `data/buildings/overrides.json`
+  instead (per people/building, `all` for all; e.g. Roman castle 6 infantry + 4 bowmen as in the original, mines only on mountains).
+- `tests/Homestead.Simulation.Tests` – xUnit (`dotnet test`); tests with original maps pass unverified without a local installation.
 
-### Details je Bereich
-Vor Arbeit an einem System die passende Datei lesen und dort nachführen (wie bisher hier: knapp, Werte mit Schlüssel aus `data/`):
-- [docs/architektur/simulation.md](docs/architektur/simulation.md) – `src/Homestead.Simulation`, feste Tick-Rate (`World.TicksPerSecond`):
-  `Map/` (Gelände, Fog of War), `Pathfinding/`, `World`/`Settler` (Bewegung, Land), `Trails`, `Buildings/` (Bau, Planieren, Abriss),
-  `Economy/` (Logistik, Produktion, Wohnraum, Berufe, Handel, Schiffe), `Military/` (Kampf, Kampfkraft, Kriegsmaschinen), `Magic/`,
-  `Persistence/` (Spielstände), `Events/`, `SoundCues`, `GameHistory`, `OriginalScenario`, `Map/Generation` (Zufallskarten).
-- [docs/architektur/ki.md](docs/architektur/ki.md) – `Ai/`: `AiPlayer`, Wachstum, Militär, Feldzüge, Taktik, Magie, Charaktere/-züge (`data/ai.json`).
-- [docs/architektur/client.md](docs/architektur/client.md) – `src/Homestead.Client`: Titel, Kampagne, Einstellungen, Startscreen, Seitenpanel und
-  Menüs, Gebäude-Panel, Statistik, Auswahl/Befehle, Tasten, Optionen, Ton, Darstellung.
-- [docs/architektur/capture.md](docs/architektur/capture.md) – `--capture` und alle `HOMESTEAD_CAPTURE_…`-Variablen.
-- [docs/architektur/werkzeuge.md](docs/architektur/werkzeuge.md) – Arena (KI gegen KI), Turnier, AssetTool.
-- [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) – Lockstep-Mehrspieler: Entscheidungen, Stand (Determinismus, Befehlsschicht), offene Schritte, Regeln für neuen Code.
+### Details per area
+Before working on a system, read the matching file and keep it up to date there (as done here so far: terse, values with their keys from `data/`):
+- [docs/architektur/simulation.md](docs/architektur/simulation.md) – `src/Homestead.Simulation`, fixed tick rate (`World.TicksPerSecond`):
+  `Map/` (terrain, fog of war), `Pathfinding/`, `World`/`Settler` (movement, land), `Trails`, `Buildings/` (construction, levelling, demolition),
+  `Economy/` (logistics, production, housing, professions, trade, ships), `Military/` (combat, combat strength, war machines), `Magic/`,
+  `Persistence/` (save games), `Events/`, `SoundCues`, `GameHistory`, `OriginalScenario`, `Map/Generation` (random maps).
+- [docs/architektur/ki.md](docs/architektur/ki.md) – `Ai/`: `AiPlayer`, growth, military, campaigns, tactics, magic, characters/traits (`data/ai.json`).
+- [docs/architektur/client.md](docs/architektur/client.md) – `src/Homestead.Client`: title screen, campaign, settings, start screen, side panel and
+  menus, building panel, statistics, selection/commands, keys, options, sound, rendering.
+- [docs/architektur/capture.md](docs/architektur/capture.md) – `--capture` and all `HOMESTEAD_CAPTURE_…` variables.
+- [docs/architektur/werkzeuge.md](docs/architektur/werkzeuge.md) – Arena (AI against AI), tournament, AssetTool.
+- [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md) – lockstep multiplayer: decisions, status (determinism, command layer), remaining steps, rules for new code.
 
-### Querschnittsregeln
-- Sprites nur über `SpriteLibrary` (siehe Grafik-Konventionen); Texte nur über `Lang.T` (siehe oben).
-- Captures und Prüf-Exporte nur in temporäre Verzeichnisse; Speichern in Captures nur mit temporärem `HOMESTEAD_SAVE_DIR`.
-- Spielstände: `Snapshot` speichert per Reflection, neue Felder brauchen keinen Speichercode (Details: simulation.md, `Persistence/`).
-- Tests ohne Werkzeugthema: `TestConfig.NoTools`.
+### Cross-cutting rules
+- Sprites only via `SpriteLibrary` (see graphics conventions); texts only via `Lang.T` (see above).
+- Captures and inspection exports go to temporary directories only; in captures, save only with a temporary `HOMESTEAD_SAVE_DIR`.
+- Save games: `Snapshot` saves via reflection, new fields need no save code (details: simulation.md, `Persistence/`).
+- Tests that are not about tools: `TestConfig.NoTools`.
 
-## Kartenobjekte
-`GameMap` speichert je Feld den Original-Objektcode (`MapObjectCodes`); Begehbarkeit und Grafik leiten sich daraus ab.
-Laufzeit: Baumstumpf 41 (verschwindet nach `trees.stumpSeconds`), Setzling 84, Felsgrößen 115→127 (Geröll).
-Bodenbelag (`GroundCover`, nur auf Gras): Ackerland (als Erde, Original-Übergänge zu Gras), Trampelpfad (als Sand, Sand-Gras-Übergänge).
-Eigene Anbau-Codes: Getreide 200–207 (207 reif), Wein 208–210, Reis 211–214, Bienenstöcke 215–218 (Bild nicht gefunden, vorerst die aufstellende Imkerin 41/291, `docs/formate/gfx.md`); Steg 219.
+## Map objects
+`GameMap` stores the original object code per field (`MapObjectCodes`); walkability and graphics derive from it.
+At runtime: tree stump 41 (disappears after `trees.stumpSeconds`), sapling 84, rock sizes 115→127 (rubble).
+Ground cover (`GroundCover`, on grass only): farmland (as earth, with the original's transitions to grass), footpath (as sand, with sand-grass transitions).
+Own crop codes: grain 200–207 (207 ripe), wine 208–210, rice 211–214, beehives 215–218 (image not found; for now the beekeeper placing it 41/291, `docs/formate/gfx.md`); dock 219.
 
-## Grafik-Konventionen
-- Raster → Pixel: `x*16 - y*8`, `y*9 - höhe*HeightStep` (Zeilen halb versetzt), 6 Nachbarn. Original HeightStep 2, wir 1 (`ScreenProjection.HeightStep`).
-- Gelände-Atlas: Texturkoordinaten einen halben Texel innerhalb der Zelle, sonst Linien aus Nachbarzellen.
-- Sprites nur über `SpriteLibrary` (gemeinsame Atlas-Seiten, `SpriteAtlas`); keine eigene `Texture2D` je Bild (Draw-Calls).
-- Lauf-Sequenzen: 72 Frames = 6 Richtungen à 12 (SW, W, NW, NE, O, SO); Frame 0 stehen, 1–11 Zyklus je Rasterschritt.
+## Graphics conventions
+- Grid → pixels: `x*16 - y*8`, `y*9 - height*HeightStep` (rows offset by half), 6 neighbours. Original HeightStep 2, ours 1 (`ScreenProjection.HeightStep`).
+- Terrain atlas: texture coordinates half a texel inside the cell, otherwise lines bleed in from neighbouring cells.
+- Sprites only via `SpriteLibrary` (shared atlas pages, `SpriteAtlas`); no separate `Texture2D` per image (draw calls).
+- Walk sequences: 72 frames = 6 directions of 12 each (SW, W, NW, NE, E, SE); frame 0 standing, 1–11 one cycle per grid step.
 
-## Installation des Originals
-`HOMESTEAD_GAME_DIR` oder `gameDirectory` in `~/.config/homestead/settings.json`; der erste gültige gilt (`GameInstallation.TryLocate`).
-Bei jedem Start geprüft (`InstallationCheck`: `GFX` mit `RequiredGfx`, `SND` mit `siedler3_00/01.dat`, `Map` mit Karten); sonst
-`InstallationDialog` (eigener Prozess `--setup` – zweites Spielfenster im selben Prozess bricht SDL/GL beim Beenden; ohne Originalgrafik):
-Pfadfeld (Tippen, Strg+V über SDL), Ordnerbrowser, Suche an üblichen Orten (`Detect`), Prüfung live, Installation auch über/unter dem
-gewählten Ordner (`FindRoot`); „Spiel starten“ → `GameInstallation.Remember`. Capture: `HOMESTEAD_CAPTURE_DIALOG=<png>` (übernimmt die gültige).
-Lokal: `~/Games/gog/the-settlers-iii-ultimate-collection/drive_c/GOG Games/Settlers 3 Ultimate`.
+## Installing the original
+`HOMESTEAD_GAME_DIR` or `gameDirectory` in `~/.config/homestead/settings.json`; the first valid one wins (`GameInstallation.TryLocate`).
+Checked on every start (`InstallationCheck`: `GFX` with `RequiredGfx`, `SND` with `siedler3_00/01.dat`, `Map` with maps); otherwise
+`InstallationDialog` (separate process `--setup` – a second game window in the same process breaks SDL/GL on exit; without original graphics):
+path field (typing, Ctrl+V via SDL), folder browser, search in the usual places (`Detect`), live validation, installation also above/below the
+chosen folder (`FindRoot`); "Spiel starten" → `GameInstallation.Remember`. Capture: `HOMESTEAD_CAPTURE_DIALOG=<png>` (uses the valid one).
+Local: `~/Games/gog/the-settlers-iii-ultimate-collection/drive_c/GOG Games/Settlers 3 Ultimate`.
 
-## Versionen und Pipeline
-- Version aus Git-Tags `vX.Y.Z` (MinVer in `Directory.Build.props`; ohne Tag `0.1.0-alpha.0.<n>`), Titelbildschirm unten rechts.
-  Regeln: `docs/VERSIONING.md` (unter 1.0: PATCH Fixes/Balancing/Übersetzungen, MINOR Features oder Spielstand-/Settings-Bruch).
-- `.github/workflows/build.yml`: Push auf main/PR → Build + Tests, Pakete linux-x64 (`tar.gz`), win-x64 (`zip`) und osx-arm64/osx-x64
-  (auf `macos-latest`: `monoSettlers.app`, Programmordner als `Contents/MacOS`, `packaging/macos/Info.plist`, nur ad-hoc signiert,
-  `zip` per `ditto`; ungetestet), self-contained, als Artefakte; Tag `v*` → zusätzlich GitHub-Release (`gh release create`, Suffix → Vorabversion).
+## Versions and pipeline
+- Version from git tags `vX.Y.Z` (MinVer in `Directory.Build.props`; without a tag `0.1.0-alpha.0.<n>`), bottom right on the title screen.
+  Rules: `docs/VERSIONING.md` (below 1.0: PATCH for fixes/balancing/translations, MINOR for features or breaking save/settings changes).
+- `.github/workflows/build.yml`: push to main/PR → build + tests, packages for linux-x64 (`tar.gz`), win-x64 (`zip`) and osx-arm64/osx-x64
+  (on `macos-latest`: `monoSettlers.app`, program folder as `Contents/MacOS`, `packaging/macos/Info.plist`, ad-hoc signed only,
+  `zip` via `ditto`; untested), self-contained, uploaded as artifacts; tag `v*` → additionally a GitHub release (`gh release create`, suffix → pre-release).
 
-## Bauen/Starten
+## Build and run
 - `dotnet build Homestead.sln`
-- Programme mit `dotnet <pfad>.dll` bzw. `dotnet run --project …` – der native Apphost findet .NET in der Flatpak-Umgebung von VS Code nicht.
+- Run programs with `dotnet <path>.dll` or `dotnet run --project …` – the native apphost cannot find .NET in VS Code's Flatpak environment.
