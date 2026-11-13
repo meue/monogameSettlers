@@ -128,6 +128,12 @@ public sealed class MapGame : Game
     private DisplaySettings _display = Enum.TryParse<Theme>(Environment.GetEnvironmentVariable("HOMESTEAD_THEME"), ignoreCase: true, out var theme)
         ? DisplaySettings.Load() with { Theme = theme }
         : DisplaySettings.Load();
+    /// <summary>
+    /// F2 cycles this for the session; the settings start it. Except <see cref="Scaling.Sharp"/> (every sprite
+    /// scaled with point sampling) the world is drawn into <see cref="_worldTarget"/> and that is scaled up by
+    /// the zoom, soft like the original upscaled to the screen.
+    /// </summary>
+    private Scaling _scaling;
     /// <summary>The game's own pointer while the hardware cursor is off.</summary>
     private SoftwareCursor? _cursor;
     private StartScreen? _startScreen;
@@ -358,18 +364,22 @@ public sealed class MapGame : Game
     private readonly PerfStats _perf = new();
     private bool _showPerf;
 
-    /// <summary>
-    /// F2 cycles: except <see cref="Scaling.Sharp"/> (every sprite scaled with point sampling) the world is drawn 1:1
-    /// into <see cref="_worldTarget"/> and that is scaled up by the zoom, soft like the original upscaled to the screen.
-    /// </summary>
-    private enum Scaling { Sharp, Linear, CatmullRom, Lanczos2 }
-
-    private Scaling _scaling = Scaling.CatmullRom;
     private RenderTarget2D? _worldTarget;
     private Effect _upscale = null!;
 
     /// <summary>Real time until which the scaling mode chosen with F2 is shown.</summary>
     private TimeSpan _scalingShownUntil;
+
+    /// <summary>Real time until which the neural upscaling chosen with F4 is shown.</summary>
+    private TimeSpan _neuralUpscaleShownUntil;
+    /// <summary>Whether the user wants the neural upscaling this session: the setting at the start, F4 afterwards
+    /// (it stays true when the system cannot deliver, so the corner notice keeps explaining why it is off).</summary>
+    private bool _neuralWanted;
+    /// <summary>How long the loading screen waits at most for the precomputed 2x atlas (WarmNeuralUpscale);
+    /// what is not done by then continues in the background. Shadows cost no inference (UpscaleShadow), so most
+    /// of a match's sprites fit into 5 s; a longer hold kept players waiting without visible progress.</summary>
+    private const double WarmHoldSeconds = 5;
+    private readonly System.Diagnostics.Stopwatch _warmupHold = new();
     private bool _showClock;
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
@@ -388,6 +398,7 @@ public sealed class MapGame : Game
         _installation = installation;
         _mapDirectory = installation.MapDirectory;
         _gfx = gfx;
+        _scaling = _display.Scaling;
         _presetPeoples = peoples;
         _characters = characters ?? [];
         _captureDirectory = captureDirectory;
@@ -478,6 +489,8 @@ public sealed class MapGame : Game
         if (_captureDirectory is not null && Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_COLORS") is { } captureColors)
             PlayerColors.Assign(captureColors.Split(',').Select(c => int.TryParse(c, out int color) ? color : (int?)null).ToArray(), _random);
         _sprites = new SpriteLibrary(GraphicsDevice, _gfx);
+        _neuralWanted = _display.NeuralUpscale;
+        _sprites.SetNeuralUpscale(_display.NeuralUpscale);
         _shipRenderer = new ShipRenderer(_sprites);
         _statusIcons = new StatusIcons(_sprites);
         _settlerRenderer = new SettlerRenderer(_sprites, SettlerAnimations.Load(),
@@ -885,6 +898,25 @@ public sealed class MapGame : Game
         _controlGroups = new ControlGroups(_local);
         _selectedBuilding = null;
         _camera = ToWorld(_start);
+        WarmNeuralUpscale();
+    }
+
+    /// <summary>
+    /// With the setting on, the whole 2x atlas of this game is precomputed while the loading screen still holds:
+    /// every settler sequence of the peoples in the match and of the shared files is loaded and queued (the
+    /// worker finishes in the background; see the loading hold in <see cref="Update"/>). F4 alone does not warm —
+    /// a mid-session toggle stays progressive by design.
+    /// </summary>
+    private void WarmNeuralUpscale()
+    {
+        if (!_sprites.NeuralUpscaleEnabled)
+            return;
+        var peoples = _playerCatalogs.Select(c => c.Civilization).Distinct().ToList();
+        // "cN" file groups (SettlerAnimations): people 0-3 → 10-19, 20-29, 30-39, 40-49; the rest is shared.
+        IEnumerable<int> Shared() => _gfx.FileNumbers.Where(f => f < 10 || f >= 60);
+        IEnumerable<int> PeopleFiles(Civilization people) => _gfx.FileNumbers.Where(f => f / 10 == (int)people + 1);
+        var files = Shared().Concat(peoples.SelectMany(PeopleFiles).Distinct());
+        _sprites.Warmup(files);
     }
 
     /// <summary>
@@ -943,6 +975,7 @@ public sealed class MapGame : Game
             ? new Vector2(camX, camY)
             : ToWorld(_start);
         _message = $"game loaded ({_map.Name})";
+        WarmNeuralUpscale();
     }
 
     /// <summary>A game started or loaded: no notes yet, defeats before it untold, the time since saving from 0.</summary>
@@ -1604,6 +1637,8 @@ public sealed class MapGame : Game
     {
         SdlMouse.NextFrame();
         _now = gameTime.TotalGameTime.TotalSeconds;
+        // The only place 2x sprites may reach the GPU: this is the GL thread.
+        _sprites.Pump();
         if (_audio is not null)
         {
             // The own people's music in the game (statistics included), silence in the menus before it.
@@ -1622,8 +1657,13 @@ public sealed class MapGame : Game
             {
                 _afterLoading = null;
                 load();
-                _loading.MarkLoaded();
+                _warmupHold.Restart();
             }
+            if (_loading is { Loaded: false } && _afterLoading is null
+                && (!_sprites.NeuralUpscalePending || _warmupHold.Elapsed.TotalSeconds >= WarmHoldSeconds))
+                // With the neural setting on, the loading screen holds while the precomputed 2x atlas is built
+                // (bounded: what is left trickles in over the first minutes), so play does not begin at half FPS.
+                _loading.MarkLoaded();
             _previousKeys = Keyboard.GetState();
             _previousMouse = SdlMouse.GetState();
             base.Update(gameTime);
@@ -1773,10 +1813,24 @@ public sealed class MapGame : Game
     /// <summary>Switches between the window and borderless fullscreen at desktop resolution; the window keeps its size.</summary>
     private void ToggleFullScreen() => SetFullScreen(!_graphics.IsFullScreen);
 
+    /// <summary>Switches the neural 2x sprites for the session, like F11 without touching the settings file.</summary>
+    private void ToggleNeuralUpscale(GameTime gameTime)
+    {
+        _neuralWanted = !_neuralWanted;
+        _sprites.SetNeuralUpscale(_neuralWanted);
+        _neuralUpscaleShownUntil = gameTime.TotalGameTime + TimeSpan.FromSeconds(2);
+    }
+
     /// <summary>The settings of the settings screen: pointer and full screen at once (the language is only stored so far).</summary>
     private void ApplyDisplay(DisplaySettings display)
     {
         _display = display;
+        _scaling = display.Scaling;
+        if (_sprites is not null)
+        {
+            _neuralWanted = display.NeuralUpscale;
+            _sprites.SetNeuralUpscale(display.NeuralUpscale);
+        }
         Lang.Use(display.Language);
         IsMouseVisible = display.HardwareCursor;
         ApplyVolumes(display);
@@ -1865,6 +1919,8 @@ public sealed class MapGame : Game
                 _showPerf = !_showPerf;
             if (Pressed(Keys.T))
                 _showClock = !_showClock;
+            if (Pressed(Keys.F4))
+                ToggleNeuralUpscale(gameTime);
         }
         else
             HandleKeys(keys, cursorScreen, gameTime);
@@ -2419,6 +2475,8 @@ public sealed class MapGame : Game
             _showPerf = !_showPerf;
         if (Pressed(Keys.T))
             _showClock = !_showClock;
+        if (Pressed(Keys.F4))
+            ToggleNeuralUpscale(gameTime);
         if (Pressed(Keys.F11))
             ToggleFullScreen();
         // Groups: Ctrl+1-9 stores the selection, 1-9 selects the group again; pressed twice the camera flies to it.
@@ -3231,6 +3289,12 @@ public sealed class MapGame : Game
         }
     }
 
+    /// <summary>Whether a render target of this size fits the textures the game assumes anyway (atlas pages are
+    /// <see cref="SpriteAtlas.PageSize"/>): the 2x world target can exceed it on a big screen at low zoom, and
+    /// then the world pass falls back to 1x, sprites included.</summary>
+    private bool FitsTexture(float width, float height) =>
+        width <= SpriteAtlas.PageSize && height <= SpriteAtlas.PageSize;
+
     /// <summary>Screen position to the nearest grid point, ignoring terrain height.</summary>
     /// <summary>
     /// The grid point drawn under a screen position, height included: higher points are drawn further
@@ -3345,15 +3409,21 @@ public sealed class MapGame : Game
             _camera.X - viewport.Width / 2f / _zoom, _camera.Y - viewport.Height / 2f / _zoom,
             viewport.Width / _zoom, viewport.Height / _zoom);
 
-        // Smooth scaling: the world goes 1:1 into a small target whose pixel 0 is the whole world point origin.
+        // Smooth scaling: the world goes into a small target whose pixel 0 is the whole world point origin. With
+        // the neural 2x sprites on, the target is twice as big and the world is drawn into it at worldScale: the
+        // 2x texels reach the target unthinned (a 1:1 target would drop half of them before the filter ever
+        // sees them) and the filter — still Catmull-Rom or Lanczos2 — scales by zoom / 2 instead of by zoom.
         bool smooth = _scaling != Scaling.Sharp && _zoom > 1;
+        int worldScale = smooth && _sprites.NeuralUpscaleEnabled
+            && FitsTexture(2 * MathF.Ceiling(visible.Width), 2 * MathF.Ceiling(visible.Height)) ? 2 : 1;        bool hiResWorld = worldScale == 2;
         var origin = new Vector2(MathF.Floor(visible.X), MathF.Floor(visible.Y));
         var worldView = View;
         var worldProjection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, -1, 1);
         var worldSize = Point.Zero;
         if (smooth)
         {
-            worldSize = new Point((int)MathF.Ceiling(visible.Width) + 2, (int)MathF.Ceiling(visible.Height) + 2);
+            worldSize = new Point(((int)MathF.Ceiling(visible.Width) + 2) * worldScale,
+                ((int)MathF.Ceiling(visible.Height) + 2) * worldScale);
             // Only grows: while the zoom glides the needed size changes every frame; the top left part is used.
             if (_worldTarget is null || _worldTarget.Width < worldSize.X || _worldTarget.Height < worldSize.Y)
             {
@@ -3362,9 +3432,12 @@ public sealed class MapGame : Game
                     Math.Max(worldSize.Y, _worldTarget?.Height ?? 0));
             }
             GraphicsDevice.SetRenderTarget(_worldTarget);
-            worldView = Matrix.CreateTranslation(-origin.X, -origin.Y, 0);
+            worldView = Matrix.CreateTranslation(-origin.X, -origin.Y, 0) * Matrix.CreateScale(worldScale);
             worldProjection = Matrix.CreateOrthographicOffCenter(0, _worldTarget.Width, _worldTarget.Height, 0, -1, 1);
         }
+        if (hiResWorld)
+            // Only this pass draws the 2x sprites; the UI after it, and zoom ≤ 1, stay 1x.
+            _sprites.BeginHiResWorldPass();
         GraphicsDevice.Clear(Color.Black);
 
         _effect.World = Matrix.Identity;
@@ -3492,6 +3565,8 @@ public sealed class MapGame : Game
             _fog!.Draw(_fogEffect, visible);
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: worldView);
         }
+        if (hiResWorld)
+            _sprites.EndHiResWorldPass();
         if (smooth)
         {
             // Scaled up linearly to the screen; markers and previews below stay sharp at screen resolution.
@@ -3507,7 +3582,7 @@ public sealed class MapGame : Game
             }
             _spriteBatch.Begin(samplerState: filter is null ? SamplerState.LinearClamp : SamplerState.PointClamp,
                 blendState: BlendState.Opaque, effect: filter);
-            _spriteBatch.Draw(_worldTarget, Vector2.Transform(origin, View), new Rectangle(Point.Zero, worldSize), Color.White, 0, Vector2.Zero, _zoom, SpriteEffects.None, 0);
+            _spriteBatch.Draw(_worldTarget, Vector2.Transform(origin, View), new Rectangle(Point.Zero, worldSize), Color.White, 0, Vector2.Zero, _zoom / worldScale, SpriteEffects.None, 0);
             _spriteBatch.End();
             _spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: View);
         }
@@ -3614,7 +3689,14 @@ public sealed class MapGame : Game
         if (_showClock)
             bottom = DrawCornerText(GameTime(), bottom);
         if (gameTime.TotalGameTime < _scalingShownUntil)
-            DrawCornerText($"Skalierung: {_scaling}", bottom);
+            bottom = DrawCornerText(Lang.T("settings.display.scaling") + ": "
+                + Lang.T("settings.display.scaling." + _scaling.ToString().ToLowerInvariant()), bottom);
+        if (gameTime.TotalGameTime < _neuralUpscaleShownUntil)
+            DrawCornerText(Lang.T("settings.display.neuralUpscale") + ": "
+                + Lang.T(_sprites.NeuralUpscaleEnabled ? "common.on" : "common.off"), bottom);
+        else if (_neuralWanted && _sprites.NeuralUpscaleUnavailable)
+            // The setting (or F4) asks for it, but this system has no ONNX Runtime: on the screen for as long as it is asked for.
+            DrawCornerText(Lang.T("settings.display.neuralUpscaleUnavailable"), bottom);
         _spriteBatch.End();
         if (_loading is not null)
         {

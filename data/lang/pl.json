@@ -487,7 +487,16 @@
       "introVideo": "Wideo intro",
       "introVideoHint": "Tak: intro oryginału przy każdym uruchomieniu (kliknięcie, Esc, spacja lub Enter pomija).",
       "preferredColor": "Preferowany kolor",
-      "preferredColorHint": "Twój kolor jako gracza 1 na ekranie startowym, o ile nie wybierzesz innego."
+      "preferredColorHint": "Twój kolor jako gracza 1 na ekranie startowym, o ile nie wybierzesz innego.",
+      "neuralUpscale": "Skalowanie AI (eksperymentalne)",
+      "neuralUpscaleHint": "Przeskalowuje sprite'y do podwójnego rozmiaru siecią neuronową przy wczytywaniu (tylko osadnicy, pojazdy i obiekty mapy). Domyślnie wyłączone. F4 przełącza w każdej chwili, tylko do końca sesji.",
+      "neuralUpscaleUnavailable": "Skalowanie AI jest niedostępne na tym systemie (brak biblioteki ONNX Runtime); pozostaje wyłączone.",
+      "scaling": "Skalowanie świata",
+      "scalingHint": "Jak świat jest skalowany na ekran przy przybliżaniu (F2 przełącza w każdej chwili, tylko do końca sesji). Miękkie: dwuliniowe, najbardziej rozmyte. Gładkie: Catmull-Rom, wyważone (domyślne). Ostre: surowe piksele, twarde krawędzie. Najostrzejsze: Lanczos2, najwięcej szczegółów.",
+      "scaling.sharp": "Ostre",
+      "scaling.linear": "Miękkie",
+      "scaling.catmullrom": "Gładkie",
+      "scaling.lanczos2": "Najostrzejsze"
     }
   },
   "install": {

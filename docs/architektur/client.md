@@ -183,7 +183,8 @@ MonoGame game. Capture options: [capture.md](capture.md).
 - **Keys**: Enter chat (see info feed), Esc cancels placing/aiming, otherwise pause like P; no cheat keys (only `/cheats`, see info feed);
   F attack on the enemy military building under the mouse, fog of war (sight 1×/s, `FogLayer` fades softly,
   tapering off over `SoftFields` (3); unexplored black, explored dark, foreign figures only in sight; on/off only in the cheat menu), F11 full screen (for the session only; default in the settings),
-  F2 scaling sharp/linear/Catmull-Rom (default)/Lanczos2 (world 1:1 into a small render target, enlarged by the zoom; markers/panel sharp;
+  F2 scaling soft (linear)/smooth (Catmull-Rom, default)/sharp (point-sampled)/sharpest (Lanczos2) in that order – the settings row and its hint explain
+  them (`settings.display.scaling*`; the corner text after F2 shows the same localized label); session only, default `display.scaling` in the settings; world into a small render target, enlarged by the zoom – with neural upscaling twice as large, filter with zoom/2; markers/panel sharp;
   `Shaders/Upscale.fx` → embedded `.mgfx`, after changes `tools/compile-shaders.sh`, needs Wine),
   F3 performance display (FPS, ms simulation/update/draw, longest frame, draw calls; draws only what lies in the visible rows and
   horizontally in view – margin 96 px, building strips by pixel width up to 320 px, ships 160 px), F12 held 10× speed, T game time, I AI plays for you
@@ -224,3 +225,27 @@ MonoGame game. Capture options: [capture.md](capture.md).
   (presentation only); tower bowmen with a firing animation in rhythm, without a shadow (as in the original), infantry in the tower as a window image; buildings: layer 0, garrison, then further layers (window frames/balustrades in front); drawn in 8-px strips, each in the foremost blocker row of its column (`EconomyRenderer.Strip`, otherwise a tall building hides what stands in front of it sideways); arrows in a flat arc
   (`docs/formate/gfx.md`). `SettlerAnimations` resolves type/action/good/direction via `data/settlers.json` (generated with
   `tools/data-import/convert_jsettlers_movables.py`, do not edit by hand). Construction sites show a sign and posts.
+- **Neural upscaling** (pilot, `Neural/`; setting `display.neuralUpscale`, off by default, F4 toggles it any time for the session): sprites on the
+  `SpriteLibrary` path (figures with torso and shadow, map objects, ships, water glitter; not terrain and portraits) are scaled to x2 at load time with
+  Real-ESRGAN realesr-animevideov3 – the model's x4 output is halved in C# with Lanczos2 (like `Upscale.fx`). Fully transparent pixels inherit the colour
+  of their neighbours (no dark fringes), the 1-bit alpha is reconstructed from the binary coverage with Catmull-Rom (16 taps per 2x pixel, threshold 0.28 –
+  thin lines survive; pixels without a nearby edge are skipped), the output is premultiplied. Shadow layers skip the model: they are the format's constant
+  semi-transparent black (no detail to gain), so only their contour is reconstructed the same way and their translucency kept
+  (`UpscaleMath.UpscaleShadow`) – the model path's opaque alpha would render them solid black, and skipping them saves a third of the inferences. Model embedded as ONNX:
+  `src/Homestead.Client/Neural/realesr-animevideov3-x4.onnx`, SHA-256 `78baa685a1a92cac6e14ab2af2a8ad0ef56fa48629563b1414e3a7acc54d86e2`
+  (conversion huggingface.co/skillsafe-ai/realesr-animevideov3, revision `185e9142…`; weights BSD-3-Clause from xinntao/Real-ESRGAN, licence text in
+  THIRD_PARTY_NOTICES.md; ONNX Runtime MIT from Microsoft). ONNX Runtime with CoreML (macOS) and CPU fallback everywhere;
+  `ORT_DISABLE_TELEMETRY=1` is set natively (setenv) before every ORT initialisation – Microsoft's 1DS telemetry (device ID, OS/CPU/process events)
+  never comes into being in the first place. Without a native ONNX Runtime library (osx-x64) the feature disables itself and shows a hint. Input and
+  output stay in memory – no original asset is changed or shipped. A background thread below normal priority (inputs larger than 512 px stay 1x; the CPU
+  execution provider gets half the cores, CoreML manages its own) does the inference,
+  `SpriteLibrary.Pump` uploads the finished images on the GL thread (at most 16 per frame) into a secondary atlas with padding 2; drawn at half scale
+  with doubled offset – identical screen geometry, `SettlerSprites.Bounds` stays 1x.
+  2x sprites are drawn only in the world pass: with the feature active, `MapGame` renders the world at zoom > 1 into a render target twice as large
+  (`worldScale` 2, falls back to 1 if the target would exceed `SpriteAtlas.PageSize`) and scales it with zoom/2 through the same filter (`Upscale.fx`
+  unchanged Catmull-Rom/Lanczos2) – otherwise the 2x texels would already be halved in the 1:1 target before the filter sees them. UI and zoom ≤ 1 stay 1x
+  (`SpriteUpscaleState.WorldHiRes`), and so does the point-sampled `Sharp` setting: its path has no world pass, it shows every sprite 1x — to see (or
+  capture) the 2x sprites at all, zoom above 1 with a smooth filter is required (`HOMESTEAD_CAPTURE_ZOOM=2` in captures; their zoom otherwise glides to 1). With the setting on, at game start (`MapGame.WarmNeuralUpscale`) the whole 2x atlas of the match's peoples and the
+  shared files is precomputed; the loading screen holds at most 5 s for it (`WarmHoldSeconds`), the rest continues in the background – F4 stays
+  progressive. On exit `SpriteLibrary.Dispose` waits for the worker with a limit; a running inference is not torn apart (the worker disposes its session
+  only while the process lives).

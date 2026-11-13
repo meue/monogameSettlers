@@ -168,7 +168,17 @@ Copyright (c) 2020 Andrew Ward.
 https://github.com/cyotek/Cyotek.Drawing.BitmapFont — 2.0.4 (dependency of FontStashSharp), MIT License,
 Copyright (c) 2012-2022 Cyotek Ltd.
 
-The Anthropic C# SDK, NVorbis and Cyotek.Drawing.BitmapFont are licensed under the MIT License:
+### ONNX Runtime
+
+https://onnxruntime.ai — `Microsoft.ML.OnnxRuntime` 1.31.1 (managed library and the native `onnxruntime`
+libraries for all supported platforms except osx-x64; CPU execution provider everywhere, CoreML on macOS), MIT License,
+Copyright (c) Microsoft Corporation. Runs the optional neural sprite upscaling at runtime (see
+"Embedded model"); without a native library (osx-x64) the feature switches itself off. The official binaries
+include Microsoft's 1DS telemetry by default; the game sets `ORT_DISABLE_TELEMETRY=1` (the opt-out documented
+in the package's `Privacy.md`) before ONNX Runtime initializes, so no events, uploader or device identifier
+are ever created. License text: https://github.com/microsoft/onnxruntime/blob/main/LICENSE
+
+The Anthropic C# SDK, NVorbis, Cyotek.Drawing.BitmapFont and ONNX Runtime are licensed under the MIT License:
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -188,4 +198,49 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## Embedded model
+
+### Real-ESRGAN realesr-animevideov3 (x4)
+
+`src/Homestead.Client/Neural/realesr-animevideov3-x4.onnx` — embedded unmodified, the network of the optional
+neural x2 sprite upscaling (the x4 output is halved to x2 in code). Upstream: the official checkpoint
+`realesr-animevideov3.pth` of https://github.com/xinntao/Real-ESRGAN, BSD-3-Clause, Copyright (c) 2021 Xintao Wang.
+Conversion (ONNX, opset 17, parity vs PyTorch 125.4 dB per its model card):
+https://huggingface.co/skillsafe-ai/realesr-animevideov3 at revision
+`185e9142d439d17e3fb99395600fb7d08af09de5`. SHA-256
+`78baa685a1a92cac6e14ab2af2a8ad0ef56fa48629563b1414e3a7acc54d86e2`, 2492908 bytes. Not an original game asset:
+the upscaling happens in memory at runtime, no shipped asset is derived from the game's files.
+
+```
+BSD 3-Clause License
+
+Copyright (c) 2021, Xintao Wang
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```

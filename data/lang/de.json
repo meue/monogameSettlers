@@ -487,7 +487,16 @@
       "introVideo": "Intro-Video",
       "introVideoHint": "Ja: das Intro des Originals bei jedem Start (Klick, Esc, Leertaste oder Enter überspringt es).",
       "preferredColor": "Bevorzugte Farbe",
-      "preferredColorHint": "Deine Farbe als Spieler 1 auf dem Startscreen, solange du keine andere wählst."
+      "preferredColorHint": "Deine Farbe als Spieler 1 auf dem Startscreen, solange du keine andere wählst.",
+      "neuralUpscale": "KI-Hochskalierung (experimentell)",
+      "neuralUpscaleHint": "Skaliert die Sprites beim Laden mit einem neuronalen Netz auf doppelte Größe (nur Figuren, Fahrzeuge und Kartenobjekte). Standard aus. F4 schaltet jederzeit um, nur bis zum Beenden.",
+      "neuralUpscaleUnavailable": "Die KI-Hochskalierung ist auf diesem System nicht verfügbar (keine ONNX-Runtime-Bibliothek); sie bleibt aus.",
+      "scaling": "Welt-Skalierung",
+      "scalingHint": "Wie die Welt beim Hineinzoomen auf den Bildschirm skaliert wird (F2 schaltet jederzeit um, nur bis zum Beenden). Weich: bilinear, am unschärfsten. Glatt: Catmull-Rom, ausgewogen (Vorgabe). Scharf: rohe Pixel, harte Kanten. Schärfste: Lanczos2, am detailreichsten.",
+      "scaling.sharp": "Scharf",
+      "scaling.linear": "Weich",
+      "scaling.catmullrom": "Glatt",
+      "scaling.lanczos2": "Schärfste"
     }
   },
   "install": {

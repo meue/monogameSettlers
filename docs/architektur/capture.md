@@ -4,7 +4,7 @@ Offscreen PNGs for inspection, only into temporary directories (no original asse
 
 - **Capture** (`--capture <dir>`, offscreen PNGs, temporary directories only): ignores input, without VSync, 4× speed; prints counters and
   building states at the end. Environment variables `HOMESTEAD_CAPTURE_…`:
-  `ZOOM=4`; `EVERY=<n>` (a PNG every n frames, otherwise 120); `SIZE=1920x1080` (otherwise 960×600); `SCALING=<Sharp|Linear|CatmullRom|Lanczos2>`;
+  `ZOOM=<n>` (fixed camera zoom; without it the zoom glides from 1.25 down to 1 — the neural 2x sprites need a zoom above 1 together with a smooth filter, so captures without `ZOOM` never show one); `EVERY=<n>` (a PNG every n frames, otherwise 120); `SIZE=1920x1080` (otherwise 960×600); `SCALING=<Sharp|Linear|CatmullRom|Lanczos2>` (`Sharp` draws no 2x sprites: its path has no world pass);
   `FOCUS=<building>` (`site`: fresh construction site; `temple`: small temple with mana; military buildings such as `castle`: fully garrisoned); `FOG=1`;
   `EVENT=1` (jumps to events); `BATTLE=1` (level-3 enemies attack the focused military building, otherwise the start tower; `=big`: two armies of 30 each meet south of the start; `=open`: 40 against 40 on open ground; `=town[:n]`: n (90) against n in the middle of the village; with `ZOOM` the camera on it); `COLORS=2,4` (palette colours per player); `STRIKE=1` (demolition of the focused building + 10 carriers without housing);
   `GEOLOGISTS=1`; `PIONEERS=1`; `DOCK=1` (shipyard at the nearest open sea, the land there owned, with a dock; `=none` without; `=build`: ferry under construction, material next to it; `=ships`: ferry and

@@ -487,7 +487,16 @@
       "introVideo": "Intro video",
       "introVideoHint": "Yes: the original's intro at every start (a click, Esc, Space or Enter skips it).",
       "preferredColor": "Preferred color",
-      "preferredColorHint": "Your color as player 1 on the start screen unless you pick another."
+      "preferredColorHint": "Your color as player 1 on the start screen unless you pick another.",
+      "neuralUpscale": "AI upscaling (experimental)",
+      "neuralUpscaleHint": "Upscales sprites to twice their size with a neural network as they load (settlers, vehicles and map objects only). Off by default. F4 toggles any time, for the session only.",
+      "neuralUpscaleUnavailable": "AI upscaling is unavailable on this system (no ONNX Runtime library); it stays off.",
+      "scaling": "World scaling",
+      "scalingHint": "How the world is scaled to the screen when you zoom in (F2 switches it any time, for the session only). Soft: bilinear, the blurriest. Smooth: Catmull-Rom, balanced (default). Sharp: raw pixels, hard edges. Sharpest: Lanczos2, the most detail.",
+      "scaling.sharp": "Sharp",
+      "scaling.linear": "Soft",
+      "scaling.catmullrom": "Smooth",
+      "scaling.lanczos2": "Sharpest"
     }
   },
   "install": {
