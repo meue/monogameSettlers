@@ -102,10 +102,20 @@ public sealed class OnnxUpscaler : IUpscaler, IDisposable
         catch (Exception e) when (e is OnnxRuntimeException or DllNotFoundException or EntryPointNotFoundException
             or TypeInitializationException or OutOfMemoryException)
         {
-            // Without CoreML (other platforms): the CPU execution provider, which every platform ships.
+            // Without CoreML (other platforms): the CPU execution provider, which every platform ships. Its
+            // default thread pool takes every core; the worker drains for minutes, so half the cores keep the
+            // machine responsive (CoreML manages its own threads, the options do not apply there).
             try
             {
-                _session = new InferenceSession(model);
+                var fallback = new SessionOptions { IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / 2) };
+                try
+                {
+                    _session = new InferenceSession(model, fallback);
+                }
+                finally
+                {
+                    fallback.Dispose();
+                }
                 Console.WriteLine($"Neural upscale: CPU execution provider ({e.Message})");
             }
             catch (Exception inner) when (inner is OnnxRuntimeException or DllNotFoundException or EntryPointNotFoundException

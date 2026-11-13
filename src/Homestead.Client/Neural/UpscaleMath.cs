@@ -152,22 +152,55 @@ public static class UpscaleMath
         if (halved.Length != 3 * width * height)
             throw new ArgumentException("Halved buffer is not twice the source size in every dimension.", nameof(halved));
         int plane = width * height;
+        bool[] opaque = OpaqueMap(source);
+        var pixels = new uint[plane];
+        for (int i = 0; i < plane; i++)
+        {
+            if (!opaque[i])
+                continue; // Premultiplied: nothing to see, the color stays zero.
+            pixels[i] = ToByte(halved[i]) | ToByte(halved[plane + i]) << 8 | ToByte(halved[2 * plane + i]) << 16 | 0xFF00_0000u;
+        }
+        return new GfxBitmap(width, height, source.OffsetX * 2, source.OffsetY * 2, pixels);
+    }
+
+    /// <summary>
+    /// The 2x image of a shadow layer without the neural network: shadow pixels are the constant semi-transparent
+    /// black of the format (<c>GfxColor.Shadow</c>, <c>0x88000000</c> — no color detail a model could improve),
+    /// so only the contour is reconstructed, with the same sub-pixel coverage of <see cref="Combine"/>, and the
+    /// translucency is kept: the model path's opaque alpha would make the shadow solid black. A cheap CPU loop,
+    /// not an inference. Offsets doubled.
+    /// </summary>
+    public static GfxBitmap UpscaleShadow(GfxBitmap source)
+    {
+        int width = source.Width * 2, height = source.Height * 2;
+        bool[] opaque = OpaqueMap(source);
+        var pixels = new uint[width * height];
+        for (int i = 0; i < pixels.Length; i++)
+            if (opaque[i])
+                pixels[i] = 0x8800_0000u; // GfxColor.Shadow, kept semi-transparent.
+        return new GfxBitmap(width, height, source.OffsetX * 2, source.OffsetY * 2, pixels);
+    }
+
+    /// <summary>
+    /// Which 2x pixels are covered, for <see cref="Combine"/> and <see cref="UpscaleShadow"/>: near an edge the
+    /// binary source coverage resampled with Catmull-Rom reaches <see cref="CoverageThreshold"/>, elsewhere the
+    /// source pixel's coverage is copied (the same condition <see cref="Combine"/> applied per pixel).
+    /// </summary>
+    private static bool[] OpaqueMap(GfxBitmap source)
+    {
+        int width = source.Width * 2, height = source.Height * 2;
         bool[] coverage = Coverage(source);
         bool[] edges = EdgeMap(coverage, source.Width, source.Height);
-        var pixels = new uint[plane];
+        var opaque = new bool[width * height];
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
             {
-                int i = y * width + x;
                 int sx = x / 2, sy = y / 2;
-                bool opaque = edges[sy * source.Width + sx]
+                opaque[y * width + x] = edges[sy * source.Width + sx]
                     ? CoverageAt(coverage, source.Width, source.Height, x, y) >= CoverageThreshold
                     : coverage[sy * source.Width + sx];
-                if (!opaque)
-                    continue; // Premultiplied: nothing to see, the color stays zero.
-                pixels[i] = ToByte(halved[i]) | ToByte(halved[plane + i]) << 8 | ToByte(halved[2 * plane + i]) << 16 | 0xFF00_0000u;
             }
-        return new GfxBitmap(width, height, source.OffsetX * 2, source.OffsetY * 2, pixels);
+        return opaque;
     }
 
     /// <summary>The 1-bit coverage of a source bitmap: opaque pixels count as fully covered, transparent as empty.</summary>

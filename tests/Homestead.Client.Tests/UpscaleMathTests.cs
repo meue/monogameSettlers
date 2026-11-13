@@ -167,6 +167,38 @@ public class UpscaleMathTests
     }
 
     [Fact]
+    public void UpscaleShadow_keeps_the_semi_transparent_black_and_the_contour()
+    {
+        // Shadow pixels are the format's constant 0x88000000: the 2x shadow may keep that translucency — the
+        // model path's opaque alpha is what made shadows solid black — and its contour falls where Combine's
+        // falls (the same coverage reconstruction), here between output columns 3 and 4.
+        uint shadow = 0x8800_0000u;
+        var source = Bitmap(4, 4, Enumerable.Range(0, 16).Select(i => i % 4 < 2 ? shadow : 0u).ToArray());
+
+        GfxBitmap result = UpscaleMath.UpscaleShadow(source);
+
+        Assert.Equal(8, result.Width);
+        Assert.Equal(8, result.Height);
+        for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
+                Assert.Equal(x <= 3 ? shadow : 0u, result.Pixels[y * 8 + x]);
+    }
+
+    [Fact]
+    public void UpscaleShadow_doubles_the_offsets_and_leaves_empty_shadows_empty()
+    {
+        var source = Bitmap(2, 2, new uint[4], offsetX: 7, offsetY: -2);
+
+        GfxBitmap result = UpscaleMath.UpscaleShadow(source);
+
+        Assert.Equal(4, result.Width);
+        Assert.Equal(4, result.Height);
+        Assert.Equal(14, result.OffsetX);
+        Assert.Equal(-4, result.OffsetY);
+        Assert.All(result.Pixels, pixel => Assert.Equal(0u, pixel));
+    }
+
+    [Fact]
     public void Combine_clamps_out_of_range_values_into_bytes()
     {
         var source = Bitmap(1, 1, [Px(0, 0, 0)]);

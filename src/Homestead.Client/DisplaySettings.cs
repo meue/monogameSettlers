@@ -8,12 +8,12 @@ namespace Homestead.Client;
 public enum Language { German, English, Polish }
 
 /// <summary>
-/// How the world picture reaches the screen at zoom above 1 (F2): <c>Sharp</c> point-sampled pixels, the others
-/// rendered into a small target and scaled up — linearly, or with the <c>CatmullRom</c>/<c>Lanczos2</c> filter of
-/// <c>Shaders/Upscale.fx</c>. With the neural 2x sprites on, that target is double size and the filter scales by
-/// zoom / 2 (see MapGame).
+/// How the world picture reaches the screen at zoom above 1 (F2): <c>Linear</c> blurry, <c>CatmullRom</c> the
+/// balanced default, then the point-sampled <c>Sharp</c> pixels and <c>Lanczos2</c> — in that order, so the two
+/// "sharp" ones sit next to each other and the list climbs with sharpness; F2 cycles the same way. With the
+/// neural 2x sprites on, that target is double size and the filter scales by zoom / 2 (see MapGame).
 /// </summary>
-public enum Scaling { Sharp, Linear, CatmullRom, Lanczos2 }
+public enum Scaling { Linear, CatmullRom, Sharp, Lanczos2 }
 
 /// <summary>
 /// The look of the title and loading screens: <c>Normal</c> the Gold Edition's title and each campaign's loading

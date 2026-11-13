@@ -276,7 +276,9 @@ public sealed class SpriteLibrary : IDisposable
         if (_worker is not null)
             return;
         _workerRunning = true;
-        _worker = new Thread(RunWorker) { IsBackground = true, Name = "neural upscale" };
+        // Below normal: the worker may run for minutes (a whole match's sprites), and the game's own thread must
+        // not fight it for the CPU; the OS preempts it whenever the game has work.
+        _worker = new Thread(RunWorker) { IsBackground = true, Name = "neural upscale", Priority = ThreadPriority.BelowNormal };
         _worker.Start();
     }
 
@@ -306,7 +308,10 @@ public sealed class SpriteLibrary : IDisposable
                     {
                         Upscale(upscaler, job, frame, SpriteLayerKind.Body, job.File.ReadSettler(job.Sequence, frame));
                         Upscale(upscaler, job, frame, SpriteLayerKind.Torso, job.File.ReadSettlerTorso(job.Sequence, frame));
-                        Upscale(upscaler, job, frame, SpriteLayerKind.Shadow, job.File.ReadSettlerShadow(job.Sequence, frame));
+                        // Shadows are the format's constant semi-transparent black (no detail a model could add):
+                        // reconstructed on the CPU, which keeps their translucency and skips a third of the inferences.
+                        Upscale(upscaler, job, frame, SpriteLayerKind.Shadow, job.File.ReadSettlerShadow(job.Sequence, frame),
+                            shadow: true);
                     }
                 }
                 catch (Exception e)
@@ -331,11 +336,13 @@ public sealed class SpriteLibrary : IDisposable
     }
 
     private void Upscale(IUpscaler upscaler, (GfxFile File, int Number, int Sequence) job, int frame,
-        SpriteLayerKind kind, GfxBitmap? bitmap)
+        SpriteLayerKind kind, GfxBitmap? bitmap, bool shadow = false)
     {
         if (bitmap is not { Width: > 0, Height: > 0 })
             return;
-        if (upscaler.Upscale(bitmap) is { } high)
+        // Shadow layers never reach the model: UpscaleShadow keeps their semi-transparent black (see RunWorker).
+        var high = shadow ? UpscaleMath.UpscaleShadow(bitmap) : upscaler.Upscale(bitmap);
+        if (high is not null)
             _completed.Enqueue((job.Number, job.Sequence, frame, kind, high));
     }
 }

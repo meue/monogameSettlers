@@ -376,8 +376,9 @@ public sealed class MapGame : Game
     /// (it stays true when the system cannot deliver, so the corner notice keeps explaining why it is off).</summary>
     private bool _neuralWanted;
     /// <summary>How long the loading screen waits at most for the precomputed 2x atlas (WarmNeuralUpscale);
-    /// what is not done by then continues in the background.</summary>
-    private const double WarmHoldSeconds = 10;
+    /// what is not done by then continues in the background. Shadows cost no inference (UpscaleShadow), so most
+    /// of a match's sprites fit into 5 s; a longer hold kept players waiting without visible progress.</summary>
+    private const double WarmHoldSeconds = 5;
     private readonly System.Diagnostics.Stopwatch _warmupHold = new();
     private bool _showClock;
 
@@ -3688,7 +3689,8 @@ public sealed class MapGame : Game
         if (_showClock)
             bottom = DrawCornerText(GameTime(), bottom);
         if (gameTime.TotalGameTime < _scalingShownUntil)
-            bottom = DrawCornerText($"Skalierung: {_scaling}", bottom);
+            bottom = DrawCornerText(Lang.T("settings.display.scaling") + ": "
+                + Lang.T("settings.display.scaling." + _scaling.ToString().ToLowerInvariant()), bottom);
         if (gameTime.TotalGameTime < _neuralUpscaleShownUntil)
             DrawCornerText(Lang.T("settings.display.neuralUpscale") + ": "
                 + Lang.T(_sprites.NeuralUpscaleEnabled ? "common.on" : "common.off"), bottom);

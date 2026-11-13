@@ -492,7 +492,7 @@
       "neuralUpscaleHint": "Upscales sprites to twice their size with a neural network as they load (settlers, vehicles and map objects only). Off by default. F4 toggles any time, for the session only.",
       "neuralUpscaleUnavailable": "AI upscaling is unavailable on this system (no ONNX Runtime library); it stays off.",
       "scaling": "World scaling",
-      "scalingHint": "How the world is scaled to the screen when you zoom in (F2 switches it any time, for the session only).",
+      "scalingHint": "How the world is scaled to the screen when you zoom in (F2 switches it any time, for the session only). Soft: bilinear, the blurriest. Smooth: Catmull-Rom, balanced (default). Sharp: raw pixels, hard edges. Sharpest: Lanczos2, the most detail.",
       "scaling.sharp": "Sharp",
       "scaling.linear": "Soft",
       "scaling.catmullrom": "Smooth",
