@@ -52,10 +52,20 @@ public sealed class SettlersOverview : IDisposable
     private const int HeaderHeight = 54;
     private const int CellHeight = 80;
 
+    /// <summary>Columns of the portrait grid; the header's icons above sit on the same grid.</summary>
+    private const int Columns = 4;
+
+    /// <summary>One kind portrait's cell of the grid (panel space).</summary>
+    private static Rectangle Cell(int row, int col)
+    {
+        int column = Width / Columns;
+        return new Rectangle(Left + col * column, Top + HeaderHeight + row * CellHeight, column, CellHeight);
+    }
+
     public void Draw(SpriteBatch batch, UiFont font, World world, int player, Portraits portraits, SettlerRenderer settlers, Civilization people)
     {
         var own = world.Settlers.Where(s => s.Player == player).ToList();
-        int column = Width / 4;
+        int column = Width / Columns;
 
         // Header: room, needing room, all settlers (number above the arrow), soldiers.
         string room = world.Housing.Room(player)?.ToString() ?? "–";
@@ -87,31 +97,55 @@ public sealed class SettlersOverview : IDisposable
     /// <summary>An icon centered in header column <paramref name="col"/> with its number below.</summary>
     private static void Icon(SpriteBatch batch, UiFont font, Texture2D icon, string number, int col)
     {
-        int column = Width / 4;
+        int column = Width / Columns;
         float center = Left + col * column + column / 2f;
         batch.Draw(icon, new Vector2(center - icon.Width / 2f, Top), Color.White);
         var size = font.Measure(number, 15);
         Write(batch, font, number, new Vector2(center - size.X / 2, Top + icon.Height + 1), 15);
     }
 
+    /// <summary>The tooltip of the kind's portrait cell under the panel point, or null.</summary>
+    public string? TooltipAt(Vector2 panel)
+    {
+        for (int row = 0; row < _rows.Length; row++)
+            for (int col = 0; col < _rows[row].Length; col++)
+            {
+                var cell = Cell(row, col);
+                if (cell.Bottom > BuildMenu.Content.Bottom)
+                    break;
+                if (cell.Contains(panel))
+                    return NameOf(_rows[row][col]);
+            }
+        return null;
+    }
+
+    /// <summary>Whether the kind is one of the soldiers.</summary>
+    private static bool IsSoldier(string kind) =>
+        kind is SettlerKinds.Swordsman or SettlerKinds.Bowman or SettlerKinds.Pikeman;
+
+    /// <summary>The kind's localized name (the soldiers' types reuse the soldiers menu's names).</summary>
+    private static string NameOf(string kind) => IsSoldier(kind)
+        ? SettlerKinds.TypeName(kind)
+        : Lang.T(LangKeys.Settlers + kind.ToLowerInvariant());
+
     /// <summary>The portrait of a kind: soldiers by their first level.</summary>
-    private static string PortraitOf(string kind) => kind is "SWORDSMAN" or "BOWMAN" or "PIKEMAN" ? $"{kind}_L1" : kind;
+    private static string PortraitOf(string kind) => IsSoldier(kind) ? $"{kind}_L1" : kind;
 
     /// <summary>Whether the settler counts as the kind (thieves are the scouts).</summary>
     private static bool Is(Settler settler, string kind) => kind switch
     {
-        "BEARER" => settler.Profession == Profession.Carrier,
-        "DIGGER" => settler.Profession == Profession.Digger,
-        "BRICKLAYER" => settler.Profession == Profession.Builder,
-        "WORKER" => settler.Profession == Profession.Worker,
-        "SWORDSMAN" => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Swordsman },
-        "BOWMAN" => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Bowman },
-        "PIKEMAN" => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Pikeman },
-        "MAGE" => settler.Profession == Profession.Priest,
-        "GEOLOGIST" => settler.Profession == Profession.Geologist,
-        "THIEF" => settler.Profession == Profession.Scout,
-        "PIONEER" => settler.Profession == Profession.Pioneer,
-        "DONKEY" => settler.Profession == Profession.Donkey,
+        SettlerKinds.Bearer => settler.Profession == Profession.Carrier,
+        SettlerKinds.Digger => settler.Profession == Profession.Digger,
+        SettlerKinds.Bricklayer => settler.Profession == Profession.Builder,
+        SettlerKinds.Worker => settler.Profession == Profession.Worker,
+        SettlerKinds.Swordsman => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Swordsman },
+        SettlerKinds.Bowman => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Bowman },
+        SettlerKinds.Pikeman => settler is { Profession: Profession.Soldier, SoldierType: SoldierType.Pikeman },
+        SettlerKinds.Mage => settler.Profession == Profession.Priest,
+        SettlerKinds.Geologist => settler.Profession == Profession.Geologist,
+        SettlerKinds.Thief => settler.Profession == Profession.Scout,
+        SettlerKinds.Pioneer => settler.Profession == Profession.Pioneer,
+        SettlerKinds.Donkey => settler.Profession == Profession.Donkey,
         _ => false,
     };
 
@@ -125,4 +159,27 @@ public sealed class SettlersOverview : IDisposable
         _total.Dispose();
         _soldiers.Dispose();
     }
+}
+
+/// <summary>
+/// The overview's settler kinds: the row names in <c>data/ui.json</c> (<c>settlersOverview.rows</c>) and the
+/// portraits' keys in the original's GUI data, so the spellings must stay as they are.
+/// </summary>
+internal static class SettlerKinds
+{
+    public const string Bearer = "BEARER";
+    public const string Digger = "DIGGER";
+    public const string Bricklayer = "BRICKLAYER";
+    public const string Worker = "WORKER";
+    public const string Swordsman = "SWORDSMAN";
+    public const string Bowman = "BOWMAN";
+    public const string Pikeman = "PIKEMAN";
+    public const string Mage = "MAGE";
+    public const string Geologist = "GEOLOGIST";
+    public const string Thief = "THIEF";
+    public const string Pioneer = "PIONEER";
+    public const string Donkey = "DONKEY";
+
+    /// <summary>The soldier type's localized name; the one place the <c>soldiers.types.*</c> keys are derived from a kind.</summary>
+    public static string TypeName(string kind) => Lang.Find(LangKeys.SoldierTypes + kind[0] + kind[1..].ToLowerInvariant()) ?? kind;
 }

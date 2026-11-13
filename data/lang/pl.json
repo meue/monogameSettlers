@@ -241,6 +241,19 @@
     "unload": "Rozładuj statek",
     "cargo": "Ładunek: {0}"
   },
+  "dockyard": {
+    "dockAim": "Kliknij w wodę: przystań trafi w najlepsze miejsce obok (prawy przycisk: anuluj)",
+    "setDockFirst": "Najpierw ustaw przystań (młotek)",
+    "onStocks": "{0} w budowie: ukończono {1}%",
+    "ordered": "Zamówiono {0}: tragarze dostarczą materiał",
+    "dockStays": "Przystań pozostaje, dopóki budowany jest statek",
+    "dockElsewhere": "Przystań na {0},{1}: ustaw ją w innym miejscu",
+    "setDock": "Ustaw przystań (potem kliknij w wodę)",
+    "buildFerry": "Buduj prom",
+    "buildShip": "Buduj statek handlowy",
+    "noDockPlace": "Tam nie ma miejsca na przystań (otwarta woda na własnym lądzie koło budynku)",
+    "dockPlaced": "Przystań na {0},{1}"
+  },
   "buildingStatus": {
     "active": "Aktywny",
     "pausing": "Wstrzymywanie",
@@ -578,13 +591,30 @@
     "divine": "Awans: {0}%",
     "manual": "Ręczna",
     "automatic": "Automatyczna",
-    "recruitment": "Rekrutacja"
+    "recruitment": "Rekrutacja",
+    "upgrade": "Boski awans: {0}",
+    "planMore": "Zaplanowani rekruci +{0}",
+    "planFewer": "Zaplanowani rekruci −{0}"
   },
   "professions": {
     "carriers": "Tragarze",
     "diggers": "Kopacze",
     "builders": "Robotnicy",
-    "special": "Specjaliści"
+    "special": "Specjaliści",
+    "geologists": "Geolodzy",
+    "pioneers": "Pionierzy",
+    "scouts": "Zwiadowcy",
+    "share": "Udział – {0}: ±5 %",
+    "shareFull": "{0}: udziały sumują się już do 100 %",
+    "shareZero": "{0}: udział wynosi już 0 %",
+    "findWorld": "Zaznacz wszystkich na mapie: {0}",
+    "findScreen": "Zaznacz wszystkich na ekranie: {0}",
+    "findOne": "Przejdź do następnego: {0}",
+    "convert": "Zamień {0} tragarzy: {1}",
+    "toCarriers": "{0} pionier(ów) na tragarzy",
+    "shareMax": "{0}: najwyżej (góra/dół: 5 % więcej/mniej)",
+    "carriersMin": "Tragarze: co najmniej (góra/dół: 5 % więcej/mniej)",
+    "notYet": " (jeszcze nie ma)"
   },
   "selection": {
     "steal": "Kradnij materiały",
@@ -609,6 +639,26 @@
   "distribution": {
     "construction": "Plac budowy"
   },
+  "settlers": {
+    "bearer": "Tragarz",
+    "digger": "Kopacz",
+    "bricklayer": "Murarz",
+    "worker": "Robotnik",
+    "mage": "Kapłan",
+    "geologist": "Geolog",
+    "thief": "Złodziej",
+    "pioneer": "Pionier",
+    "donkey": "Osiół"
+  },
+  "transport": {
+    "store": "Do magazynu",
+    "doNotStore": "Nie przechowuj",
+    "top": "Na sam przód",
+    "up": "O pozycję w górę",
+    "down": "O pozycję w dół",
+    "bottom": "Na sam koniec",
+    "place": "Pozycja {0} w kolejce transportu"
+  },
   "cheats": {
     "swordsman": "rycerze",
     "bowman": "łucznicy",
@@ -624,6 +674,12 @@
     "fog": "Mgła wojny wł./wył."
   },
   "building": {
+    "workArea": "Ustal nowy rejon prac",
+    "workAreaArmed": "Wybierz nowy rejon prac.",
+    "workAreaUndone": "Cofnięto wybór rejonu prac",
+    "workAreaMoved": "Przesunięto rejon prac na {0},{1}",
+    "workAreaMovedCapped": "Przesunięto rejon prac na {0},{1} (najwyżej {2} pól)",
+    "gatheringPointMoved": "Przesunięto punkt zbiórki na {0},{1}",
     "ammoLoads": "Amunicja: {0}",
     "trade": "Handel-Ląd",
     "seaTrade": "Handel-Statek",

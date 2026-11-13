@@ -6,6 +6,7 @@ Never put game texts in code: `data/lang/de.json`, `en.json` and `pl.json` (nest
 in the client; names come from the data by ID (`buildings.<name>`, `goods.<GOOD>`, `peoples.<People>`, `soldiers.types.*`, `spells.<Kind>`, `events.texts.<id>`,
 `ai.characters/traits.*`, `panel.tabs/menus.*`, `buildingStatus.*`). Missing English → German → key (console "Missing text"). `LanguageTests`:
 same keys/placeholders, every literal key in the client, every data ID. Developer hints (`_message`, window titles, console) stay English, untranslated.
+Messages returned by click/hover handlers are game texts too → `Lang.T`.
 
 ## Binding rules
 - No original assets (GFX, SND, maps, music, exported PNGs) in the repo or the build. Inspection exports go to temporary directories only.
@@ -57,6 +58,7 @@ Own crop codes: grain 200–207 (207 ripe), wine 208–210, rice 211–214, beeh
 - Terrain atlas: texture coordinates half a texel inside the cell, otherwise lines bleed in from neighbouring cells.
 - Sprites only via `SpriteLibrary` (shared atlas pages, `SpriteAtlas`); no separate `Texture2D` per image (draw calls).
 - Walk sequences: 72 frames = 6 directions of 12 each (SW, W, NW, NE, E, SE); frame 0 standing, 1–11 one cycle per grid step.
+- Load GUI images from the original files at runtime via `GfxDirectory`/`SpriteLibrary` from the installation (like all original sprites).
 
 ## Installing the original
 `HOMESTEAD_GAME_DIR` or `gameDirectory` in `~/.config/homestead/settings.json`; the first valid one wins (`GameInstallation.TryLocate`).

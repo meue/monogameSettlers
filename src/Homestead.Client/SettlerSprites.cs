@@ -71,6 +71,12 @@ public sealed class SettlerSprites
             ? new Rectangle((int)body.Offset.X, (int)body.Offset.Y, body.Image.Source.Width, body.Image.Source.Height)
             : null;
 
+    /// <summary>The shadow of a frame relative to its anchor (unscaled); null if the frame has none.</summary>
+    public Rectangle? ShadowBounds(int frame) =>
+        (uint)frame < (uint)FrameCount && _shadow[frame] is { } shadow
+            ? new Rectangle((int)shadow.Offset.X, (int)shadow.Offset.Y, shadow.Image.Source.Width, shadow.Image.Source.Height)
+            : null;
+
     /// <summary>
     /// Scale and anchor that fit <paramref name="bounds"/> (relative to the anchor) centered into
     /// <paramref name="box"/>, at most <paramref name="maxScale"/>.

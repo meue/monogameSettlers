@@ -88,6 +88,9 @@ Individual sequences (visually confirmed):
 
 GUI images (table `0x11306`):
 - Building icons (14/24/34/44): three sizes per building in a row (small, medium, large); JSettlers points to the small one.
+- File 03, building panel (small/medium/large each): 192–194 hand (resume work), 195–197 gears (highest priority; 378–380 with "!"),
+  198–200 collapsing building (demolish), 201–203 rings (work area: red outer, gold, green in the middle), 390–392 hammer with arrow
+  (shipyard dock), 393–395 house (stop work).
 - File 03, build categories (27×24, 36×32, 45×40 each): 69–71 basic buildings, 72–74 food, 75–77 military,
   78–80 social; 81–92 the same pressed (selected). 51–68: main tabs (Build, Goods, Settlers; 33/44/55 each, pressed from 60).
 - File 02, GUI 20 (100×600): blue background texture.

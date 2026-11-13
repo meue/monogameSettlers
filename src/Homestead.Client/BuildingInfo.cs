@@ -15,12 +15,12 @@ namespace Homestead.Client;
 /// for own buildings also its state, the goods in its piles (construction sites: material delivered
 /// of needed) and a mine's hit rate, at the top right the original's tear-down icon (then only the image stays, the question over it),
 /// at the top left for production buildings and construction sites the original's icon to stop or restart them, for construction
-/// sites beside it the highest priority (the name below these icons). A finished
+/// sites beside it the highest priority, finished buildings with a work area their button to move it (the name below these icons). A finished
 /// military building also offers its garrison per soldier type with buttons for more or fewer (the soldier
 /// upgrades are in Siedler › Krieger, <see cref="SoldiersMenu"/>); a market its trade route and goods (BuildingInfo.Market).
 /// Names and states come from <c>data/ui.json</c>.
 /// </summary>
-public sealed partial class BuildingInfo
+public sealed partial class BuildingInfo : IDisposable
 {
     // The content area of the blue panel (like the build menu), no background of its own.
     private static readonly int Left = BuildMenu.Content.X + 4; // clear of the vines on the panel's frame
@@ -49,8 +49,9 @@ public sealed partial class BuildingInfo
 
     private int _demolishImage;
 
-    /// <summary>Stop work (house), go on (hand), the highest priority and the same given (<c>buildingInfo</c> in <c>ui.json</c>).</summary>
-    private Texture2D? _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon;
+    /// <summary>Stop work (house), go on (hand), the highest priority, the same given and the work area's rings,
+    /// all GUI images of file 03 (<c>buildingInfo</c> in <c>ui.json</c>).</summary>
+    private Texture2D? _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon;
 
     private readonly int[] _headImages;
 
@@ -62,10 +63,10 @@ public sealed partial class BuildingInfo
             _states.Add((state[0].GetString()!, state[1].GetString()!));
         var info = root.GetProperty("buildingInfo");
         _demolishImage = info.GetProperty("demolish").GetInt32();
-        _headImages = new[] { "pause", "paused", "priority", "priorityOn" }.Select(n => info.GetProperty(n).GetInt32()).ToArray();
+        _headImages = new[] { "pause", "paused", "priority", "priorityOn", "workArea" }.Select(n => info.GetProperty(n).GetInt32()).ToArray();
     }
 
-    /// <summary>Loads the tear-down icon (once; the same for every people).</summary>
+    /// <summary>Loads the panel's icon textures from file 03's GUI images (once; the same for every people).</summary>
     public void LoadIcons(GraphicsDevice device, GfxDirectory gfx)
     {
         if (_demolishIcon is not null)
@@ -81,10 +82,29 @@ public sealed partial class BuildingInfo
             texture.SetData(image.Pixels);
             return texture;
         }).ToArray();
-        (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon) = (head[0], head[1], head[2], head[3]);
+        (_pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon) = (head[0], head[1], head[2], head[3], head[4]);
         LoadMarketIcons(device, gui);
         LoadDockyardIcons(device, gfx, gui);
         LoadWarWorksIcons(device, gfx);
+    }
+
+    /// <summary>Frees the icon textures of all the panel's parts (called once by <see cref="MapGame"/>'s unload).</summary>
+    public void Dispose()
+    {
+        _demolishIcon?.Dispose();
+        foreach (var icon in new[] { _pauseIcon, _pausedIcon, _priorityIcon, _priorityOnIcon, _workAreaIcon })
+            icon?.Dispose();
+        _dockIcon?.Dispose();
+        foreach (var ships in _shipIcons.Values)
+            foreach (var texture in ships)
+                texture.Dispose();
+        foreach (var icon in new[] { _routeStrip, _seaRouteStrip, _allIcon, _noneIcon })
+            icon?.Dispose();
+        foreach (var arrow in _tradeArrows)
+            arrow.Dispose();
+        foreach (var icons in _warIcons.Values)
+            foreach (var texture in icons)
+                texture.Dispose();
     }
 
     /// <summary>Height of the building image (cut off at the top when it is taller); less when the panel is full.</summary>
@@ -190,7 +210,7 @@ public sealed partial class BuildingInfo
         }
     }
 
-    public string SoldierName(SoldierType type) => Lang.Find("soldiers.types." + type) ?? type.ToString();
+    public string SoldierName(SoldierType type) => SettlerKinds.TypeName(type.ToString().ToUpperInvariant());
 
     public string LevelName(int level) => Lang.T("soldiers.levels." + Math.Clamp(level, 1, 3));
 
@@ -208,8 +228,11 @@ public sealed partial class BuildingInfo
     /// <summary>The icon stopping or restarting work, at the top left (as in the original).</summary>
     private static Rectangle PauseButton(int height) => new(Left, Top, DemolishSize, DemolishSize);
 
-    /// <summary>The highest priority of a construction site, beside it.</summary>
+    /// <summary>The highest priority of a construction site, beside the pause icon.</summary>
     private static Rectangle PriorityButton(int height) => new(Left + DemolishSize + 4, Top, DemolishSize, DemolishSize);
+
+    /// <summary>The work-area button of a finished own building with a work area, centered in the panel's width (as in the original).</summary>
+    private static Rectangle WorkAreaButton(int height) => new(Left + (Inner - DemolishSize) / 2, Top, DemolishSize, DemolishSize);
 
     private static bool OffersPause(World world, Building building) =>
         world.CanPause(building) && !OffersGarrison(building);
@@ -223,6 +246,24 @@ public sealed partial class BuildingInfo
     /// <summary>Whether the screen point is on the highest-priority icon of an own construction site.</summary>
     public bool PriorityAt(Vector2 screen, int height, Building building, int ownPlayer) =>
         building.Player == ownPlayer && _confirming != building && OffersPriority(building) && PriorityButton(height).Contains(screen);
+
+    /// <summary>
+    /// One of the header icons by name ("demolish", "pause", "priority", "workArea") in panel space, when this
+    /// building draws it; capture runs rest the mouse there (<c>HOMESTEAD_CAPTURE_TOOLTIP</c>).
+    /// </summary>
+    public Rectangle? HeaderButton(string name, World world, Building building, int ownPlayer)
+    {
+        if (building.Player != ownPlayer || _confirming == building)
+            return null;
+        return name switch
+        {
+            "demolish" => DemolishButton(0),
+            "pause" => OffersPause(world, building) ? PauseButton(0) : null,
+            "priority" => OffersPriority(building) ? PriorityButton(0) : null,
+            "workArea" => OffersWorkArea(building) ? WorkAreaButton(0) : null,
+            _ => null,
+        };
+    }
 
     // Plain "Ja"/"Nein" at the bottom corners, as in "Spiel beenden" (SystemMenu).
     private static Rectangle YesButton(int height) => new(Left, Bottom - 28, 70, 24);
@@ -267,7 +308,7 @@ public sealed partial class BuildingInfo
         string title = own && OffersMarket(world, building) ? Lang.T(world.Trade.IsHarbor(building) ? "building.seaTrade" : "building.trade")
             : NameOf(building.Definition);
         // Icons at the top left too: the name below them (as in the original).
-        bool head = own && (OffersPause(world, building) || OffersPriority(building));
+        bool head = own && (OffersPause(world, building) || OffersPriority(building) || OffersWorkArea(building));
         if (head)
             y = HeadBottom;
         foreach (string line in font.Wrap(title, own && !head ? Inner - DemolishSize - 4 : Inner, 16))
@@ -327,7 +368,12 @@ public sealed partial class BuildingInfo
             Icon(batch, pixel, building.IsPaused ? _pausedIcon : _pauseIcon, PauseButton(height), cursor);
         if (OffersPriority(building))
             Icon(batch, pixel, building.HasPriority ? _priorityOnIcon : _priorityIcon, PriorityButton(height), cursor);
-        DrawHint(batch, font, world, building, cursor);
+        if (OffersWorkArea(building))
+        {
+            Icon(batch, pixel, _workAreaIcon, WorkAreaButton(height), cursor);
+            if (AimsWorkCenter(building))
+                Frame(batch, pixel, WorkAreaButton(height), Color.White);
+        }
         if (OffersGarrison(building))
             DrawGarrison(batch, pixel, height, font, settlers, people, world, building, cursor);
         if (OffersStorehouse(building))
@@ -350,21 +396,82 @@ public sealed partial class BuildingInfo
         }
 
         // Goods: on a construction site delivered of needed, otherwise what lies in the piles (as far as there is room).
-        if (goods.Count == 0 || y + 8 + 16 + 30 > limit)
+        bool fitsBelowLimit = goods.Count > 0 && y + GoodsLabelDrop + GoodsLabelLineHeight + GoodsCellHeight <= limit;
+        if (!fitsBelowLimit)
             return;
-        y += 8;
+        DrawGoodsBlock(batch, font, economy, world, building, goods, y, limit);
+    }
+
+    /// <summary>How far the goods' label drops below the state text, clear of the frame's vine that dips into its topmost line.</summary>
+    private const int GoodsLabelDrop = 14;
+    private const int GoodsLabelLineHeight = 16;
+    private const int GoodsRowPitch = 32;
+    private const int GoodsCellHeight = 30;
+    private const int GoodsIconWidth = 26;
+    private const int GoodsIconHeight = 28;
+
+    /// <summary>Where a good's count text starts: right of the icon, with a gap.</summary>
+    private const int GoodsTextOffset = 29;
+    private const int GoodsTextDrop = 6;
+
+    /// <summary>The goods below the state text: their label, then the goods centered in the space that remains down to <paramref name="limit"/>.</summary>
+    private void DrawGoodsBlock(SpriteBatch batch, UiFont font, EconomyRenderer economy, World world, Building building,
+        List<(Material Material, string Text)> goods, int y, int limit)
+    {
+        y += GoodsLabelDrop;
         bool assembling = world.Shipping.Building(building) is not null || world.WarMachines.Current(building) is not null;
-        Write(batch, font, Lang.T(building.State == BuildingState.Finished && !assembling ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
-        y += 16;
+        bool holdsGoods = building.State == BuildingState.Finished && !assembling;
+        Write(batch, font, Lang.T(holdsGoods ? "building.goods" : "building.material"), new Vector2(Left, y), Label, 12);
+        y += GoodsLabelLineHeight;
+
+        var layout = MeasureGoodsBlock(font, goods);
+        // The goods sit midway between the label and the panel's end.
+        y += Math.Max(0, (limit - y - layout.Rows * GoodsRowPitch) / 2);
         for (int i = 0; i < goods.Count; i++)
         {
-            var cell = new Rectangle(Left + i % 2 * (Inner / 2), y + i / 2 * 32, Inner / 2, 30);
+            var cell = GoodsCellRect(i, layout, y);
             if (cell.Bottom > limit)
                 break;
-            economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, 26, 28));
-            Write(batch, font, goods[i].Text, new Vector2(cell.X + 29, cell.Y + 6), Text);
+            economy.DrawMaterialIcon(batch, goods[i].Material, new Rectangle(cell.X, cell.Y, GoodsIconWidth, GoodsIconHeight));
+            Write(batch, font, goods[i].Text, new Vector2(cell.X + GoodsTextOffset, cell.Y + GoodsTextDrop), Text);
         }
     }
+
+    /// <summary>
+    /// The goods block's geometry: columns only as wide as their widest content (icon, gap, number), the whole
+    /// block centered - it would otherwise hug the panel's left edge, where the frame's vines hang. Texts too
+    /// wide to center span the panel's width instead.
+    /// </summary>
+    private GoodsBlockLayout MeasureGoodsBlock(UiFont font, List<(Material Material, string Text)> goods)
+    {
+        int columns = goods.Count == 1 ? 1 : 2;
+        int rows = (goods.Count + columns - 1) / columns;
+        var cellWidths = goods.Select(g => GoodsTextOffset + (int)Math.Round(font.Measure(g.Text).X)).ToList();
+        var columnWidths = new int[columns];
+        for (int i = 0; i < goods.Count; i++)
+            columnWidths[i % columns] = Math.Max(columnWidths[i % columns], cellWidths[i]);
+        const int ColumnGap = 8;
+        var columnAt = new int[columns];
+        for (int left = 1; left < columns; left++)
+            columnAt[left] = columnAt[left - 1] + columnWidths[left - 1] + ColumnGap;
+        int blockWidth = columnAt[columns - 1] + columnWidths[columns - 1];
+        return new(columns, rows, blockWidth > Inner, blockWidth, columnAt, cellWidths);
+    }
+
+    /// <summary>One good's cell of the block: icon and count text side by side, in its column.</summary>
+    private Rectangle GoodsCellRect(int i, GoodsBlockLayout layout, int top)
+    {
+        int column = i % layout.Columns;
+        return new Rectangle(
+            layout.TooWideToCenter ? Left + column * Inner / layout.Columns
+                : Left + (Inner - layout.BlockWidth) / 2 + layout.ColumnAt[column],
+            top + i / layout.Columns * GoodsRowPitch,
+            layout.TooWideToCenter ? Inner / layout.Columns : layout.CellWidths[i],
+            GoodsCellHeight);
+    }
+
+    /// <summary>The measured goods block: its columns and rows, whether it spans the panel's width instead of being centered, where each column starts, how wide each cell is.</summary>
+    private sealed record GoodsBlockLayout(int Columns, int Rows, bool TooWideToCenter, int BlockWidth, int[] ColumnAt, List<int> CellWidths);
 
     /// <summary>
     /// The storehouse's goods: without a specialization a dot on each from the player's rule (green: stored,
@@ -434,15 +541,16 @@ public sealed partial class BuildingInfo
             batch.Draw(pixel, rect, HoverColor);
     }
 
-    /// <summary>What the icon at the top under the mouse does, over the icons (as in the original).</summary>
-    private static void DrawHint(SpriteBatch batch, UiFont font, World world, Building building, Vector2 cursor)
+    /// <summary>What the icon at the top under the panel point does: the shared tooltip next to the cursor (<see cref="UiTooltip"/>).</summary>
+    public string? TooltipAt(Vector2 panel, World world, Building building, int ownPlayer)
     {
-        string? hint = DemolishButton(0).Contains(cursor) ? Lang.T("building.demolish")
-            : OffersPause(world, building) && PauseButton(0).Contains(cursor) ? Lang.T(building.IsPaused ? "building.resume" : "building.pause")
-            : OffersPriority(building) && PriorityButton(0).Contains(cursor) ? Lang.T("building.priority")
+        if (building.Player != ownPlayer || _confirming == building)
+            return null;
+        return DemolishButton(0).Contains(panel) ? Lang.T("building.demolish")
+            : OffersPause(world, building) && PauseButton(0).Contains(panel) ? Lang.T(building.IsPaused ? "building.resume" : "building.pause")
+            : OffersPriority(building) && PriorityButton(0).Contains(panel) ? Lang.T("building.priority")
+            : OffersWorkArea(building) && WorkAreaButton(0).Contains(panel) ? Lang.T("building.workArea")
             : null;
-        if (hint is not null)
-            Write(batch, font, hint, new Vector2(Left, Top), Color.White, 16);
     }
 
     /// <summary>The tear-down icon at the top right.</summary>

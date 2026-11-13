@@ -22,6 +22,11 @@ public sealed class TransportMenu : IDisposable
     private static readonly Color Selected = new(220, 30, 20);
     internal static readonly Color StoredDot = new(60, 210, 60);
     internal static readonly Color NotStoredDot = new(225, 45, 30);
+
+    /// <summary>The buttons' lang keys in button order; the tooltip and the hover text both consume them, so the pairing cannot drift.</summary>
+    private static readonly string[] ButtonKeys =
+        ["transport.store", "transport.doNotStore", "transport.top", "transport.up", "transport.down", "transport.bottom"];
+
     private const int Columns = 6;
     private const int ColumnStep = 31;
     private const int Stair = 4;
@@ -165,16 +170,28 @@ public sealed class TransportMenu : IDisposable
         issue(new MoveInTransportOrder(player, good, order.IndexOf(other) - order.IndexOf(good)), _ => PlaceMessage(world, player, good));
     }
 
+    /// <summary>The tooltip of the good icon or button under the panel point, or null.</summary>
+    public string? TooltipAt(Vector2 panel, World world, int player)
+    {
+        var goods = Ordered(world, player);
+        for (int i = 0; i < goods.Count; i++)
+            if (IconAt(goods[i]).Contains(panel))
+                return $"{goods[i].Name}: {Lang.T("transport.place", i + 1)}";
+        for (int i = 0; i < _buttons.Length && i < ButtonKeys.Length; i++)
+            if (Button(i).Contains(panel))
+                return Lang.T(ButtonKeys[i]);
+        return null;
+    }
+
     /// <summary>What the element under the point does (hover text), or null.</summary>
     public string? Hover(Vector2 panel, World world, int player)
     {
         foreach (var good in Ordered(world, player))
             if (IconAt(good).Contains(panel))
                 return $"{good.Name}: {(world.Logistics.IsStored(player, good.Material) ? "goes to storehouses" : "stays with its producer")}";
-        string[] names = ["store", "do not store", "highest priority", "priority +1", "priority -1", "lowest priority"];
-        for (int i = 0; i < _buttons.Length && i < names.Length; i++)
+        for (int i = 0; i < _buttons.Length && i < ButtonKeys.Length; i++)
             if (Button(i).Contains(panel))
-                return _chosen is null ? $"{names[i]} (choose a good first)" : names[i];
+                return _chosen is null ? $"{Lang.T(ButtonKeys[i])} (choose a good first)" : Lang.T(ButtonKeys[i]);
         return null;
     }
 
