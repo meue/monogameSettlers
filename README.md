@@ -136,6 +136,8 @@ The macOS app (`osx-arm64` for Apple Silicon, `osx-x64` for Intel Macs) is not n
 it ("damaged" or "unidentified developer"). Remove the quarantine flag once after unpacking:
 `xattr -dr com.apple.quarantine monoSettlers.app`. The `osx-arm64` build has been tested on an Apple Silicon Mac;
 the `osx-x64` Intel build has not been tried yet – reports welcome.
+On a Mac you can also build the app yourself: `scripts/build-macos-app.sh` creates an ad-hoc signed
+`monoSettlers.app` that opens without any Gatekeeper dialog.
 
 ### First start: point it to your installation
 
