@@ -1,70 +1,70 @@
-# SND-Format (`SND/Siedler3_00.dat`) und Musik
+# SND format (`SND/Siedler3_00.dat`) and music
 
-Stand: an der GOG Ultimate Collection verifiziert, abgeglichen mit JSettlers (`jsettlers.graphics/.../sound/SoundManager`).
-Alle Werte little endian. Parser: `src/Homestead.Assets/Sound/SoundFile.cs`.
+Status: verified against the GOG Ultimate Collection, cross-checked against JSettlers (`jsettlers.graphics/.../sound/SoundManager`).
+All values little endian. Parser: `src/Homestead.Assets/Sound/SoundFile.cs`.
 
-## Dateien
-- `Siedler3_00.dat` (~11,9 MB): alle Geräusche. Groß-/Kleinschreibung uneinheitlich.
-- `siedler3_01.dat` (~160 KB): gleicher Kopf, enthält nur wenige Aufnahmen. Nicht genutzt.
+## Files
+- `Siedler3_00.dat` (~11.9 MB): all sounds. Letter case is inconsistent.
+- `siedler3_01.dat` (~160 KB): same header, contains only a few recordings. Not used.
 
-## Kopf
-| Offset | Inhalt |
+## Header
+| Offset | Content |
 |--------|--------|
-| 0x00 | Signatur `44 15 01 00 02 00 00 00 00 00 00 00 1C 00 00 00` |
-| 0x10 | Dateigröße |
+| 0x00 | Signature `44 15 01 00 02 00 00 00 00 00 00 00 1C 00 00 00` |
+| 0x10 | File size |
 | 0x14 | `FF FF FF FF` |
 | 0x18 | `0x1C` |
-| 0x1C, 0x20 | unbekannt |
-| 0x24 | Tabelle: je Geräusch ein Offset auf seine Variantenliste |
+| 0x1C, 0x20 | unknown |
+| 0x24 | Table: one offset per sound to its variant list |
 
-Die Tabelle endet, wo die erste Variantenliste beginnt: (erster Offset − 0x24) / 4 = **119** Geräusche
-(JSettlers liest 118).
+The table ends where the first variant list begins: (first offset − 0x24) / 4 = **119** sounds
+(JSettlers reads 118).
 
-## Variantenliste
-`int32 Anzahl`, dann je Variante `int32 Offset` der Aufnahme. Das Spiel wählt eine zufällig.
+## Variant list
+`int32 count`, then per variant the `int32 offset` of the recording. The game picks one at random.
 
-## Aufnahme
-| Offset | Inhalt |
+## Recording
+| Offset | Content |
 |--------|--------|
-| 0 | Länge des ganzen Eintrags (Kopf + Daten; die nächste Aufnahme folgt direkt) |
-| 4 | WAVEFORMAT: Format 1 (PCM, `uint16`), Kanäle 1 (`uint16`) |
-| 8 | Abtastrate 22050 |
-| 12 | Bytes je Sekunde 44100 |
-| 16 | Blockgröße 2 (`uint16`), Bits 16 (`uint16`) |
-| 20 | Samples, signed 16 bit; (Länge − 20) / 2 Stück (ungerade Längen: letztes Byte übrig) |
+| 0 | Length of the whole entry (header + data; the next recording follows directly) |
+| 4 | WAVEFORMAT: format 1 (PCM, `uint16`), channels 1 (`uint16`) |
+| 8 | Sample rate 22050 |
+| 12 | Bytes per second 44100 |
+| 16 | Block size 2 (`uint16`), bits 16 (`uint16`) |
+| 20 | Samples, signed 16 bit; (length − 20) / 2 of them (odd lengths: last byte left over) |
 
-## Belegung
-Fett: im Spiel genutzt (`data/sound.json`). „Gehört“: vom Projektinhaber am Original erkannt, sonst aus JSettlers.
+## Usage
+Bold: used in-game (`data/sound.json`). "By ear": recognised in the original by the project owner, otherwise from JSettlers.
 
-| Nr. | Geräusch | Nr. | Geräusch |
+| No. | Sound | No. | Sound |
 |-----|----------|-----|----------|
-| **0** | **Holzfäller** | **36** | **fallender Baum** |
-| **1** | **Bauarbeiter** | **37/38** | **Eisenschmelze** (gehört), auch Goldschmelze |
-| **2** | **Planierer** | 39 | Schweine |
-| **3** | **Steinmetz** | 40/41 | Esel |
-| **5** | **Sägewerk** | 42 | Mühle |
-| **6/7** | **Schmied** (Werkzeug/Waffen) | 45 | Köhler hustet |
-| **8** | **Aussaat des Bauern** (gehört); 9, 12 Bauer | **47/48** | **Auftrag/Anteil hoch/runter** (gehört) |
-| 13 | Feuer | **54** | **Schalter an/aus** (gehört) |
-| 14 | Schlachter | **57** | **Befehl an Soldaten** (gehört; 58/59 gleiche Aufnahme) |
-| 15–17 | Fischer (**16** genutzt) | 62 | Klick |
-| 20 | Werft | **67** | **Wüste** (Ambiente) |
-| **21** | **Lazarett: Heilen** (gehört) | **68** | **Meer** (Ambiente) |
-| **22** | **Arbeitsbereich versetzt** (gehört) | **69/70** | **Vögel** (Ambiente) |
-| **24** | Geologe; **Varianten 1–3: großes Vorkommen** (gehört) | **71** | **Fluss** (Ambiente) |
-| **25** | **Variante 1: Pionier setzt Grenzpfosten** (gehört; JSettlers: Bogenschütze) | **72** | **Sumpf** (platzende Blase) |
-| **51** | **Klick aufs Abriss-Icon** („crack“, gehört) | | |
-| **30** | **Schwertkämpfer** (Schlag) | **73/74** | **Wind** (Ambiente, Gebirge) |
-| 31 | ? | **75** | **Zaubern** (gehört; JSettlers: Donner) |
-| **32** | **Bogenschuss der Ägypter** (gehört) | 76 | Regen |
-| **33** | **Bogenschütze** (Schuss, außer Ägypter; gehört) | 80 | „Ihr werdet angegriffen“ |
-| **34** | **Pikenier** (Stoß) | 85 | Pfeilschuss |
-| **35** | **Tod** (9 Varianten) | 86–90 | Kanone? (87: kurzes dumpfes „klonk“) |
-| **113** | **Tod einer Amazone** (4 Varianten) | **93** | **Gebäude abgerissen/zerstört** (gehört) |
-| 117 | Bienen | 106 | Werkzeug fehlt |
-| | | **109** | **Event: Angriff** (gehört) |
-| | | **110** | **Event: alle anderen** (gehört) |
+| **0** | **woodcutter** | **36** | **falling tree** |
+| **1** | **builder** | **37/38** | **iron smelter** (by ear), also gold smelter |
+| **2** | **digger** | 39 | pigs |
+| **3** | **stonecutter** | 40/41 | donkeys |
+| **5** | **sawmill** | 42 | mill |
+| **6/7** | **smith** (tools/weapons) | 45 | charcoal burner coughs |
+| **8** | **farmer sowing** (by ear); 9, 12 farmer | **47/48** | **order/share up/down** (by ear) |
+| 13 | fire | **54** | **switch on/off** (by ear) |
+| 14 | butcher | **57** | **command to soldiers** (by ear; 58/59 same recording) |
+| 15–17 | fisherman (**16** used) | 62 | click |
+| 20 | shipyard | **67** | **desert** (ambience) |
+| **21** | **hospital: healing** (by ear) | **68** | **sea** (ambience) |
+| **22** | **work area moved** (by ear) | **69/70** | **birds** (ambience) |
+| **24** | geologist; **variants 1–3: large deposit** (by ear) | **71** | **river** (ambience) |
+| **25** | **variant 1: pioneer sets a border post** (by ear; JSettlers: bowman) | **72** | **swamp** (bursting bubble) |
+| **51** | **click on the demolish icon** ("crack", by ear) | | |
+| **30** | **swordsman** (strike) | **73/74** | **wind** (ambience, mountains) |
+| 31 | ? | **75** | **casting** (by ear; JSettlers: thunder) |
+| **32** | **Egyptian bow shot** (by ear) | 76 | rain |
+| **33** | **bowman** (shot, except Egyptians; by ear) | 80 | "Ihr werdet angegriffen" |
+| **34** | **pikeman** (thrust) | 85 | arrow shot |
+| **35** | **death** (9 variants) | 86–90 | cannon? (87: short dull "clonk") |
+| **113** | **death of an Amazon** (4 variants) | **93** | **building demolished/destroyed** (by ear) |
+| 117 | bees | 106 | tool missing |
+| | | **109** | **event: attack** (by ear) |
+| | | **110** | **event: all others** (by ear) |
 
-## Musik
-`MUSIC/Track02.ogg` … `Track14.ogg` (Ogg Vorbis, die früheren CD-Audiospuren; nicht in jeder Ausgabe vorhanden).
-Welche Spur zu welchem Volk gehört, ist nirgends dokumentiert – Zuordnung in `data/sound.json` (`music.tracks`).
+## Music
+`MUSIC/Track02.ogg` … `Track14.ogg` (Ogg Vorbis, the former CD audio tracks; not present in every edition).
+Which track belongs to which people is documented nowhere – the mapping lives in `data/sound.json` (`music.tracks`).

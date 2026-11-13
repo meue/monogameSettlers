@@ -1,153 +1,155 @@
-# Homestead – Nachbau von „Die Siedler 3" (Arbeitstitel)
+# Homestead – remake of "The Settlers III" (working title)
 
-## Vorhaben
-Privater Nachbau von „Die Siedler 3" (Blue Byte, 1998), der die Original-Grafiken und -Sounds nutzt.
-Anlass: Das Original ist verbugt und wird seit Langem nicht mehr weiterentwickelt. Das Spiel ist
-mehrfach in meinem Besitz (Original, Collector's Edition, GOG u. a.).
+## The project
+A private remake of "The Settlers III" (Blue Byte, 1998) that uses the original graphics and sounds.
+Motivation: the original is buggy and has not been developed further for a long time. I own the game
+several times over (original, Collector's Edition, GOG, among others).
 
-## Rahmenbedingungen
+## Framework conditions
 - **Engine:** MonoGame (C#, .NET 9)
-- **Nur Singleplayer**, kein Multiplayer
-- **Open Source** (MIT, [LICENSE.md](../LICENSE.md)), nicht-kommerzielles Fanprojekt; Regeln für Mitwirkende: [CONTRIBUTING.md](../CONTRIBUTING.md)
-- **Hauptziele gegenüber dem Original:**
-  1. Starke KI
-  2. Keine festlaufenden Träger (insbesondere beim KI-Gegner)
-  3. Gebirge, die nicht so schnell leer gehen
+- **Single player and lockstep multiplayer** over the network (merged into `main` via #9): mixed human/AI games,
+  self-hosted relay server as a Docker image; no pause or reconnecting yet – details: [MULTIPLAYER.md](MULTIPLAYER.md)
+- **Open source** (MIT, [LICENSE.md](../LICENSE.md)), a non-commercial fan project; rules for contributors: [CONTRIBUTING.md](../CONTRIBUTING.md)
+- **Main goals compared to the original:**
+  1. Strong AI
+  2. No stuck carriers (especially with the AI opponent)
+  3. Mountains that do not run out so quickly
 
-## Rechtliche Leitplanken (verbindlich)
-- **Keine Original-Assets im Repo, im Build oder in Downloads.** Die Engine liest GFX/SND zur Laufzeit aus
-  der lokalen Installation (Pfad konfigurierbar, siehe [README](../README.md)).
-- **Kein Dekompilieren oder Disassemblieren der Original-EXE/-DLLs**, kein Übernehmen von Originalcode.
-  Die Spiellogik wird nach Beobachtung und Spielkenntnis neu geschrieben (Clean-Room-Ansatz).
-- **Dateiformate analysieren ist okay** (GFX, SND, Karten): Reverse Engineering an Daten, nicht am Programm.
-- **Keinen Kopierschutz/DRM umgehen.**
-- Code aus JSettlers (MIT-Lizenz) darf als Referenz dienen oder übernommen werden; dann den
-  MIT-Lizenzhinweis in `THIRD_PARTY_NOTICES.md` erhalten.
-- Name „monoSettlers“ (wie JSettlers, Settlers United u. a. Fanprojekte); keine offiziellen Logos, nicht als offizielles Produkt auftreten.
-  Typ- und Namespace-Namen ohne „Siedler“/„Settlers“ (Code: *Homestead*).
+## Legal guardrails (binding)
+- **No original assets in the repo, in the build or in downloads.** The engine reads GFX/SND at runtime from
+  the local installation (path configurable, see [README](../README.md)).
+- **No decompiling or disassembling the original EXEs/DLLs**, no taking over original code.
+  The game logic is rewritten from observation and knowledge of the game (clean-room approach).
+- **Analysing file formats is okay** (GFX, SND, maps): reverse engineering of data, not of the program.
+- **Do not bypass copy protection/DRM.**
+- Code from JSettlers (MIT license) may serve as a reference or be incorporated; then keep the
+  MIT license notice in `THIRD_PARTY_NOTICES.md`.
+- The name "monoSettlers" (like JSettlers, Settlers United and other fan projects); no official logos, do not
+  appear as an official product.
+  Type and namespace names without "Siedler"/"Settlers" (code: *Homestead*).
 
-## Referenz: JSettlers
-- Aktiver Fork: https://github.com/paulwedeck/settlers-remake (Java, MIT, Alpha-Status)
-- Liest GFX/SND aus einer Original-Installation und enthält Parser für die Dateiformate –
-  **dafür** als Referenz nutzen.
-- Als Spiel nicht überzeugend. Positiv: Die KI verhält sich spürbar anders als im Original.
+## Reference: JSettlers
+- Active fork: https://github.com/paulwedeck/settlers-remake (Java, MIT, alpha status)
+- Reads GFX/SND from an original installation and contains parsers for the file formats –
+  use it as a reference **for that**.
+- Unconvincing as a game. Positive: the AI behaves noticeably differently from the original.
 
-## Design-Ansätze für die Hauptziele
-- **Träger-Logistik:** Träger planen ihren Weg neu, wenn er blockiert ist. Ein Watchdog erkennt Träger,
-  die sich zu lange nicht bewegen, und löst den Fall auf (neu planen, Ware ablegen o. Ä.).
-  Gilt für alle Spieler – stabile Logistik ist auch Voraussetzung für eine starke KI.
-- **Rohstoffe im Gebirge:** Vorrat pro Feld ist ein Einstellwert (höher als im Original),
-  optional mit langsamer Regeneration.
-- **KI:** plant Warenketten und reagiert auf Engpässe, statt feste Bauabfolgen abzuspulen.
-  Baut auf einer stabilen Wirtschaftssimulation auf und kommt daher zuletzt.
+## Design approaches for the main goals
+- **Carrier logistics:** carriers replan their route when it is blocked. A watchdog detects carriers
+  that have not moved for too long and resolves the case (replan, put down the good or similar).
+  Applies to all players – stable logistics is also a prerequisite for a strong AI.
+- **Raw materials in the mountains:** the deposit per field is a setting (higher than in the original),
+  optionally with slow regeneration.
+- **AI:** plans goods chains and reacts to bottlenecks instead of reeling off fixed build sequences.
+  Builds on a stable economy simulation and therefore comes last.
 
-## Architektur-Grundsätze
-- Spielsimulation strikt vom Rendering getrennt, feste Tick-Rate → KI und Logistik lassen sich
-  ohne Grafik testen und debuggen.
-- Balancing-Werte (Rohstoffmengen, Produktionszeiten usw.) datengetrieben in Konfigurationsdateien,
-  nicht im Code.
-- Asset-Zugriff hinter einer eigenen Schicht gekapselt (`Homestead.Assets`: Parser → eigene Typen,
-  keine MonoGame-Abhängigkeit).
+## Architecture principles
+- Game simulation strictly separated from rendering, fixed tick rate → AI and logistics can be
+  tested and debugged without graphics.
+- Balancing values (raw material amounts, production times etc.) data-driven in configuration files,
+  not in code.
+- Asset access encapsulated behind its own layer (`Homestead.Assets`: parsers → own types,
+  no MonoGame dependency).
 
 ## Roadmap
-1. **Asset-Viewer:** GFX-.dat-Dateien parsen und in MonoGame anzeigen. ✓ (Reste offen)
-   - [x] Installation gefunden: GOG Ultimate Collection (Lutris)
-   - [x] GFX-Format analysiert, mit JSettlers abgeglichen ([formate/gfx.md](formate/gfx.md))
-   - [x] C#-Parser: alle 151.088 Bilder aller GFX-Dateien dekodieren fehlerfrei
-   - [x] MonoGame-Viewer zum Durchblättern
-   - [ ] Animationstabellen (Typ `0x21702`) verstehen
-   - [ ] Zuordnung Sequenz-Nummer → Bedeutung (welcher Siedler, welches Gebäude …)
-   - [x] Torso/Schatten korrekt zugeordnet (Soldaten vollständig)
-   - [ ] SND-Format
-   - [x] Mini-PoC Bewegung: Träger läuft ein Sechseck auf dem Raster, alle 6 Richtungen,
-     feste Tick-Rate (20/s) mit Interpolation (`Homestead.Simulation` + `Homestead.Client`)
-2. **Karte & Gelände:** Landschaft rendern, Kamera, Kartenformat. ← *in Arbeit*
-   - [x] Kartenformat gelesen, alle 198 Karten laden ([formate/map.md](formate/map.md))
-   - [x] Gelände mit Höhen, Texturen und Übergängen, Kamera (Scrollen, Zoom), Kartenwechsel
-   - [x] Kartenobjekte: Bäume (animiert), Steine, Pflanzen, Wracks …, tiefensortiert mit Figuren
-   - [x] Objekte optisch mit dem Original abgeglichen
-   - [ ] Siedler/Gebäude/Waren aus der Karte
-   - [x] Unbekannte Landschaftswerte 66–71 geklärt (nur Karte „Vulkanauge"); 112 offen
-   - [x] Begehbarkeit in der Simulation (Regeln, mit Kartendaten abgeglichen), Debug-Overlay (Taste B)
-   - [x] A*-Wegsuche mit Regionen für unerreichbare Ziele, Testprojekt (Referenzvergleich, Originalkarten)
-   - [x] Wegsuche im Client: Figur anklicken/Ziel anklicken, Figur läuft und folgt den Geländehöhen
-   - [x] Mehrere Figuren gleichzeitig: ein Feld je Figur, Tauschen bei Gegenverkehr, Ausweichen,
-     Umweg nach kurzer Wartezeit, Watchdog lässt nach 2 s durchlaufen (nie festlaufen; Stresstests)
-   - [ ] Durchlauf-Quote bei sehr dichtem Verkehr senken (Tuning, sobald echte Träger laufen)
-3. **Gebäude & Träger:** ← *in Arbeit*
-   - [x] Gebäudedaten aller Völker als JSON (`data/buildings`, aus JSettlers konvertiert)
-   - [x] Gebäude, Warenstapel und Siedler aus Karten laden und darstellen
-   - [x] Logistik: Anfragen/Angebote, Träger-Aufträge mit Reservierung, Watchdog (Ware ablegen),
-     Lager nimmt alles, Produktionsbedarf vor Lager; Tests inkl. Warenerhaltung
-   - [x] Bauen: Baustellen mit Platzierungsprüfung, Planierer ebnen ein (Gelände ändert sich live),
-     Bauarbeiter verbauen gelieferte Materialien, Baufortschritt sichtbar; Platzier-Modus im Client (P)
-   - [x] Lager als Quelle (Waren aus dem Lager an Baustellen und Gebäude); Reihenfolge Baustelle → Produktion → Lager
-   - [x] Weitere Festlauf-Fälle gefunden und behoben (gegenseitiges Wegschieben an Stapeln, Kreisen um Gedränge)
-   - [x] Untätige Träger verteilen sich (verlassen Lagerhof, Gebäudeumfeld und Gedränge; bleiben sofort verfügbar)
-   - [x] Planierer/Bauarbeiter entstehen aus Trägern + Werkzeug (Schaufel/Hammer)
-   - [x] Gebäude anklicken: Zustand (wartet auf Ware/Werkzeug, nichts in Reichweite, …) und Arbeitsbereich
-     (Original-Markierung, vier Kreise); Fähnchen auf besetzten Gebäuden
-   - [ ] Arbeitsbereich verschieben
-   - [x] Wohnhäuser entlassen Träger (klein 10, mittel 30, groß 100; einer pro Sekunde, einstellbar)
-   - [x] Startausstattung auf Mehrspieler-Karten: Wachturm, Waren, Siedler je Startstufe der Karte, gleich für alle
-     Spieler (`data/start.json`); Einzelspieler-Karten bringen ihre Gebäude selbst mit
-   - [ ] Auf- und Ablegen animieren; Wege (beschleunigen das Laufen)
-   - [x] Baustellen: Tür und Stapelplätze müssen frei sein (sonst nie belieferbar); Lager hält eine Ware zusammen
-   - [x] Lager nimmt beliebig viele Warenarten (öffnet bei Bedarf weitere Stapelplätze ringsum)
-   - [ ] Fußabdrücke: JSettlers-Daten sind etwas großzügiger als die Begehbarkeit der Originalkarten
-4. **Wirtschaft:** Warenketten, Produktion, Rohstoffe. ← *begonnen*
-   - [x] Produktions-Balancing als Datei (`data/production.json`, eigene Werte)
-   - [x] Werkstätten (Sägewerk, Mühle, Bäcker, Schlachter, Schmelzen, Köhler, Schweinezucht)
-   - [x] Holzfäller (Baumstümpfe bleiben), Steinmetz (Felsen schrumpfen bis zum Geröll, Ertrag je Größe
-     einstellbar), Förster (Setzlinge wachsen nach)
-   - [x] Arbeiter werden aus Trägern rekrutiert; Watchdog für Arbeiter
-   - [x] Kreislauf getestet: Wirtschaft baut ein Gebäude nur aus eigener Produktion
-   - [x] Bodenschätze aus den Originalkarten (Fisch, Kohle, Eisen, Gold, Edelsteine, Schwefel)
-   - [x] Minen: je Erz eine Einheit Nahrung (welche, bestimmen die Eingangsstapel je Volk); Ertrag je
-     Mengenstufe (`orePerAmount`) und Regeneration (`regenerateSeconds`) einstellbar → Ziel 3
-   - [x] Bauernhof (Felder wachsen in Stufen), Fischer (Fischbestand nimmt ab), Wasserwerk
-   - [x] Kreislauf getestet: Bauernhof + Wasserwerk → Mühle → Bäcker → Kohlemine
-   - [ ] Winzer, Imker, Reisbauer, Eselzucht
-   - [ ] Minen-Anzeige (Vorrat/erschöpft) im Spiel
-   - [x] Werkzeuge: Träger werden nur mit Werkzeug zu Spezialisten (Tabelle in `production.json`);
-     wird ihr Gebäude abgerissen, behalten sie Beruf und Werkzeug und übernehmen das nächste Gebäude ihres Berufs
-   - [x] Werkzeug- und Waffenschmied: Werkzeugschmied macht nur, was gerade gebraucht wird und fehlt;
-     Waffenschmied hält einen Vorrat
-   - [x] Minen-Nahrung: Lieblingsnahrung reicht für 8 Gänge, andere für 2 (`mineFood`, `prefersFood`)
-   - [x] Verteilung: erst Zielart (Baustelle, Gebäudetyp nach Gewicht wie 90:10, Lager), dann nächstes Ziel
-   - [ ] Schmied-Auswahl durch den Spieler (Wunschliste/Anteile)
-5. **Kampf** ← *begonnen*
-   - [x] Soldaten: Kaserne macht aus Träger + Waffe Schwertkämpfer/Pikenier/Bogenschütze; Kartensoldaten mit Stufe
-   - [x] Militärgebäude (Turm, großer Turm, Burg) werden besetzt, Soldaten stehen sichtbar auf den Plätzen
-   - [x] Gebiet: besetzte Gebäude beanspruchen Land (Radien aus den Originalkarten, 98,8 % deckungsgleich),
-     Grenzpfähle in Spielerfarbe, Bauen nur auf eigenem Land
-   - [x] Spielertrennung in Logistik, Rekrutierung, Baustellen
-   - [x] Angriff (Soldaten aus Gebäuden in Reichweite, einer bleibt), Nahkampf, Bogenschützen (auch vom Turm),
-     Verteidiger an der Tür, Eroberung mit Gebietswechsel; Gebäude auf verlorenem Land gehen unter
-   - [ ] Kampfwerte an Originalverhalten angleichen (derzeit eigene Werte in `data/military.json`)
-   - [x] Soldaten wechseln auf nähere Gegner (Nachbarfeld sofort); Rahmenauswahl, Laufbefehl mit Vorrang für Feinde
-   - [x] Kampf-Wegsuche im Umkreis (`combatPathRadius`) um stehende/kämpfende Figuren herum; Laufende greifen in Sichtweite an
-   - [ ] Angriffs-Auswahl wie im Original (Anzahl/Typen wählen), Sterbe-Animation
-   - [ ] Soldaten-Stufen durch Gold/Tempel, Heiler
-6. **KI** ← *begonnen*
-   - [x] Gerüst: `Ai/AiPlayer` je Computerspieler, gleiche Befehle wie ein Mensch, kennt die ganze Karte
-     (kein Erkunden, wie im Original); Werte und Bauliste in `data/ai.json`
-   - [x] Wirtschaft: Bauliste plus Bedarf (Wohnhaus bei Trägermangel, Werkzeugschmied bei fehlendem Werkzeug,
-     Nahrung für hungrige Minen, neuer Steinmetz/Holzfäller, wenn die alten nichts mehr finden); Standort
-     am Rohstoff bzw. nahe der Heimat; Vorrat für einen Steinmetz bleibt immer übrig; Abriss erschöpfter Gebäude
-   - [x] Strategische Expansion (nicht im Original): Türme gezielt Richtung fehlender Steine, Erze, Bäume,
-     Wasser oder Platz – damit kein Spiel mangels Gebirge/Steinen im Startgebiet stehen bleibt
-   - [x] Expansion zu weit entfernten Zielen (z. B. Gebirge auf „Frontier“): fehlt im Umkreis von 60 Feldern
-     um das Ziel ein Turmplatz, geht der Turm auf den eigenen Platz, der dem Ziel am nächsten liegt – Turm
-     für Turm hin, statt auf Wasser/Platz auszuweichen
-   - [ ] Erz-Bedarf erst bei echter Menge erfüllt (Mindestmenge wie bei Steinen, nur Felder mit Gebirge)
-   - [ ] Fernziele nicht abwechselnd verfolgen: liegen Kohle und Eisen in entgegengesetzten Richtungen,
-     wechselt die KI Turm für Turm die Richtung
-   - [ ] Alternative Taktiken, wenn ein Rohstoff (v. a. Gebirge) auf der eigenen Insel fehlt bzw. auf der
-     ganzen Karte fehlt
-   - [x] Lagerhaus erst, wenn ein Schmied/die Goldschmelze in Menge produziert (eingelagert werden nur Werkzeuge,
-     Waffen, Gold – einstellbar in `production.json`; Lagerstapel fassen 8)
-   - [x] `tools/Homestead.Arena`: KI gegen KI ohne Fenster auf allen Mehrspieler-Karten, Kennzahlen und
-     hängende Baustellen
-   - [ ] Militär: verteidigen, angreifen, wenn überlegen
-   - [ ] Feinere Wirtschaftssteuerung (Anteile statt fester Liste, Waffen/Gold, Mehrzweck-Lager)
+1. **Asset viewer:** parse GFX .dat files and display them in MonoGame. ✓ (loose ends open)
+   - [x] Installation found: GOG Ultimate Collection (Lutris)
+   - [x] GFX format analysed, cross-checked with JSettlers ([formate/gfx.md](formate/gfx.md))
+   - [x] C# parser: all 151,088 images of all GFX files decode without errors
+   - [x] MonoGame viewer for browsing
+   - [ ] Understand the animation tables (type `0x21702`)
+   - [ ] Mapping sequence number → meaning (which settler, which building …)
+   - [x] Torso/shadow correctly assigned (soldiers complete)
+   - [ ] SND format
+   - [x] Mini PoC movement: a carrier walks one hexagon on the grid, all 6 directions,
+     fixed tick rate (20/s) with interpolation (`Homestead.Simulation` + `Homestead.Client`)
+2. **Map & terrain:** render the landscape, camera, map format. ← *in progress*
+   - [x] Map format read, all 198 maps load ([formate/map.md](formate/map.md))
+   - [x] Terrain with heights, textures and transitions, camera (scrolling, zoom), map switching
+   - [x] Map objects: trees (animated), stones, plants, wrecks …, depth-sorted with figures
+   - [x] Objects visually cross-checked against the original
+   - [ ] Settlers/buildings/goods from the map
+   - [x] Unknown terrain values 66–71 clarified (only on the map "Vulkanauge"); 112 open
+   - [x] Walkability in the simulation (rules, cross-checked against map data), debug overlay (key B)
+   - [x] A* pathfinding with regions for unreachable targets, test project (reference comparison, original maps)
+   - [x] Pathfinding in the client: click a figure/click a target, the figure walks and follows the terrain heights
+   - [x] Several figures at once: one field per figure, swapping in oncoming traffic, stepping aside,
+     detour after a short wait, watchdog lets them pass through after 2 s (never stuck; stress tests)
+   - [ ] Lower the pass-through rate in very dense traffic (tuning, once real carriers are walking)
+3. **Buildings & carriers:** ← *in progress*
+   - [x] Building data of all peoples as JSON (`data/buildings`, converted from JSettlers)
+   - [x] Load and display buildings, goods piles and settlers from maps
+   - [x] Logistics: requests/offers, carrier jobs with reservation, watchdog (putting down goods),
+     the storehouse takes everything, production demand before the storehouse; tests incl. conservation of goods
+   - [x] Building: construction sites with placement check, diggers level the ground (terrain changes live),
+     builders install the delivered materials, construction progress visible; placement mode in the client (P)
+   - [x] The storehouse as a source (goods from the storehouse to construction sites and buildings); order construction site → production → storehouse
+   - [x] Further stuck cases found and fixed (pushing each other aside at piles, circling around crowds)
+   - [x] Idle carriers spread out (leave the storehouse yard, building surroundings and crowds; remain instantly available)
+   - [x] Diggers/builders emerge from carriers + tool (shovel/hammer)
+   - [x] Click a building: state (waiting for a good/tool, nothing in range, …) and work area
+     (original marker, four circles); little flags on occupied buildings
+   - [ ] Move the work area
+   - [x] Residences release carriers (small 10, medium 30, large 100; one per second, configurable)
+   - [x] Starting equipment on multiplayer maps: guard tower, goods, settlers per the map's start level, the same for all
+     players (`data/start.json`); single-player maps bring their own buildings
+   - [ ] Animate picking up and putting down; paths (speed up walking)
+   - [x] Construction sites: the door and pile spots must be free (otherwise never suppliable); the storehouse keeps one good together
+   - [x] The storehouse takes any number of good types (opens more pile spots around it when needed)
+   - [ ] Footprints: the JSettlers data are somewhat more generous than the walkability of the original maps
+4. **Economy:** goods chains, production, raw materials. ← *started*
+   - [x] Production balancing as a file (`data/production.json`, our own values)
+   - [x] Workshops (sawmill, mill, bakery, butcher, smelters, charcoal burner, pig farm)
+   - [x] Woodcutter (tree stumps remain), stonecutter (rocks shrink down to rubble, yield configurable
+     per size), forester (saplings grow back)
+   - [x] Workers are recruited from carriers; watchdog for workers
+   - [x] Cycle tested: the economy builds a building only from its own production
+   - [x] Mineral resources from the original maps (fish, coal, iron, gold, gems, sulfur)
+   - [x] Mines: one unit of food per ore (which one is determined by the input piles per people); yield per
+     amount step (`orePerAmount`) and regeneration (`regenerateSeconds`) configurable → goal 3
+   - [x] Grain farm (fields grow in stages), fisherman (fish stock decreases), waterworks
+   - [x] Cycle tested: grain farm + waterworks → mill → bakery → coal mine
+   - [ ] Winegrower, beekeeper, rice farmer, donkey farm
+   - [ ] Mine display (deposit/exhausted) in-game
+   - [x] Tools: carriers become specialists only with a tool (table in `production.json`);
+     if their building is demolished, they keep profession and tool and take over the next building of their profession
+   - [x] Toolsmith and weaponsmith: the toolsmith only makes what is currently needed and missing;
+     the weaponsmith keeps a stock
+   - [x] Mine food: favourite food lasts for 8 runs, other food for 2 (`mineFood`, `prefersFood`)
+   - [x] Distribution: first the target type (construction site, building type by weight such as 90:10, storehouse), then the nearest target
+   - [ ] Smith selection by the player (wish list/shares)
+5. **Combat** ← *started*
+   - [x] Soldiers: the barracks turns carrier + weapon into swordsman/pikeman/bowman; map soldiers with level
+   - [x] Military buildings (tower, large tower, castle) are garrisoned, soldiers stand visibly on the spots
+   - [x] Territory: occupied buildings claim land (radii from the original maps, 98.8% identical),
+     border posts in the player's colour, building only on own land
+   - [x] Player separation in logistics, recruitment, construction sites
+   - [x] Attack (soldiers from buildings in range, one stays), melee, bowmen (from the tower too),
+     defenders at the door, capture with territory change; buildings on lost land go under
+   - [ ] Align combat values with the original behaviour (currently our own values in `data/military.json`)
+   - [x] Soldiers switch to closer enemies (neighbouring field immediately); box selection, move order with priority for enemies
+   - [x] Combat pathfinding in the vicinity (`combatPathRadius`) around standing/fighting figures; walkers attack within sight
+   - [ ] Attack selection as in the original (choose number/types), death animation
+   - [ ] Soldier levels through gold/temples, healer
+6. **AI** ← *started*
+   - [x] Framework: `Ai/AiPlayer` per computer player, the same commands as a human, knows the whole map
+     (no exploring, as in the original); values and build list in `data/ai.json`
+   - [x] Economy: build list plus demand (residence when short of carriers, toolsmith when a tool is missing,
+     food for hungry mines, a new stonecutter/woodcutter when the old ones find nothing any more); location
+     at the raw material or near home; the deposit for one stonecutter always remains; demolition of exhausted buildings
+   - [x] Strategic expansion (not in the original): towers aimed at missing stones, ores, trees,
+     water or space – so that no game stalls for lack of mountains/stones in the starting area
+   - [x] Expansion to distant targets (e.g. mountains on "Frontier"): if no tower spot is free within 60 fields
+     of the target, the tower goes to our own spot closest to the target – tower by tower towards it, instead of
+     diverting to water/space
+   - [ ] Ore demand satisfied only at a real amount (minimum amount as with stones, only fields with mountains)
+   - [ ] Do not pursue distant targets alternately: if coal and iron lie in opposite directions,
+     the AI switches direction tower by tower
+   - [ ] Alternative tactics when a raw material (above all mountains) is missing on our own island or
+     on the whole map
+   - [x] Storehouse only once a smith/the gold smelter produces in quantity (only tools, weapons, gold are
+     stored – configurable in `production.json`; storehouse piles hold 8)
+   - [x] `tools/Homestead.Arena`: AI against AI without a window on all multiplayer maps, metrics and
+     stalled construction sites
+   - [ ] Military: defend, attack when superior
+   - [ ] Finer economy control (shares instead of a fixed list, weapons/gold, multi-purpose storehouse)

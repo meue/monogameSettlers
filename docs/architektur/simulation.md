@@ -1,239 +1,276 @@
 # Simulation (`src/Homestead.Simulation`)
 
-Spiellogik ohne MonoGame, feste Tick-Rate (`World.TicksPerSecond`). KI: [ki.md](ki.md).
+Game logic without MonoGame, fixed tick rate (`World.TicksPerSecond`). AI: [ki.md](ki.md).
 
-**Determinismus** (Lockstep-Mehrspieler: jeder Rechner simuliert gleich): Zufall nur `new Random(… + World.Seed)`, keine Uhr, keine Threads,
-kein `GetHashCode` in der Logik; Winkelfunktionen nur über `DeterministicMath` (Sin/Cos/Atan2 aus Grundrechenarten – `Math.Sin` & Co. kommen aus
-der C-Bibliothek der Plattform), Grundrechenarten und `Math.Sqrt` sind nach IEEE überall gleich. `WorldChecksum.Of` (FNV-1a auf 64-Bit-Wörtern, je Teil `Parts`, über Tick, Siedler,
-Gebäude, Stapel, Karte, Mana) für Desync-Erkennung; `DeterminismTests` (KI-Spiel auf `random:4:mirror:11`, 25 min, Prüfsumme je Minute) läuft im Build
-auf Linux, Windows (x64) und macOS (ARM), `determinism-compare` vergleicht.
+**Determinism** (lockstep multiplayer: every machine simulates the same): randomness only via `new Random(… + World.Seed)`, no clock, no threads,
+no `GetHashCode` in the logic; trigonometric functions only via `DeterministicMath` (Sin/Cos/Atan2 from basic arithmetic – `Math.Sin` & co. come from
+the platform's C library); basic arithmetic and `Math.Sqrt` are identical everywhere per IEEE. `WorldChecksum.Of` (FNV-1a over 64-bit words, `Parts` per part, over tick, settlers,
+buildings, piles, map, mana) for desync detection; `DeterminismTests` (AI game on `random:4:mirror:11`, 25 min, checksum per minute) runs in the build
+on Linux, Windows (x64) and macOS (ARM), `determinism-compare` compares.
 
-- `Map/GameMap`: Gelände, Objekte, Begehbarkeit, Bodenschätze (`ResourceAt`).
-  `Map/Vision`: Fog of War je Spieler – Sicht eigener Figuren draußen (Soldaten `Sight`, Späher `scouts.sight` 26, Esel `trade.sight` 3
-  – keine Späher –, sonst `SettlerSight`) und Gebäude (`Military.SightOfBuilding`: fertige mit `buildingSight` in `military.json`,
-  Aussichtsturm 45; besetzte Militärgebäude Gebietsradius + `militarySightMargin` (3), leere nichts; alle anderen fertigen Gebäude
-  `otherBuildingSight` (5), auch Wohnhäuser/Lager; Baustellen nichts); eigenes Land selbst sieht nichts (abgerissen/von Pionieren genommen → Schatten);
-  Erkundetes bleibt erkundet; KI nutzt es nicht.
-- `Pathfinding/PathFinder`: A*; Erreichbarkeit über `Regions` (führen Begehbarkeitsänderungen nach). Schrittkosten nach Laufzeit
-  (`SetStepCosts`: Pfad 8, eben 10, Gebirge 13); Landgebiete je Besitzer.
-  Ferne Ziele etappenweise (`FindRoute`, von `WalkTo`/`Replan`; nicht auf eigenes Land Beschränkte über `ExactDistance` (96)): grobe Route über
-  `Clusters` (16×16-Zellen, je Zelle ihre zusammenhängenden Teile, Nachbarn gecacht, geänderte Zellen neu), exakt nur bis in den Teil
-  `LegNodes` (4) Zellen voraus; `Settler.PathIsLeg` → am Etappenende plant `World` die nächste. Nahe am Ziel exakt.
-  Unerreichbares Befehlsziel (Meer, andere Insel): nächster erreichbarer Punkt (`PathFinder.NearestReachable`, Ring für Ring;
-  `World.CommandTarget` für Soldaten, Geologen/Späher/Pioniere, Priester).
-- `World`/`Settler`: ein Feld je Figur, Tauschen, Ausweichen, Umweg, Watchdog-Durchlauf (Kommentar in `World`).
-  `Settler.StepProgress` in `World.StepUnits`; Tempo je Zielfeld: Gebirge ×0,8, Trampelpfad ×1,2 (`walking` in `production.json`);
-  dazu Soldaten je Typ `speed` in `military.json` (Schwertkämpfer ×1,1, Pikeniere ×1,05, Bogenschützen ×1); `armor` (Pikeniere 0,5):
-  so viel weniger Schaden je Treffer, abgerundet, mindestens 1 (`SoldierStats.Taken`; KI rechnet mit `Toughness`).
-  Siedler und Gebäude haben einen Spieler; Logistik/Rekrutierung nur für den eigenen. `World.TerritoryRules` erzwingt eigenes Land
-  (Bauplatz samt Tür, Stapel, Bauarbeiterplätze, Wege – außer Soldaten, Priester, Geologen, Späher, Pioniere); Gestrandete fliehen (`Idling`); wer mit Auftrag Land unter den Füßen verliert (`World.IsStranded`), bricht ab, lässt Getragenes fallen und nimmt erst auf eigenem Land Neues an.
-- `Trails`: Träger mit Auftrag treten auf Gras Trampelpfade (`GroundCover.Trail`, nach `trailSteps`), verschwinden nach `trailFadeSeconds` (300).
-  Ackerland und Pfade halten ein Feld Abstand zu allem außer Gras/planiertem Boden und zueinander (`GameMap.CoverFits`, sonst brechen
-  Original-Übergänge). Getreide wird auch auf Pfade gesät und kürzt Pfade ringsum (`Trails.CutAround`); Säen macht Gras im Umkreis
-  `farmlandRadius` (1) zu Ackerland, soweit es passt und im Arbeitsbereich liegt.
-- `Buildings/`: Definitionen aus `data/buildings/*.json`.
-  - Bauplatzprüfung (`CanPlace`, `DoorLeadsOut`, `PlanLevelling`): „gesehen“ per Markenfeld über die Karte (`NewSearch`/`See`), kein HashSet.
-  - `Construction`: Planieren (`World.PlanLevelling`, `levelling` in `production.json`): Grundfläche auf mittlere Höhe, ringsum Ring für Ring,
-    bis kein Nachbar über `maxSlope` (8) abweicht (am Hang breiter). Aufwand = bewegte Höhe; ungültig über `maxWork` oder wenn ein zu
-    änderndes Feld bebaut, anderweitig geplant, unbegehbar oder fremd ist. Planierer: je Gang `heightPerDig`, nie Steigung über `maxSlope`
-    (am Hang oben zuerst). Sofort fertige Gebäude planieren sofort. Minen: nur Gebirge, kein Planieren (`levelling: false`, `NeedsLevelling`).
-  - Bauarbeiter ohne Material werden frei (untätig, schiebbar, ein Schritt weg, wechseln Baustelle); Plätze nur, solange Material für einen weiteren reicht.
-  - Gebäude, die JSettlers nicht hat (Kriegsmaschinen-Werkstätten, Pulvermacherei): `data/buildings/handmade.json` je Volk
-    (Grundriss = vom Originalbild bedeckte Rasterpunkte, Tür/Stapel nach dem Bild), vor `overrides.json` geladen.
-  - `World.RemoveBuilding`: Abriss/Verlust mit Staubwolke (`DustClouds`), Anteil `demolition.payback` des Baumaterials bleibt liegen.
-    Land abgerissener Militärgebäude bleibt beim Spieler, aber ungeschützt (feindliches Militärgebäude nimmt es samt Gebäuden).
-  - Abriss: Arbeiter behält Beruf und Werkzeug, übernimmt das nächste Gebäude seines Berufs.
-- `Economy/`: Waren, Stapel.
-  - Neuer Gebäudestapel (Baustelle, fertig) auf einem losen Stapel: dessen Waren werden daneben abgelegt (`AddPile` → `DropGoods`), nicht überschrieben.
-  - `Logistics` mit Watchdog: je Ware unter den aktuellen Abnehmern – Baustellen als einer (`Logistics.Construction`), sonst je Gebäudetyp –
-    einer gelost nach Spieler-Anteilen (`ShareOf`/`SetShare`; Vorgaben `distribution` in `production.json`, 0–1, z. B. Nahrung Minen 1 : 0,1,
-    Bretter Baustelle 1, Köhlerei/Werft 0,5; gelistete Waren geben ungelisteten Abnehmern 0, ungelistete allen 1; Anteil 0 bekommt nichts,
-    außer alle sind 0), dann das nächste Ziel mit Platz; Lager nur, wenn sonst niemand will.
-  - Einlagern nur, was der Spieler einlagert (`IsStored`/`SetStored`); Lagerhaus auf eine Ware spezialisierbar
-    (`SpecializationOf`/`SetSpecialization`, `StoresHere`, überstimmt die allgemeine Regel); Vorgabe `storage.materials`: Werkzeuge, Waffen, Gold, Edelsteine.
-  - Angebote nach Transportreihenfolge (`TransportOrder`/`MoveInTransportOrder`, Vorgabe `storage.transportOrder`); lose Stapel auf niemandes
-    Land: Spieler mit freien Trägern. Sonst bleibt Ware am Ausgabestapel (8; voll → Erzeuger wartet, Sammler auch).
-  - Baustelle mit höchster Priorität (`Building.HasPriority`): ihre Stapel vor allen Abnehmern (auch Anteilen), ihre Waren vorn in
-    der Transportreihenfolge; fehlt mehr, als bereitliegt, geben Träger zu anderen Baustellen nur so viele ab (`Logistics.FreeForPriority`, nächste
-    zuerst; auf dem Weg zur Quelle: abgebrochen, beladen: lassen fallen – im Original alle); ausgefallene Lieferungen werden beim nächsten Abgleich ersetzt.
-  - `Problems` zählt Abbruchgründe.
-  - `Production`: Werkstätten; Schmiede je Takt ein Produkt: Bestelltes, dann erwartetes Werkzeug, sonst gewichtet reihum nach Anteilen
-    (`shares`: Werkzeugschmied 0 = nur Bedarf; Waffenschmied Schwert 100 %, Bogen 70 %, Speer 45 %), solange unter `keepInStock` (0 = ohne Grenze);
-    Wahl erst mit Eisen und Kohle.
-    Minen: Nahrungsstapel max. `mineFood.pileCapacity` (4); erste `mineFood.freeRuns` (8) Gänge je Gebäude gratis; Erfolgschance =
-    Resterz im Umkreis gegen `resources.fullAmount` (8) je Feld (leere/fremde Felder = Nieten, jeder Fund senkt sie; `MineChance`); Niete kostet Zeit und Nahrung.
-    Sammler: Wasserwerk nur an Flüssen; Bauer, Weinbauer, Reisbauer, Imker nach `crops` – Getreide macht Ackerland (`GroundCover.Farmland`,
-    begehbar, bis Abriss/Verlust der Farm), Getreide/Wein/Reis wachsen 600 s wie im Original; Wein am Hang schneller; Reis nur auf Sumpf; Reben/Bienenstöcke wachsen nach.
-    Imker: höchstens `maxFields` (12) Stöcke je Imkerei (`Production._fields`; herrenlose im Arbeitsbereich – alte Spielstände – übernimmt sie), neue nur mit
-    mindestens einem Baum im Umkreis und `fieldSpacing` (5) Feldern Abstand zu anderen Stöcken (Aufstellen `sowSeconds` 1,2 s = eine Animationsrunde), dort, wo die meisten stehen; Stöcke ohne Bäume ringsum holt sie nach dem Ernten ab (dann neu bei Bäumen, sonst keiner);
-    Abriss/Verlust der Imkerei nimmt ihre Stöcke sofort mit. Stock voll in 720 s, mit `idealTrees` (10) ausgewachsenen Bäumen im Umkreis `treeRadius` (5) `1 + treeBonus` (3) × so schnell = 240 s
-    (12 Stöcke à ~20 s Erntegang → 3 Honig/min wie im Original; weniger Bäume anteilig).
-  - `Healing`: Lazarett-Heiler ruft den schwächsten (wenigste LP, Gleichstand: nächster) verwundeten untätigen eigenen Soldaten im Umkreis
-    `hospital.callRadius` (40) auf den Heilplatz vor der Tür (`HealSpotOf`; Haltende nicht); wer still neben Tür, Heilerplatz oder Heilplatz steht,
-    wird ohne Ruf geheilt (der schwächste zuerst),
-    heilt ihn (ab da nur durch Abriss unterbrechbar; volle LP nach `healSeconds`, wo immer er ist), geht hinein, `callPauseSeconds` Pause.
-  - `Housing`: Wohnhäuser entlassen Träger und geben so viel Wohnraum (plus Startbevölkerung, `SettleStartPopulation`). Platz brauchen
-    Träger und Arbeiter (auch Planierer/Bauarbeiter – Baustellen rekrutieren höchstens Anteil `Share.Diggers`/`Builders`, mind. je einer),
-    nicht Soldaten, Geologen, Späher, Pioniere. Ohne Platz streiken (`Settler.IsStriking`): erst untätige Träger, dann Arbeiter (bleiben drin).
-  - `Recruitment`: Träger holen Werkzeug, werden Spezialisten; die drei Anteile zusammen ≤ 100 % (`SetShare` begrenzt). Tests ohne Werkzeugthema: `TestConfig.NoTools`.
-  - `Idling`: Gestrandete Träger/Berufe außerhalb des eigenen Lands fliehen zum nächsten erreichbaren eigenen Feld (`RefugeRadius` 64, sonst
-    eigene Gebäudetür); ohne irren sie umher und sterben nach 30–60 s (je Siedler fest per Hash, Geist, Todesgeräusch), zurück auf eigenem Land gerettet.
-    Untätige (Träger, Soldaten, Planierer, Bauarbeiter, Geologen, Späher, Pioniere, Arbeitslose) gehen aus dem Weg
-    (nach `IdleTicks`; Soldaten sofort, jeden Tick, mit einem Feld Abstand).
-  - `Geology`: Geologen laufen wie Soldaten (verteilt auf freie Felder); auf Gebirge suchen sie im Umkreis `geologists.searchRadius`
-    (nächstes freies Feld, Gleichstand zufällig), setzen Schilder mit Rohstoff und Menge.
-  - Späher (`Profession.Scout`, Grafik `THIEF`): umgewandelt/geschickt wie Geologen (`Geology.Convert(…, Profession.Scout)`), suchen nie.
-    Für andere Spieler ein eigener Träger (`Settler.IsRevealedTo`), nicht angegriffen, bis ein feindlicher Soldat draußen auf
-    `scouts.revealRadius` (10) herankommt (`Military.RevealScouts`, jeden Tick); erkannt bleibt er, solange der Spieler ihn sieht
-    (`Military.Sees`: Sicht eigener Figuren/Gebäude wie Fog of War), dann wieder getarnt. Erkannt: wie Geologe bekämpft
-    (auch von Turm-Bogenschützen), KI zählt ihn zu Feindgruppen. KI-Verdacht (`AiPlayer.InspectScouts`): Späher auf ihrem Land → nächster
-    untätiger Soldat folgt ihm (sonst ruft sie einen aus dem nächsten Militärgebäude mit mehr als einem Soldaten).
-  - `Theft`: Späher stehlen (`Steal`; Alt+Rechtsklick: `StealAt`) die nächste Ware im Umkreis `scouts.stealRadius` (5) – unreservierte Einheit,
-    nicht aus eigenen Gebäuden oder losen Waren auf eigenem Land; trägt sie (`Carrying`, geduckt), Tempo `scouts.loadedSpeed` (0,5);
-    lässt sie still auf eigenem Land fallen oder wo er stirbt. Mit `StealAt` geschickt, läuft er mit der Ware gleich zurück, wo er beim Befehl stand.
-  - `Pioneering`: Pioniere (umgewandelt/geschickt wie Späher; `Claim`, Alt+Rechtsklick `ClaimAt`) nehmen Feld für Feld: nächstes freies oder
-    fremdes, nicht geschütztes Feld (`Military.IsProtected`) im Umkreis `pioneers.searchRadius` (10), Gleichstand nächst dem Zielpunkt;
-    `claimSeconds` (2) Pfosten, dann gehört ihm das Feld samt unbegehbaren Nachbarn (`Military.TakeLand`, ungeschützte fremde Gebäude fallen);
-    am Ufer auch das freie Wasser davor bis `pioneers.waterReach` (6) Felder hinaus (über eigenes Wasser hinweg) – Platz für Steg und Fischer; Grenzpfosten zeichnet der Client nie auf Wasser (Ufer = Grenze).
-    Im geschützten Feindland Richtung freies Land, sonst Ende. Vollständig umschlossenes freies Land (nicht Kartenrand/fremdes Land) wird
-    auf einmal genommen (bis 4096 Felder). Land ungeschützt.
-  - `Trade`: Landhandel. Eselzucht (`trade` in `production.json`: Getreide + Wasser → ein Esel, `Profession.Donkey`, keine Ware) züchtet,
-    solange der Spieler weniger als `keepIdle` (4) Esel ohne Auftrag hat. Esel: nicht steuerbar, unsterblich, laufen überall, zählen nicht
-    für Wohnraum/Berufe-Anteile. Markt (`market_place`): 6 Stapel `PileRole.Trade` (nie Angebot); je Markt Ziel = Punkt (`Reachable`:
-    begehbar und vom Markt aus erreichbar, auf einem Gebäude dessen Tür; neues Ziel löscht die Stopps), optional bis zu 3 Stopps;
-    je Ware Menge (`Remaining`, ∞ = `Trade.Unlimited`, sinkt je Ankunft am Markt). Träger bringen nur mit Ziel (Logistik: Markt immer
-    Anteil 1, auch aus dem Ziel selbst – mit ∞ eine Endlosschleife wie im Original). Jede Einheit am Markt ruft den nächsten freien Esel;
-    er lädt bis `load` (2), läuft die Stopps (Watchdog überspringt), legt am Ziel ab (an der Tür eines eigenen Lagers in dessen Stapel),
-    zurück dieselben Stopps rückwärts. Feindlicher Soldat (auch Turm-Bogenschütze) schlägt einen beladenen Esel einmal: Ware fällt,
-    Esel kehrt um (`Struck`, Event `donkeyRobbed`, Handel); Abladen auf fremdem Land → `World.GoodsHandedOver(von, an, Ware)` (C#-Event, nicht gespeichert); leere Esel greift niemand an (nur beladene sind `_combatants`). Ziel unerreichbar → mit Ladung heim, neben den Markt.
-  - `Shipping`: Werft (`shipping` in `production.json`) braucht erst einen Steg (`Dock`: Uferfeld + Richtung, `dockLength` (4) Felder):
-    `PlaceDock` setzt ihn sofort dorthin, wo sein Ende dem Klick am nächsten ist – freies, begehbares eigenes Ufer bis `dockDistance` (20)
-    von der Werft, von ihrer Tür erreichbar, Steg über eigenes offenes Wasser (ab dem zweiten Feld ringsum Wasser), neuer ersetzt den alten,
-    geht mit der Werft. Gezeichnet als Kartenobjekt `MapObjectCodes.Dock` (219, Datei 1 Sequenz 112 je Feld), begehbar (`GameMap.ComputeWalkable`).
-    Schiffbau (`Order`, je Werft eins zugleich, `ships` mit Kosten geraten): Logistik liefert an die Werft nur, was das Schiff noch braucht
-    (`Wants`); Schiffbauer (`DOCKWORKER`, Hammer, Bauarbeiter-Grafik; `Production`-Teil `Shipbuilding.cs`) holt je Einheit eine vom Stapel, trägt sie
-    zum Stegende, hämmert `buildSeconds` (4); jede Einheit lässt den Rumpf wachsen (`Progress`), die letzte lässt das Schiff zu Wasser
-    (`Berth`: zwei Felder hinter dem Stegende, quer zum Steg). Abriss der Werft verwirft den Auftrag. `Launch`: sofort fertig (Captures).
-    `Ship` (eigene Liste, keine Siedler): fährt wie ein Soldat gesteuert (`Move`, Breitensuche übers Wasser zum nächsten erreichbaren Punkt),
-    nur auf `IsNavigable` (Wasser mit `ShoreClearance` (3) Wasser ringsum, kein Steg), hält `Spacing` (6) zu anderen Schiffen (wartet, dann Umweg),
-    `stepSeconds` (0,5) je Feld, Sicht `sight` (16). Fähre (`Ferries.cs`): nimmt `passengers` (7) Einheiten (Soldaten, Priester, Geologen, Späher,
-    Pioniere) auf, wenn sie still liegt und begehbares Land (Ufer, Steg) bis `landingDistance` (6) hat (`IsNearLand`); `Board`: jede läuft zum
-    nächsten erreichbaren Uferfeld (Soldaten erzwungen), steigt dort ein (`IsInside`, Position = Schiff, fährt mit); neuer Befehl bricht ab.
-    `Unload`: alle auf die freien Landfelder nächst dem Schiff (Breitensuche ab dem Ufer). Handelsschiff 0 Plätze. Noch ohne Kampf.
-    Seehandel (`SeaTrade.cs`): Hafen (`trade.harbor` = `harbor`, `Trade.IsHarbor`/`IsTradingPost`) wie Markt + Esel – Route, Ziel, Mengen in `Trade`
-    (Stapel `PileRole.Trade`, Logistik Anteil 1), braucht einen Steg wie die Werft (`HasDocks`); Routenpunkte auf offenem Wasser, das der Steg
-    erreicht (`SeaPoint`: nächstes in derselben Wasserfläche `SeaRegion`, nicht gespeichert; Ziel mit Strand bis `landingDistance`). Jede Ware
-    am Hafen ruft das nächste freie Handelsschiff (eins je Hafen zum Laden zugleich): fährt zum Steg, lädt bis `cargoPiles` (3) Stapel à
-    `pileSize` (8) einer Ware (`loadSeconds` je Einheit, wartet bis `loadWaitSeconds` auf mehr), fährt die Stopps, legt je Stapel einen losen
-    Stapel auf den Strand am Ziel (kein Steg dort), zurück dieselben Stopps. Watchdog: Punkt nach 3 Versuchen nicht erreicht → Stopp übersprungen,
-    Ziel → heim, Ladung neben den Steg. Handelsschiffe auf Fahrt nehmen keine Befehle (`HarborOf`, `CargoOf`).
-- Teams (`World.Teams`, `AreAllies`; vom Startscreen, gespeichert): Verbündete kämpfen nicht gegeneinander (`MilitaryCombat.IsEnemy`, `Attack`,
-  Turmschützen, Kriegsmaschinen `IsTarget`), Feind-Zauber verschonen sie (`Magic.Affects`), Türme/Pioniere nehmen kein verbündetes Land
-  (`Claim`, `TakeLand`, `IsClaimable`), Diebe stehlen nicht bei ihnen (`Theft.IsOwn`); `ConquestGoals`: gewonnen, wenn alle Feinde besiegt sind (Ergebnis je Spieler, `IGameGoals.OutcomeOf`/`Decide(spieler, …)`).
-  Sicht geteilt: `Vision`, `Military.Sees`, `Magic.SeesBySpell` zählen das ganze Team; ein enttarnter Späher ist dem ganzen Team des Soldaten enttarnt.
-- `Military/`: Kaserne bildet an der Tür aus (Träger wird dort im selben Moment Soldat, geht nicht hinein), Rekruten laufen zum Sammelpunkt.
-  Militärgebäude rufen nur untätige Soldaten bis `garrisonCallRadius` (100) Felder von der Tür; weiter entfernte bleiben stehen.
-  Je Waffe ein Träger zugleich (soweit die Träger-Reserve reicht, Laufende aller Kasernen zählen), jeder wird an der Tür oder direkt daneben ausgebildet. Soll-Besatzung je Typ (`ChangeWanted`: neu 1 Schwertkämpfer; nie 0,
-  nie über Infanterie-/Bogenplätze; „+“ bei vollen Infanterieplätzen ersetzt die andere Infanterieart; Überzählige kehren um oder kommen
-  heraus, nie der letzte – Ersatz tauscht an der Tür). Besetzte beanspruchen Land; immer ihren eigenen Grund (sonst fiele ein eroberter Turm gleich wieder).
-  - `Move`: Zielfelder um den Punkt zuerst frei (niemand steht dort, kein anderer Soldat dorthin geschickt), sonst belegte, dann reihum.
-    Soldaten laufen beim letzten Schritt nicht durch einen Stehenden auf ihr Ziel (Watchdog), sondern bleiben davor (gilt als angekommen).
-  - `MilitaryCombat`: Gegnersuche über Zellen (`CellSize` 8) der Kämpfer zum Tick-Beginn, je Spieler (nur Zellen der Feinde durchsucht) (`EnemiesNear`, gleiche Reihenfolge wie `EnemiesOf`).
-    Untätige Soldaten und solche mit nicht erzwungenem Laufbefehl greifen feindliche Soldaten und besetzte Militärgebäude
-    (Tür in Sicht) an, Näheres zuerst; Laufende gehen danach weiter; Besatzung bleibt drin. Nahkämpfer schlagen erst die Tür ein
-    (`door`, HP wie Pikenier; 5 s ohne Feind im Umkreis 6 → Wächter geht rein, Tür regeneriert 0 → voll in 30 s).
-    Dann je ein Verteidiger unbeweglich vor der Tür (`FightPoint`; Plätze je Volk/Gebäude als Versatz in `door.points`, sonst automatisch,
-    vorn zuerst; erst Infanterie, dann Bogenschützen), nur von Nahkämpfern auf den Türplätzen angreifbar (`door.fighters`: Turm/großer Turm 2,
-    Burg 1; Pikeniere wie Reichweite 1, Rest wartet). Wer den letzten Verteidiger tötet, ist drin. Wartende Angreifer: freies Feld 2–5 vom Wächterfeld, im selben Tick nie zweimal vergeben (`QueueSpot`);
-    alles voll → wo sie stehen bzw. nächstes freies Feld, nie aufs Wächterfeld (sonst Hunderte auf einem Feld). Bogenschützen greifen keine Gebäude an
-    (weder von selbst noch auf Befehl – `Attack` übergeht sie; KI-Feldzüge ohne sie) und schießen am Boden nicht unter `minRange` (5):
-    zu Nahe → zurückweichen (`SoldierStats.InReach`/`OffReach`), auch Tür-Wächter; vom Turm ohne Mindestreichweite.
-    Bogenschützen in Militärgebäuden schießen `towerRangeFactor` (1,69) weiter (`TowerRange`, auch KI-Turmfeuer). Bogenschützen treffen beim Schuss, Pfeil (`Military.Arrows`, `ArrowTicks`) nur Darstellung. Abklingzeit zwischen Schlägen/Schüssen je Soldat (`_nextShot`), nicht je Befehl: ein neuer Befehl mitten im Kampf setzt sie nicht zurück. Nahe am Feind lokale Wegsuche (`combatPathRadius`).
-    „Position halten“ (`Military.Hold`, Auswahl-Panel bei Soldaten, an der Stelle von „Land einnehmen“; `Move(…, hold: true)` erst hinlaufen):
-    nicht untätig (kein Gebäude ruft ihn), kämpft nur gegen Feinde in Reichweite, verfolgt niemanden, kehrt auf den Platz zurück, bis zum nächsten Befehl
-    (`HoldTarget`/`Holds`; das Lazarett ruft Haltende nicht). KI: Verwundete, geparkte Nahkämpfer, Bogenschützen der Schlachtordnung.
-    Wegpunkte (`AddWaypoint`, Shift+Rechtsklick): mit Befehl (Laufen, Angriff, eigener Kampf) erst dieser, dann der Reihe nach bis `MaxWaypoints` (3)
-    Punkte, ein weiterer ersetzt den letzten (`Fighter.Waypoints`, `Dismiss` macht den nächsten zum Laufbefehl); ohne Befehl (oder haltend/patrouillierend) wie `Move`.
-    Patrouille (`Patrol`, Alt+Rechtsklick): zum Punkt und zurück zum Standort, hin und her bis zum nächsten Befehl (`Fighter.PatrolBack`); kämpft
-    unterwegs wie beim Laufbefehl, eigenständige Angriffe enden mit der Patrouille weiter (`EndAttack` behält `MoveTo`).
-  - Kampfkraft (`CombatStrength`): eigenes Land 100 %, sonst Startwert je Spielerzahl (`startPercent`, im Original gemessen: 1 → 54 % (wie dort, obwohl sinnlos), 2 → 50 %, 4 → 37 %, 8 → 25 %, 16 → 14 %); plus Gold im eigenen Land (nach Landbesitz; Ägypter: Gold
-    halb, Edelsteine doppelt), jeder weitere Prozentpunkt kostet nach erreichter Kampfkraft (Bänder `stepPercent` ab 0 %, `unitsPerPercent`, im Original gemessen: bis 50 % 1,2 Barren, ab 90 % 20; niedriger Start steigt schneller), ohne Obergrenze (200 % = doppelter Schaden außerhalb; zwingt Reiche zum Angriff). KI kennt alle Werte und bewertet den Kampfort.
-  - Werte: `data/military.json`; Gebietsradien aus Originalkarten gemessen.
-  - `WarMachines` (`warMachines` in `military.json`): je Volk eine Maschine (Katapult, Balliste, Kanone, Gong) aus seiner Werkstatt:
-    `Order` reiht Maschine oder Ladung Munition ein (Gong ohne; `Cancel` nimmt die letzte nicht begonnene zurück), Logistik liefert nur, was
-    der aktuelle Auftrag braucht (`Wants`), der Werftarbeiter hämmert Einheit für Einheit vor der Tür (`IAssembly`, gemeinsam mit der Werft,
-    `Shipbuilding.cs`); Ladungen liegen an der Werkstatt (`Loads`). Maschine = `Profession.WarMachine` (Volk in `People`, `Ammo`), zählt nicht
-    als Bevölkerung, fährt wie Soldaten (`Move`, Tempo `speed`), belegt ihr Feld und die 6 Nachbarn (`Settler.IsWide`/`Body`: Wegsuche nur über Punkte mit
-    6 begehbaren Nachbarn (`PathFinder.IsClear`, exakt, höchstens `WideSearchLimit` Knoten; kommt sie nicht durch, fährt sie so nah wie möglich – im Original
-    auch), schiebt Untätige beiseite, niemand tauscht mit ihr, Wartende planen um alle 7 Felder herum, Nahkampf reicht bis an den Rand), feuert nur auf fertige feindliche Militärgebäude (`Attack`; stehende auf alles in
-    `range`) alle `cooldownSeconds` (5) mit `hitChance` (Katapult 50 %, Balliste 75 %, Kanone 90 %, Gong 50 % – vom Nutzer), Geschoss
-    `MachineShot` (Gong sofort), Einschläge kurz in `Impacts`; jeder Treffer zählt gegen `buildingHits` (`DamageOf`), der letzte reißt es ab
-    (Besatzung kommt lebend heraus, Event `buildingDestroyed`); ein Treffer heilt je `repairSeconds` (60) nach dem letzten. `shots` (6) je Ladung; `Reload`: zur nächsten eigenen Werkstatt mit Ladung. Nahkämpfer zerstören Maschinen
-    (`health`, Staub statt Geist), Bogenschützen nicht (`EnemiesOf(…, bowman)`). Reichweite, Tempo, LP, Treffer je Gebäude geraten.
-    Noch nicht: Berge meiden, KI. Pulvermacherei (Asiaten): Kohle + Schwefel → Schießpulver (`POWDER_MAKER`, ohne Werkzeug).
-- `Magic/`: Mana je Spieler. Kleiner Tempel: Wein/Met/Bier/Schnaps → Mana (eine Einheit je `templeSeconds` 35,7 wie im Original, Schnaps 2 Mana); großer Tempel schickt sofort und alle `priestSeconds` einen Priester.
-  Zauber wie im Original (Werte aus wiki.siedler3.net „Mana und Magie“): je Volk 8 im Menü (`menu`, Reihenfolge nach den Icons; `own` = Volkszauber
-  der KI), je Zauber `cost`, `radius` (0 = ganze Karte), `count`, `seconds`, `factor`; `placeholder` = noch nicht umgesetzt (sichtbar, nicht wirkbar).
-  `Cast`: Priester läuft bis `range` (24) heran (`anywhere`: wirkt von der Stelle, unbegrenzt weit – Verstärkung, Waren rufen/versenden; ohne Radius sofort beim Menüklick),
-  zaubert nur, wo etwas Betroffenes ist (`Magic.HasTargets`/`Affected`, nächste zuerst bis `count`), kein Kampf nötig; Kosten je Spieler und Zauberart
-  mit jedem Wirken `costIncrease` % (25 wie im Original, aufgerundet: 20, 25, 32 …) teurer (`Magic.CostOf`, Menü zeigt den aktuellen Preis); wirkt sofort bei Zauberbeginn (`castSeconds` nur die Geste).
-  Einheiten bewegende/verwandelnde Zauber (Bekehren, Verbannen, Verstärkung, Bogen zu Pionieren) nehmen Priester, Soldaten, Späher, Geologen, Pioniere draußen,
-  keine Soldaten eines Militärgebäudes (`Military.IsTowerBound`: Besatzung, Tür, unterwegs hinein); Zauber auf Soldaten für eine Zeit (`Settler.Charm`,
-  `SpellCharm`: Samuraischwert nur Schwertkämpfer ×2 Tempo ×1,33 Schaden, Angst ×0,5 Schaden auf dem Land des Zaubernden, Stärken ×2 außerhalb des eigenen Lands,
-  Schild ×0,67 erlittener Schaden, Verfluchte Pfeile kein Pfeilschaden; Einfrieren `FrozenUntil`) auch die (Turm-Bogenschützen eingefroren schießen nicht);
-  erneut gewirkt verlängert, addiert nicht (`Military.DamageOf`/`Taken`). Waren-Zauber (Midas, Fisch zu Fleisch, Stein zu Eisen, Gold zu Stein: bis 40 Einheiten
-  im Umkreis, egal wessen, lose/Ausgabe/Lager, nicht reserviert, `World.TakeUnits` → `DropGoods`; Waren rufen: vom eigenen Land zum Priester; Waren
-  versenden: die um den Priester zum Ziel; beide unbegrenzte Reichweite). Sicht (`SpellSight`, `Magic.Sights`: Auge Radius 32, Karte enthüllen ganz, 20 s; Fog of War und `Military.Sees`).
-  Land (`LandSpells.cs`): Boden wandeln (Grasland, Horus' Hitze, Sumpf trockenlegen – Moor und Schlamm –, Schneeschmelze → Gebirge) über Bodenklassen,
-  Ränder je ein Feld wie der Zufallskartengenerator (`Paint`, nicht unter Gebäuden/Stapeln, Ackerland/Pfade, die nicht mehr passen, weg; der Client zeichnet
-  `TerrainKinds.Of`, Minimap noch das Original); Rohstoffe halbieren, Fischflut (+1–4 je Wasserfeld, max. 15), Waldbrand (Bäume im Umkreis → Stümpfe,
-  nach `FireSpreadTicks` einmal die direkt daneben, Flammen), Waldgunst (ausgewachsene Bäume auf freies Gras), Steinfluch (10–20 Felsen verschiedener Größe, 2 Felder Abstand),
-  Wachstum (`Production.Hasten`: Getreide/Wein/Reis spätestens in 180 s reif). Himmlische Geschenke (`SummonGoods`: 3–4 Stapel à 4–8 aus Nahrung, Waffen,
-  Werkzeug, Gold, Eisen, Kohle, Erz im Umkreis `SummonSpread`; Ägypter 50 % zusätzlich Steine; Flammen zeitversetzt). Priester angreifbar.
-  Alte Spielstände übernehmen die aktuellen Regeln (`Magic.FollowRules`). Zwei Konten: Zauber verbrauchen `Mana`, Aufwertungen prüfen `ManaEarned`
-  (`upgrades.manaEarned` je n-ter Aufwertung, Original: 10/30/60/110/170/200). `Upgrade`: braucht fertigen kleinen Tempel; erst alle drei Typen Stufe 2, dann 3;
-  gilt nur für danach Ausgebildete. Werte: `data/magic.json`.
-- `Commands/` (Lockstep-Vorbereitung): Spielerbefehle als Daten (`GameCommand`-Records: Spieler, IDs von Siedlern/Gebäuden/Schiffen, Punkte,
-  Enums, Zahlen; Gebäudetyp als `BuildingDefinition`, über Volk + Name eindeutig), wirken nur auf Eigenes des Spielers. `World.Commands`
-  (`CommandQueue`): `Issue` vergibt `Sequence`, `World.Step` wendet als Erstes alle wartenden in dieser Reihenfolge an, Ergebnisse in `Applied` bis
-  zum nächsten Schritt; pausiert allein `ApplyWhilePaused`. Gruppen: `UnitCommands` (Rechtsklick `MoveUnits`: feindliches Gebäude angreifen, sonst
-  laufen; Wegpunkt, Patrouille, Halten, Spezialisten, Priester, Zauber, Schiffe), `BuildingCommands` (Baustelle, Abriss, Pause, Vorrang,
-  Arbeitsbereich, Besatzung, Lager, Markt, Werft, Kriegswerkstatt), `EconomyCommands` (Verteilung, Transport, Schmiede, Berufe, Rekrutierung,
-  Aufwertung), `ChatCommands` (`Say`, `AiReply` für den KI-Chat, `Cheat`). Wartende Befehle stehen im Spielstand.
-- `Persistence/`: `Snapshot` schreibt den ganzen Objektgraphen per Reflection (alle Felder, auch private, Objektidentität; Typtabelle mit
-  Feldnamen – fehlende übersprungen, neue: Sammlungen/Klassen mit parameterlosem Konstruktor leer, nicht-nullbare Referenzen ohne solchen → inkompatibel, sonst Standardwert (nicht der Initialisierer!); Dictionary/HashSet mit innerem Aufbau, Hashes beim Laden neu → Partie läuft
-  tickgenau weiter, `SaveTests`). Delegates nur mit Zielen in eigenen Assemblies (Client-Abos werden nach dem Laden neu gesetzt);
-  `[NonSerialized]` lässt weg; fremde Typen brechen mit Pfad ab, `JsonElement` als Text. Neue Felder brauchen keinen Speichercode.
-  `SaveSlots.Load` rechnet die Begehbarkeit nach (`GameMap.RefreshWalkable`; Stege früherer Builds). Typnamen ohne Assembly-Version aufgelöst; fehlender Typ/Methode → `SaveIncompatibleException`. `SaveLoadFailure.Of`: Art (inkompatibel/beschädigt/unlesbar)
-  und Fehlercode `HS-<Art>-<FNV-Hash>`; Titelbildschirm zeigt ihn in der Meldungsbox (`ShowLoadFailure`), Konsole die Ausnahme.
-  `SaveGame`: Welt, Kataloge, Karte, Sicht, Client-Werte. `SaveSlots`: 8 Slots `slot N.hsav` in `~/.config/homestead/saves`
-  (`HOMESTEAD_SAVE_DIR`), Kopf `SaveInfo` (Karte, Volk, Zeit, Tick) unkomprimiert, Rest gzip, über temporäre Datei.
-- `Events/` (`GameEvents`, `World.Events`): Meldungen je Spieler aus `data/events.json` – Kategorie Info/Kampf/Rohstoffe/Handel,
-  `cooldownSeconds` je Spieler/Event (0 = immer), Text (`{building}`), an/aus. `Raise(id, spieler, ort, settler/building)`.
-  Kampf: `attacked`, `buildingAttacked` (Tür/Wächter), `buildingLost`/`buildingCaptured`. Zustände fertiger Gebäude prüft `Tick` sekündlich,
-  meldet nach `afterSeconds` einmal bis Ende: `noStaff`, `noTool`, `noResources`, `mineExhausted` (Chance ≤ `maxChance` %). `Announce`: ohne Ort.
-- `ChatLog` (`World.Chat`, `World.Say(spieler, text)`): globaler Chat, Zeilen mit Tick und Spieler in Reihenfolge, getrimmt, leere nichts,
-  höchstens `MaxLength` (200) Zeichen; mitgespeichert.
-- `SoundCues` (`World.SoundCues`, nicht gespeichert): nur gesammelt, wenn der Client eine Liste setzt (leert sie je Frame); `Strike` bei jedem
-  Treffer/Schuss (auch an der Tür, mit Soldatentyp), `Death` in `MilitaryCombat.Kill` (mit Volk des Toten), `TreeFalls` beim Fällen, `BuildingFalls` in
-  `RemoveBuilding`, `Spell` bei Zauberbeginn, `Healing` (Lazarett), `Claiming` (Pionier-Pfosten), `GeologistFinds` (mit Menge),
-  `Sowing` (mit `Trade`); `Strike` trägt das Volk (Ägypter-Bogen klingt anders).
-- `GameHistory` (`World.History`): alle 30 s (`SampleTicks`) je Spieler eine `HistorySample` (Land, Siedler nach Art, Soldaten nach Typ,
-  Gebäude, Baustellen, Militärgebäude, Wohnraum, Streikende, Lagerbestand, Produziertes, Kampfkraft, Mana) plus laufende Summen
-  (getötet/gefallen, Gebäude erobert/verloren, fertiggestellt/zerstört); für den Statistik-Bildschirm.
-- `Lockstep/`: `LockstepSession` (Befehle für Zug jetzt + Verzögerung, wartet aufs Bündel, vergleicht Prüfsummen → `Desync`), `TurnRelay` (Server-Logik), `CommandCodec`
-  (JSON-Netzwerkformat), `LocalRelay`, `GameFingerprint` (Protokoll, Version, Datenhashes; Details: `docs/MULTIPLAYER.md`).
-- `GameSetup` (`MapChoice`, `PlayerSetup`): Spielaufbau als Daten (JSON) – Karte per Seed bzw. Hash, Spieler, Startplätze, Spielwerte, ein Seed für
-  alle Ziehungen; `Start` → Welt mit KIs (Details: `docs/MULTIPLAYER.md`).
-- `OriginalScenario`: Karte → Welt (Gebäude, Stapel, Siedler; Siedlertyp 23 = Späher/Dieb, 22 Geologe, 36 Priester, 40 Pionier; Besatzung der
-  Militärgebäude aus der Karte sofort drin, `Military.Station`, Soll = Besatzung; ohne Angabe 1 Schwertkämpfer Stufe 1 wie im Original). Karten ohne Gebäude (Mehrspieler, auch Einzelspieler wie Beginner I/III): `StartSetup` gibt jedem Spieler die Ausstattung aus `data/start.json` (Startturm will nur Infanterie, Bogenschützen warten draußen).
-- `Map/Generation/RandomMapGenerator`: Zufallskarten als `OriginalMap` (`OriginalMap.Create`), gleiche `RandomMapSettings` + Seed = gleiche Karte,
-  Werte `data/randommap.json`, Größe nach Spielerzahl. Eine Landmasse mit zerklüfteter Küste (verzerrtes Rauschen, halb Kreis, halb Raute;
-  Abgetrenntes versinkt, abgeschnittene Starts bekommen eine Landbrücke zur Mitte); gespiegelt ein Kreis in Rastergeometrie. Jeder Start gleich: flache Startfläche,
-  Berg mit Kohle/Eisen/Gold, Teich mit Bach (Wasserwerke brauchen Flüsse), Wald, Steine. Dazu Gebirge, Seen, Flüsse zum Meer, Sümpfe (mind. einer),
-  Wälder, Steinfelder, Erzadern, Fisch, Deko, Schätze (Warenstapel ≥ 32 Felder von Starts; „Viel“: dazu ein Hort voller Stapel Gold/Waffen in der
-  Kartenmitte, `hoard`). King of the Hill (`RandomMapSettings.KingOfTheHill`, `kingOfTheHill` in `randommap.json`): Mitte als Hügel mit Hort,
-  Bergen zwischen den Durchgängen (volle Adern Gold/Edelsteine/Kohle) und Ring aus unbegehbarem Moor (80/81) mit je einem Durchgang Richtung Start;
-  Heimat-Merkmale halten Abstand (`OnHill`). Flüsse als stetig drehender Verlauf in Halbfeld-Schritten (bergab, Mäander per Rauschen), stromab breiter; Grasland leicht uneben. Symmetrie: `Mirror` (Keilfläche; exakt bei 2/3/4/6,
-  5 gerundet), `Repeat` (Startkachel `homeRadius` kopiert). Landschaftsbytes zuletzt aus Bodenklassen (Wassertiefe, Strand, Ränder je ein Feld,
-  damit jedes Dreieck eine Original-Übergangskachel hat – Merkmale halten Abstand). Starts ohne Verbindung → neu würfeln.
+- `Map/GameMap`: terrain, objects, walkability, mineral resources (`ResourceAt`).
+  `Map/Vision`: fog of war per player – sight of own figures outside (soldiers `Sight`, scouts `scouts.sight` 26, donkeys `trade.sight` 3
+  – no scouts –, otherwise `SettlerSight`) and buildings (`Military.SightOfBuilding`: finished ones with `buildingSight` in `military.json`,
+  lookout tower 45; occupied military buildings territory radius + `militarySightMargin` (3), empty ones nothing; all other finished buildings
+  `otherBuildingSight` (5), residences/storehouses too; construction sites nothing); own land itself sees nothing (demolished/taken by pioneers → shadow);
+  explored stays explored; the AI does not use it.
+- `Pathfinding/PathFinder`: A*; reachability via `Regions` (they track walkability changes). Step costs by walking time
+  (`SetStepCosts`: path 8, flat 10, mountains 13); land areas per owner.
+  Distant targets in legs (`FindRoute`, from `WalkTo`/`Replan`; those not restricted to own land via `ExactDistance` (96)): rough route over
+  `Clusters` (16×16 cells, each cell its connected parts, neighbours cached, changed cells recomputed), exact only up to `LegNodes` (4) cells ahead
+  into the part; `Settler.PathIsLeg` → at the end of a leg `World` plans the next. Exact near the target.
+  Unreachable command target (sea, other island): nearest reachable point (`PathFinder.NearestReachable`, ring by ring;
+  `World.CommandTarget` for soldiers, geologists/scouts/pioneers, priests).
+- `World`/`Settler`: one field per figure, swapping, stepping aside, detours, watchdog pass-through (comment in `World`).
+  `Settler.StepProgress` in `World.StepUnits`; speed per target field: mountains ×0.8, footpath ×1.2 (`walking` in `production.json`);
+  plus soldiers per type `speed` in `military.json` (swordsmen ×1.1, pikemen ×1.05, bowmen ×1); `armor` (pikemen 0.5):
+  that much less damage per hit, rounded down, at least 1 (`SoldierStats.Taken`; the AI calculates with `Toughness`).
+  Settlers and buildings have a player; logistics/recruitment only for their own. `World.TerritoryRules` enforces own land
+  (build spot including the door, piles, builder spots, paths – except soldiers, priests, geologists, scouts, pioneers); the stranded flee
+  (`Idling`); whoever loses the land under their feet while on a job (`World.IsStranded`) cancels, drops what they are carrying and accepts
+  something new only on own land.
+- `Trails`: carriers on a job tread footpaths into grass (`GroundCover.Trail`, after `trailSteps`), they fade after `trailFadeSeconds` (300).
+  Farmland and paths keep one field of distance from everything except grass/levelled ground and from each other (`GameMap.CoverFits`, otherwise the
+  original transitions break). Grain is sown onto paths too and shortens paths all around (`Trails.CutAround`); sowing turns grass within
+  `farmlandRadius` (1) into farmland, as far as it fits and lies in the work area.
+- `Buildings/`: definitions from `data/buildings/*.json`.
+  - Build-spot check (`CanPlace`, `DoorLeadsOut`, `PlanLevelling`): "seen" via a marker field over the map (`NewSearch`/`See`), no HashSet.
+  - `Construction`: levelling (`World.PlanLevelling`, `levelling` in `production.json`): footprint to the average height, ring by ring around it,
+    until no neighbour deviates by more than `maxSlope` (8) (wider on slopes). Effort = moved height; invalid above `maxWork` or if a field to be
+    changed is built on, planned otherwise, unwalkable or foreign. Diggers: `heightPerDig` per pass, never a slope above `maxSlope`
+    (on a slope the top first). Buildings that are finished immediately level immediately. Mines: mountains only, no levelling
+    (`levelling: false`, `NeedsLevelling`).
+  - Builders without material become free (idle, pushable, one step away, switch construction site); spots only as long as the material suffices for one more.
+  - Buildings JSettlers does not have (war machine works, gunpowder maker): `data/buildings/handmade.json` per people
+    (footprint = grid points covered by the original image, door/piles per the image), loaded before `overrides.json`.
+  - `World.RemoveBuilding`: demolition/loss with a dust cloud (`DustClouds`), a share `demolition.payback` of the building material stays on the ground. The land
+    of demolished military buildings stays with the player, but unprotected (an enemy military building takes it together with the buildings).
+  - Demolition: the worker keeps profession and tool, takes over the next building of their profession.
+- `Economy/`: goods, piles.
+  - A new building pile (construction site, finished) on a loose pile: its goods are put down next to it (`AddPile` → `DropGoods`), not overwritten.
+  - `Logistics` with watchdog: for each good among the current consumers – construction sites as one (`Logistics.Construction`), otherwise per
+    building type – one drawn by lot according to player shares (`ShareOf`/`SetShare`; defaults `distribution` in `production.json`, 0–1, e.g. food
+    mines 1 : 0.1, planks construction site 1, charcoal burner/shipyard 0.5; listed goods give unlisted consumers 0, unlisted goods give everyone 1; a share
+    of 0 gets nothing, unless all are 0), then the nearest target with space; the storehouse only if nobody else wants it.
+  - Storing only what the player stores (`IsStored`/`SetStored`); the storehouse can specialise in one good
+    (`SpecializationOf`/`SetSpecialization`, `StoresHere`, overrides the general rule); default `storage.materials`: tools, weapons, gold, gems.
+  - Offers in transport order (`TransportOrder`/`MoveInTransportOrder`, default `storage.transportOrder`); loose piles on nobody's land: the player
+    with free carriers. Otherwise goods stay on the output pile (8; full → the producer waits, gatherers too).
+  - The construction site with the highest priority (`Building.HasPriority`): its piles before all consumers (shares too), its goods at the front of
+    the transport order; if more is missing than is ready, carriers deliver only that many to other construction sites (`Logistics.FreeForPriority`,
+    nearest first; on the way to the source: cancelled, loaded: drop it – in the original all); failed deliveries are replaced at the next reconciliation.
+  - `Problems` counts cancellation reasons.
+  - `Production`: workshops; smiths make one product per cycle: what was ordered, then the expected tool, otherwise weighted round-robin by shares
+    (`shares`: toolsmith 0 = demand only; weaponsmith sword 100%, bow 70%, spear 45%), as long as below `keepInStock` (0 = without limit);
+    the choice only with iron and coal.
+    Mines: food piles max. `mineFood.pileCapacity` (4); the first `mineFood.freeRuns` (8) runs per building free; success chance =
+    remaining ore in the vicinity against `resources.fullAmount` (8) per field (empty/foreign fields = blanks, every find lowers them;
+    `MineChance`); a blank costs time and food.
+    Gatherers: waterworks only on rivers; farmer, winegrower, rice farmer, beekeeper per `crops` – grain makes farmland
+    (`GroundCover.Farmland`, walkable, until demolition/loss of the farm), grain/wine/rice grow in 600 s as in the original; wine faster on slopes;
+    rice only on swamp; vines/beehives grow back.
+    Beekeeper: at most `maxFields` (12) hives per beekeeper building (`Production._fields`; ownerless ones in the work area – old save games – it
+    takes over), new ones only with at least one tree in the vicinity and `fieldSpacing` (5) fields of distance from other hives (placing takes
+    `sowSeconds` 1.2 s = one animation round), where most of them stand; hives without trees around them it collects after the harvest (then new
+    ones by trees, otherwise none); demolition/loss of the beekeeper building takes its hives along immediately. A hive is full in 720 s, with
+    `idealTrees` (10) mature trees in the vicinity `treeRadius` (5) `1 + treeBonus` (3) × as fast = 240 s
+    (12 hives at ~20 s harvest run → 3 honey/min as in the original; fewer trees proportionally).
+  - `Healing`: the hospital healer calls the weakest (fewest HP, tie: nearest) wounded idle own soldier within `hospital.callRadius` (40) onto the
+    healing spot in front of the door (`HealSpotOf`; not those holding); whoever stands still next to the door, healer spot or healing spot is healed
+    without a call (the weakest first),
+    heals them (from then on interruptible only by demolition; full HP after `healSeconds`, wherever they are), goes
+    inside, `callPauseSeconds` pause.
+  - `Housing`: residences release carriers and provide that much housing (plus the starting population, `SettleStartPopulation`). Carriers and workers
+    need space (diggers/builders too – construction sites recruit at most a share of `Share.Diggers`/`Builders`, at least one each), not soldiers,
+    geologists, scouts, pioneers. Without space they go on strike (`Settler.IsStriking`): first idle carriers, then workers (they stay inside).
+  - `Recruitment`: carriers fetch a tool, become specialists; the three shares together ≤ 100% (`SetShare` limits them). Tests that are not about tools:
+    `TestConfig.NoTools`.
+  - `Idling`: stranded carriers/professions outside our own land flee to the nearest reachable own field (`RefugeRadius` 64, otherwise an own building
+    door); without one they wander around and die after 30–60 s (fixed per settler by hash, ghost, death sound), rescued back on own land.
+    Idle ones (carriers, soldiers, diggers, builders, geologists, scouts, pioneers, the unemployed) step out of the way
+    (after `IdleTicks`; soldiers immediately, every tick, with one field of distance).
+  - `Geology`: geologists walk like soldiers (spread over free fields); on mountains they search the vicinity `geologists.searchRadius`
+    (nearest free field, tie random), put up signs with raw material and amount.
+  - Scouts (`Profession.Scout`, graphic `THIEF`): converted/sent like geologists (`Geology.Convert(…, Profession.Scout)`), never search.
+    For the other players a carrier of their own (`Settler.IsRevealedTo`), not attacked until an enemy soldier outside comes within
+    `scouts.revealRadius` (10) (`Military.RevealScouts`, every tick); once recognised he stays recognised as long as the player sees him
+    (`Military.Sees`: sight of own figures/buildings like fog of war), then camouflaged again. Recognized: fought like a geologist
+    (by tower bowmen too), the AI counts him among enemy groups. AI suspicion (`AiPlayer.InspectScouts`): a scout on its land → the nearest idle
+    soldier follows him (otherwise it calls one from the nearest military building with more than one soldier).
+  - `Theft`: scouts steal (`Steal`; Alt+right-click: `StealAt`) the nearest good within `scouts.stealRadius` (5) – an unreserved unit, not from own
+    buildings or loose goods on own land; carries it (`Carrying`, crouched), speed `scouts.loadedSpeed` (0.5);
+    drops it quietly on own land or where he dies. Sent with `StealAt`, he runs straight back with the good to where he stood when ordered.
+  - `Pioneering`: pioneers (converted/sent like scouts; `Claim`, Alt+right-click `ClaimAt`) take field by field: the nearest free or foreign,
+    unprotected field (`Military.IsProtected`) within `pioneers.searchRadius` (10), tie nearest to the target point;
+    `claimSeconds` (2) post, then the field belongs to him together with the unwalkable neighbours (`Military.TakeLand`, unprotected foreign buildings fall);
+    at the shore also the free water in front up to `pioneers.waterReach` (6) fields out (across own water) – space for dock and fisherman;
+    the client never draws border posts on water (shore = border). In protected enemy land towards free land, otherwise the end.
+    Completely enclosed free land (not map edge/foreign land) is taken at once (up to 4096 fields). Land unprotected.
+  - `Trade`: land trade. The donkey farm (`trade` in `production.json`: grain + water → one donkey, `Profession.Donkey`, not a good) breeds as long as
+    the player has fewer than `keepIdle` (4) donkeys without a job. Donkeys: not controllable, immortal, walk everywhere, do not count for
+    housing/profession shares. Marketplace (`market_place`): 6 piles `PileRole.Trade` (never an offer); per marketplace the destination = a point
+    (`Reachable`: walkable and reachable from the marketplace, on a building its door; a new destination deletes the stops), optionally up to 3 stops;
+    per good an amount (`Remaining`, ∞ = `Trade.Unlimited`, decreases with each arrival at the marketplace). Carriers deliver only with a destination
+    (logistics: marketplace always share 1, even from the destination itself – with ∞ an endless loop as in the original). Every unit at the marketplace
+    calls the nearest free donkey; it loads up to `load` (2), walks the stops (watchdog skips), puts down at the destination (at the door of an own storehouse
+    into its piles), back via the same stops in reverse. An enemy soldier (tower bowman too) strikes a loaded donkey once: the good falls, the donkey turns
+    around (`Struck`, event `donkeyRobbed`, trade); unloading on foreign land → `World.GoodsHandedOver(from, to, good)` (C# event, not saved); nobody
+    attacks empty donkeys (only loaded ones are `_combatants`). Target unreachable → home with the load, next to the marketplace.
+  - `Shipping`: the shipyard (`shipping` in `production.json`) first needs a dock (`Dock`: shore field + direction, `dockLength` (4) fields):
+    `PlaceDock` sets it immediately where its end is closest to the click – free, walkable own shore up to `dockDistance` (20) from the shipyard,
+    reachable from its door, dock over own open water (from the second field on, water all around), a new one replaces the old one, goes with the shipyard.
+    Drawn as map object `MapObjectCodes.Dock` (219, file 1 sequence 112 per field), walkable (`GameMap.ComputeWalkable`).
+    Shipbuilding (`Order`, one at a time per shipyard, `ships` with guessed costs): logistics delivers to the shipyard only what the ship still needs
+    (`Wants`); the shipbuilder (`DOCKWORKER`, hammer, builder graphic; `Production` part `Shipbuilding.cs`) fetches one unit at a time from the pile, carries
+    it to the end of the dock, hammers for `buildSeconds` (4); every unit grows the hull (`Progress`), the last one launches the ship
+    (`Berth`: two fields behind the end of the dock, across the dock). Demolition of the shipyard discards the order. `Launch`: finished immediately
+    (captures). `Ship` (own list, not settlers): steered like a soldier (`Move`, breadth-first search over the water to the nearest reachable
+    point), only on `IsNavigable` (water with `ShoreClearance` (3) water all around, no dock), keeps `Spacing` (6) to other ships (waits, then detour),
+    `stepSeconds` (0.5) per field, sight `sight` (16). Ferry (`Ferries.cs`): takes `passengers` (7) units (soldiers, priests, geologists, scouts,
+    pioneers) aboard when it lies still and has walkable land (shore, dock) up to `landingDistance` (6) (`IsNearLand`); `Board`: each walks to the
+    nearest reachable shore field (soldiers forced), boards there (`IsInside`, position = ship, rides along); a new command cancels.
+    `Unload`: everyone onto the free land fields nearest the ship (breadth-first search from the shore). Trade ship 0 slots. No combat yet.
+    Sea trade (`SeaTrade.cs`): the harbor (`trade.harbor` = `harbor`, `Trade.IsHarbor`/`IsTradingPost`) like marketplace + donkey – route, destination,
+    amounts in `Trade` (piles `PileRole.Trade`, logistics share 1), needs a dock like the shipyard (`HasDocks`); route points on open water the dock
+    reaches (`SeaPoint`: nearest in the same body of water `SeaRegion`, not saved; destination with a shore up to `landingDistance`). Every good at the harbor
+    calls the nearest free trade ship (one per harbor loading at a time): sails to the dock, loads up to `cargoPiles` (3) piles of `pileSize` (8) of one good
+    each (`loadSeconds` per unit, waits up to `loadWaitSeconds` for more), sails the stops, puts down one loose pile per pile on the shore at the destination
+    (no dock there), back via the same stops. Watchdog: point not reached after 3 tries → stop skipped, destination → home, load next to the dock. Trade ships
+    under way take no commands (`HarborOf`, `CargoOf`).
+- Teams (`World.Teams`, `AreAllies`; from the start screen, saved): allies do not fight each other (`MilitaryCombat.IsEnemy`, `Attack`,
+  tower bowmen, war machines `IsTarget`), enemy spells spare them (`Magic.Affects`), towers/pioneers take no allied land
+  (`Claim`, `TakeLand`, `IsClaimable`), thieves do not steal from them (`Theft.IsOwn`); `ConquestGoals`: won when all enemies are defeated
+  (outcome per player, `IGameGoals.OutcomeOf`/`Decide(player, …)`).
+  Shared sight: `Vision`, `Military.Sees`, `Magic.SeesBySpell` count the whole team; a revealed scout is revealed to the whole team of the soldier.
+- `Military/`: the barracks trains at the door (the carrier becomes a soldier at that very spot, does not go inside), recruits walk to the gathering
+  point. Military buildings call only idle soldiers up to `garrisonCallRadius` (100) fields from the door; further ones stay put. One carrier per
+  weapon at a time (as far as the carrier reserve goes, those walking from all barracks count), each is trained at the door or directly beside it.
+  Target garrison per type (`ChangeWanted`: new 1 swordsman; never 0, never above the infantry/bow slots; "+" with full infantry slots replaces the
+  other infantry kind; surplus ones turn around or come out, never the last one – the replacement swaps at the door). Occupied ones claim land; always
+  their own ground (otherwise a captured tower would fall again immediately).
+  - `Move`: target fields around the point first free (nobody stands there, no other soldier sent there), otherwise occupied, then round-robin.
+    Soldiers do not walk through someone standing on their target on the last step (watchdog), but stop in front (counts as arrived).
+  - `MilitaryCombat`: enemy search via cells (`CellSize` 8) of the fighters at the start of the tick, per player (only cells of enemies searched)
+    (`EnemiesNear`, same order as `EnemiesOf`).
+    Idle soldiers and those with a non-forced move order attack enemy soldiers and occupied military buildings
+    (door in sight), nearer ones first; those walking continue afterwards; the garrison stays inside. Melee fighters break down the door first
+    (`door`, HP like a pikeman; 5 s without an enemy within 6 → the guard goes in, the door regenerates 0 → full in 30 s).
+    Then one defender each, immovable in front of the door (`FightPoint`; spots per people/building as an offset in `door.points`, otherwise automatic,
+    front first; infantry first, then bowmen), attackable only by melee fighters on the door spots (`door.fighters`: tower/large tower 2,
+    castle 1; pikemen like range 1, the rest waits). Whoever kills the last defender is in. Waiting attackers: free field 2–5 from the guard field, never
+    assigned twice in the same tick (`QueueSpot`);
+    everything full → where they stand or the next free field, never onto the guard field (otherwise hundreds on one field). Bowmen attack no buildings
+    (neither on their own nor on command – `Attack` skips them; AI campaigns without them) and on the ground do not shoot below `minRange` (5):
+    too close → step back (`SoldierStats.InReach`/`OffReach`), door guards too; from the tower without a minimum range.
+    Bowmen in military buildings shoot `towerRangeFactor` (1.69) farther (`TowerRange`, AI tower fire too). Bowmen hit with the shot, the arrow
+    (`Military.Arrows`, `ArrowTicks`) is presentation only. Cooldown between strikes/shots per soldier (`_nextShot`), not per command: a new command in
+    the middle of a fight does not reset it. Near the enemy local pathfinding (`combatPathRadius`).
+    "Hold position" (`Military.Hold`, selection panel for soldiers, in place of "Claim land"; `Move(…, hold: true)` walks there first):
+    not idle (no building calls him), fights only enemies in range, pursues nobody, returns to the spot until the next command
+    (`HoldTarget`/`Holds`; the hospital does not call those holding). AI: the wounded, parked melee fighters, the bowmen of the battle formation.
+    Waypoints (`AddWaypoint`, Shift+right-click): with a command (walk, attack, own fight) that one first, then in turn up to `MaxWaypoints` (3)
+    points, one more replaces the last (`Fighter.Waypoints`, `Dismiss` makes the next one the move order); without a command (or holding/patrolling)
+    like `Move`. Patrol (`Patrol`, Alt+right-click): to the point and back to the starting place, back and forth until the next command
+    (`Fighter.PatrolBack`); fights on the way like with a move order, independent attacks continue with the patrol when it ends
+    (`EndAttack` keeps `MoveTo`).
+  - Combat strength (`CombatStrength`): own land 100%, otherwise a starting value by player count (`startPercent`, measured in the original: 1 → 54%
+    (as there, although pointless), 2 → 50%, 4 → 37%, 8 → 25%, 16 → 14%); plus gold on own land (by land ownership; Egyptians: gold half,
+    gems double), every further percentage point costs according to the combat strength already reached (bands `stepPercent` from 0%,
+    `unitsPerPercent`, measured in the original: up to 50% 1.2 bars, from 90% 20; a lower start rises faster), without an upper limit
+    (200% = double damage outside; forces the rich to attack). The AI knows all values and evaluates the place of battle.
+  - Values: `data/military.json`; territory radii measured from original maps.
+  - `WarMachines` (`warMachines` in `military.json`): one machine per people (catapult, ballista, cannon, gong) from its workshop:
+    `Order` queues a machine or a load of ammunition (gong without; `Cancel` takes back the last one not started), logistics delivers only what the
+    current order needs (`Wants`), the shipyard worker hammers unit after unit in front of the door (`IAssembly`, shared with the shipyard,
+    `Shipbuilding.cs`); loads lie at the workshop (`Loads`). Machine = `Profession.WarMachine` (people in `People`, `Ammo`), does not count as
+    population, drives like soldiers (`Move`, speed `speed`), occupies its field and the 6 neighbours (`Settler.IsWide`/`Body`: pathfinding only over
+    points with 6 walkable neighbours (`PathFinder.IsClear`, exact, at most `WideSearchLimit` nodes; if it cannot get through, it drives as close as
+    possible – in the original too), pushes idle ones aside, nobody swaps with it, waiting ones plan around all 7 fields, melee reaches to the edge),
+    fires only at finished enemy military buildings (`Attack`; standing ones at everything within `range`) every `cooldownSeconds` (5) with
+    `hitChance` (catapult 50%, ballista 75%, cannon 90%, gong 50% – from the user), projectile `MachineShot` (gong immediately), impacts briefly in
+    `Impacts`; every hit counts against `buildingHits` (`DamageOf`), the last one tears it down
+    (the garrison comes out alive, event `buildingDestroyed`); a hit heals per `repairSeconds` (60) after the last one. `shots` (6) per load;
+    `Reload`: to the next own workshop with a load. Melee fighters destroy machines
+    (`health`, dust instead of a ghost), bowmen do not (`EnemiesOf(…, bowman)`). Range, speed, HP, hits per building guessed.
+    Not yet: avoiding mountains, AI. Gunpowder maker (Asians): coal + sulfur → gunpowder (`POWDER_MAKER`, without a tool).
+- `Magic/`: mana per player. Small temple: wine/mead/beer/liquor → mana (one unit per `templeSeconds` 35.7 as in the original, liquor 2 mana);
+  the large temple sends a priest immediately and every `priestSeconds`. Spells as in the original (values from wiki.siedler3.net "Mana und Magie"):
+  8 per people in the menu (`menu`, order by the icons; `own` = the AI's people's spell), per spell `cost`, `radius` (0 = whole map), `count`,
+  `seconds`, `factor`; `placeholder` = not implemented yet (visible, not castable).
+  `Cast`: the priest walks up to `range` (24)
+  (`anywhere`: casts from the spot, however far – reinforcement, call/send goods; without a radius immediately on the menu click),
+  casts only where something affected is (`Magic.HasTargets`/`Affected`, nearest first up to `count`), no fight needed; costs per player and spell kind
+  get `costIncrease`% (25 as in the original, rounded up: 20, 25, 32 …) more expensive with every cast (`Magic.CostOf`, the menu shows the current
+  price); takes effect immediately when casting starts (`castSeconds` only the gesture).
+  Spells that move/transform units (Convert, Banish,
+  Reinforcements, Bows to pioneers) take priests, soldiers, scouts, geologists, pioneers outside, no soldiers of a military building
+  (`Military.IsTowerBound`: garrison, door, on the way in); spells on soldiers for a time (`Settler.Charm`,
+  `SpellCharm`: Samurai sword only swordsmen ×2 speed ×1.33 damage, Festering fear ×0.5 damage on the caster's land, Strengthen soldiers ×2
+  outside own land, Ch'ih-Yu's shield ×0.67 damage taken, Cursed arrows no arrow damage; Freeze enemies `FrozenUntil`) those too
+  (frozen tower bowmen do not shoot);
+  cast again extends, does not add (`Military.DamageOf`/`Taken`). Goods spells (Midas touch, Fish to meat, Stone to iron, Gold to stone: up to 40 units
+  in the vicinity, whosever they are, loose/output/storehouse, not reserved, `World.TakeUnits` → `DropGoods`; call goods: from own
+  land to the priest; send goods: those around the priest to the target; both unlimited range). Sight (`SpellSight`, `Magic.Sights`: Magic eye
+  radius 32, Reveal the map completely, 20 s; fog of war and `Military.Sees`).
+  Land (`LandSpells.cs`): terrain change (Grassland galore, Horus' heat,
+  Drain the swamp – moor and mud –, Melt snow → mountains) over ground classes,
+  edges one field each like the random map generator
+  (`Paint`, not under buildings/piles, farmland/paths that no longer fit removed; the client draws
+  `TerrainKinds.Of`, the minimap still the original); halve resources, fish flood (+1–4 per water field, max. 15), forest fire (trees in the vicinity → stumps,
+  after `FireSpreadTicks` once the ones directly beside, flames), Forest's favour (mature trees onto free grass), Stone curse (10–20 rocks of various sizes, 2 fields apart),
+  Gorgeous growth (`Production.Hasten`: grain/wine/rice ripe at the latest in 180 s). Heavenly gifts (`SummonGoods`: 3–4 piles of 4–8 each from food, weapons,
+  tools, gold, iron, coal, ore in the vicinity `SummonSpread`; Egyptians 50% extra stones; flames staggered in time). Priests attackable.
+  Old save games adopt the current rules (`Magic.FollowRules`). Two accounts: spells consume `Mana`, upgrades check `ManaEarned`
+  (`upgrades.manaEarned` for every n-th upgrade, original: 10/30/60/110/170/200). `Upgrade`: needs a finished small temple; first all three types
+  level 2, then 3; applies only to those trained afterwards. Values: `data/magic.json`.
+- `Commands/` (lockstep preparation): player commands as data (`GameCommand` records: player, IDs of settlers/buildings/ships, points,
+  enums, numbers; building type as a `BuildingDefinition`, unique via people + name), act only on the player's own things. `World.Commands`
+  (`CommandQueue`): `Issue` assigns a `Sequence`, `World.Step` first applies all waiting ones in this order, results in `Applied` until
+  the next step; while paused only `ApplyWhilePaused`. Groups: `UnitCommands` (right-click `MoveUnits`: attack an enemy building, otherwise
+  walk; waypoint, patrol, hold, specialists, priests, spells, ships), `BuildingCommands` (construction site, demolition, pause, priority,
+  work area, garrison, storehouse, marketplace, shipyard, war works), `EconomyCommands` (distribution, transport, smiths, professions,
+  recruitment, upgrade), `ChatCommands` (`Say`, `AiReply` for the AI chat, `Cheat`). Waiting commands are in the save game.
+- `Persistence/`: `Snapshot` writes the whole object graph via reflection (all fields, private ones too, object identity; type table with
+  field names – missing ones skipped, new ones: collections/classes with a parameterless constructor empty, non-nullable references without one →
+  incompatible, otherwise default value (not the initialiser!); Dictionary/HashSet with their inner structure, hashes recomputed on loading → the game
+  continues tick-exact, `SaveTests`). Delegates only with targets in own assemblies (client subscriptions are re-set after loading);
+  `[NonSerialized]` omits; foreign types abort with a path, `JsonElement` as text. New fields need no save code.
+  `SaveSlots.Load` recomputes walkability (`GameMap.RefreshWalkable`; docks from earlier builds). Type names resolved without assembly version;
+  missing type/method → `SaveIncompatibleException`. `SaveLoadFailure.Of`: kind (incompatible/corrupt/unreadable)
+  and error code `HS-<kind>-<FNV-hash>`; the title screen shows it in the message box (`ShowLoadFailure`), the console the exception.
+  `SaveGame`: world, catalogues, map, sight, client values. `SaveSlots`: 8 slots `slot N.hsav` in `~/.config/homestead/saves`
+  (`HOMESTEAD_SAVE_DIR`), header `SaveInfo` (map, people, time, tick) uncompressed, the rest gzip, via a temporary file.
+- `Events/` (`GameEvents`, `World.Events`): messages per player from `data/events.json` – category info/combat/resources/trade,
+  `cooldownSeconds` per player/event (0 = always), text (`{building}`), on/off. `Raise(id, player, place, settler/building)`.
+  Combat: `attacked`, `buildingAttacked` (door/guard), `buildingLost`/`buildingCaptured`. `Tick` checks the states of finished buildings every second,
+  reports once after `afterSeconds` until the end: `noStaff`, `noTool`, `noResources`, `mineExhausted` (chance ≤ `maxChance`%). `Announce`: without a place.
+- `ChatLog` (`World.Chat`, `World.Say(player, text)`): global chat, lines with tick and player in order, trimmed, empty ones nothing,
+  at most `MaxLength` (200) characters; saved with the game.
+- `SoundCues` (`World.SoundCues`, not saved): collected only when the client sets a list (empties it per frame); `Strike` on every
+  hit/shot (at the door too, with soldier type), `Death` in `MilitaryCombat.Kill` (with the people of the dead), `TreeFalls` when felling, `BuildingFalls` in
+  `RemoveBuilding`, `Spell` when casting starts, `Healing` (hospital), `Claiming` (pioneer post), `GeologistFinds` (with amount),
+  `Sowing` (with `Trade`); `Strike` carries the people (the Egyptian bow sounds different).
+- `GameHistory` (`World.History`): every 30 s (`SampleTicks`) one `HistorySample` per player (land, settlers by kind, soldiers by type,
+  buildings, construction sites, military buildings, housing, strikers, stock, produced goods, combat strength, mana) plus running totals
+  (killed/fallen, buildings captured/lost, completed/destroyed); for the statistics screen.
+- `Lockstep/`: `LockstepSession` (commands for the current turn + delay, waits for the bundle, compares checksums → `Desync`), `TurnRelay`
+  (server logic), `CommandCodec`
+  (JSON network format), `LocalRelay`, `GameFingerprint` (protocol, version, data hashes; details: `docs/MULTIPLAYER.md`).
+- `GameSetup` (`MapChoice`, `PlayerSetup`): game setup as data (JSON) – map by seed or hash, players, starting positions, game values, one seed
+  for all draws; `Start` → world with AIs (details: `docs/MULTIPLAYER.md`).
+- `OriginalScenario`: map → world (buildings, piles, settlers; settler type 23 = scout/thief, 22 geologist, 36 priest, 40 pioneer; the garrison of
+  the military buildings from the map inside immediately, `Military.Station`, target = garrison; without a specification 1 swordsman level 1 as in the
+  original). Maps without buildings (multiplayer, also single player such as Beginner I/III): `StartSetup` gives every player the equipment from
+  `data/start.json` (the start tower wants infantry only, bowmen wait outside).
+- `Map/Generation/RandomMapGenerator`: random maps as `OriginalMap` (`OriginalMap.Create`), the same `RandomMapSettings` + seed = the same map,
+  values `data/randommap.json`, size by player count. One landmass with a rugged coast (distorted noise, half circle, half rhombus;
+  cut-off parts sink, cut-off starts get a land bridge to the centre); mirrored a circle in grid geometry. Every start the same: flat starting area,
+  a mountain with coal/iron/gold, a pond with a brook (waterworks need rivers), forest, stones. Plus mountains, lakes, rivers to the sea, swamps
+  (at least one), forests, stone fields, ore veins, fish, decoration, treasures (goods piles ≥ 32 fields from the starts; "much": plus a hoard full of
+  piles of gold/weapons in the centre of the map, `hoard`). King of the Hill (`RandomMapSettings.KingOfTheHill`, `kingOfTheHill` in `randommap.json`):
+  the centre as a hill with a hoard,
+  mountains between the passages (full veins of gold/gems/coal) and a ring of unwalkable moor (80/81) with one passage each towards the start;
+  home features keep their distance (`OnHill`). Rivers as a steadily turning course in half-field steps (downhill, meandering via noise), wider
+  downstream; grassland slightly uneven. Symmetry: `Mirror` (wedge area; exact for 2/3/4/6,
+  5 rounded), `Repeat` (start tile `homeRadius` copied). Terrain bytes last from ground classes (water depth, beach, edges one field each,
+  so that every triangle has an original transition tile – features keep their distance). Starts without a connection → rerolled.
