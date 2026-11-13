@@ -5,7 +5,7 @@ public enum MissionOutcome { Open, Won, Lost }
 /// <summary>
 /// Victory and defeat of a campaign mission for the own player (player 0), checked once a second: lost without a
 /// building of its own (finished or under construction) once it had one, or without settlers too (some missions start
-/// with settlers only, who found the settlement first); won once no other player has one (destroyed or captured).
+/// with settlers only, who found the settlement first); won once no player outside its team has one (destroyed or captured).
 /// Decided once, then it stays; the game goes on.
 /// </summary>
 public sealed class MissionGoals : IGameGoals
@@ -34,7 +34,7 @@ public sealed class MissionGoals : IGameGoals
                 continue;
             else if (building.Player == Player)
                 own = true;
-            else
+            else if (!world.AreAllies(building.Player, Player))
                 others = true;
         _hadBuilding |= own;
         if (!own && (_hadBuilding || !world.Settlers.Any(s => s.Player == Player)))

@@ -1,224 +1,246 @@
 # Client (`src/Homestead.Client`)
 
-MonoGame-Spiel. Capture-Optionen: [capture.md](capture.md).
+MonoGame game. Capture options: [capture.md](capture.md).
 
-- **Titelbildschirm** (`TitleScreen`, zuerst ohne `--map`/`--capture`): Hauptmenü-Bild der Gold Edition (`titleScreen` in `ui.json`, Datei 61 GUI 1,
-  daneben glattes Gold), links eingravierte Knöpfe wie im Original (Maße/Farben vom Original-Menü): ganz oben Weiterspielen (lädt `SaveSlots.Latest`, ohne Spielstand blass), abgesetzt Kampagne, Missions-CD, Amazonen-Kampagne (je → Kampagne),
-  abgesetzt Einzelspieler (→ Startscreen), Mehrspieler (→ `MultiplayerScreen`, siehe `docs/MULTIPLAYER.md`), Einstellungen (→ Einstellungen), Spiel laden
-  (Liste der 8 Slots als `ListScreen`: Name, Datum, Volk; leere blass; Klick lädt, Ladefehler über dem Titel), abgesetzt Readme/Contribution/Lizenzen (Popup auf der
-  Original-Meldungsbox Datei 02 GUI 16, `popup` in `titleScreen`: „Im Browser öffnen“ → `README.md`/`CONTRIBUTING.md`/`THIRD_PARTY_NOTICES.md` auf GitHub, Enter/Esc),
-  unten abgesetzt Beenden; Esc/„Zum Hauptmenü“ der Statistik/Esc im Startscreen führen hierher.
-- **Ladebildschirm** (`LoadingScreen`, `MapGame.ShowLoading`): vor jedem Laden einer Partie (Startscreen, Mission, Spielstand) die drei Helme,
-  mindestens 1 s (Echtzeit, ab dem ersten Zeichnen), geladen wird das Spiel schon verdeckt darunter gezeichnet (`WarmFrames`, 3 – erste Frames füllen Atlanten, sonst ruckt die Blende), dann 0,3 s Ausblenden über dem laufenden Spiel (ab dem ersten Blend-Frame) (`loadingScreen` in `ui.json`, 1024 × 768, Randspalten zur Seite gestreckt): Kampagne orange (Datei 02 GUI 28), Missions-CD grün
-  (60/0), Amazonen lila mit Torso (48/0), sonst gold (61/0); Thema außer Normal: immer dessen Bild; Captures laden sofort.
-- **Kampagne** (`CampaignScreen`, über dem Titelbildschirm): Wahl der Seite je Kampagne (`campaignScreens` in `ui.json`: Bild und Namensfeld
-  je Seite, Überschrift; Klick wählt, „Zurück“/Esc → Titel – im Original ohne). Siedler (`settlers`): je Volk, Datei 02 GUI 7, Goldrahmen unter der
-  Maus. Missions-CD (`missionCd`): Datei 60 GUI 4 (Schiffbrüchige im Sturm), Namensfelder mit Schwierigkeit (`label`, umbrochen),
-  hellere Figuren Datei 60 Sequenz 0. Amazonen (`amazons`): Datei 48 GUI 1, links die Amazonen (`amazons`), rechts das Heer der drei Völker (`peoples`); unter der Maus hellere
-  Figuren (Datei 48, Sequenz 2, per Korrelation platziert, `lit`). → Intro-Video der Seite → (Ende oder Klick) Beschreibung der ersten Mission
-  (`BriefingScreen` auf dem Startscreen-Hintergrund GUI 8: Missionstext oben mit Bildlauf, Karte im schrägen Fenster mit Kürzeln
-  der Spieler an ihren Startpunkten – eigener grün, sonst rot –, Hinweise rechts, Sprachansage dazu; „Zurück“/Esc → Volkswahl,
-  „Weiter“/Enter → Mission mit Völkern/Gebäuden der Karte). `data/campaign.json`: je Kampagne `name` (Textschlüssel, im Spielstandnamen) und `sides` mit `name` (Textschlüssel), `intro`,
-  `outro` (Sieg-Video) und `missions` (`map`, `text`/`hint` = Einträge der Texttabelle in GFX-Datei 07, Deutsch/Englisch/Polnisch nach Sprache (`Lang.TextIndex`: Spalte 0/1/4 der Texttabelle, Polnisch in Codepage 1250), `voice`,
-  `labels` je Kartenspieler – bisher nur Mission 1, aus dem Missionstext – oder `preview` [Datei, Sequenz, Bild] eines fertigen Original-Vorschaubilds
-  statt der gerenderten Karte: Amazonen Datei 48 Sequenz 3, Z01–Z12 = 0–11, G01–G12 = 12–23, per Wassermaske zugeordnet); Pfade in der
-  Installation, `GameInstallation.FindPath` ohne Groß-/Kleinschreibung. Missions-CD: `S3MCD/MAP/MIS_M/R|E|A` (Texte 24–31 Römer, 32–39 Ägypter, 40–47 Asiaten, Vorschaubilder Datei 60 Sequenz 1 = 0–23), ohne Videos und Sprachansagen
-  (`intro`/`outro`/`voice` weggelassen: übersprungen, nicht in der Missionsauswahl). Amazonen-Kampagne: `S3QOTA/MIS_M/Z` (Amazonen, Texte 48–59) und `G`
-  (die drei Völker, Spieler 1 wechselt, Texte 60–71), Hinweise +72, Videos `S3QOTA/ADD/1/DATAP0_N` (Intro Amazonen 1, drei Völker 2; Sieg 3 bzw. 5).
-  Fortschritt (globaler Spielstand): `CampaignProgress` (`campaign.json` bei den Spielständen, je Kampagne/Seite Zahl geschaffter Missionen);
-  Volkswahl mit Fortschritt → Missionsauswahl (`MissionSelectScreen` über `ListScreen` – gemeinsame Liste mit „Spiel laden“ –, Datei 02 GUI 18, `missionScreen` in `ui.json`: zuerst das Intro,
-  alle geschafften und die nächste, Namen aus den Missionstexten, nach allen der Abschluss; längere Liste scrollt (Rad, Pfeile, Bildlaufleiste), öffnet bei der neuesten; Klick → Beschreibung, deren „Zurück“ wieder
-  hierher, bzw. Video und danach zurück; Esc/„Zurück“ → Volkswahl). Videos über `MapGame.PlayVideo(pfad, danach)`. Laufende Mission `MissionRef` (`settlers/Roman/0`, `amazons/peoples/3`) steht im
-  Spielstand (Client-Wert `mission`, Kopf `SaveInfo.Mission` – Listen zeigen „Kampagne Römer, Mission 1“).
-  Sieg/Niederlage: `World.Goals` (`MissionGoals`, nur in Missionen, mitgespeichert) prüft sekündlich für Spieler 1 (`MissionGoals.Player`): kein eigenes Gebäude
-  (auch Baustellen) mehr, nachdem es eins gab, oder keins und keine Siedler (G06 beginnt ohne Gebäude) → verloren, kein fremdes mehr (zerstört/erobert) → gewonnen; einmal entschieden, bleibt es. Missionsspezifische Bedingungen
-  aus den Texten (Vorposten halten, Goldmengen …) noch nicht.
-  Freie Partien (Startscreen, auch alte Spielstände): `ConquestGoals` (`World.Goals` ist `IGameGoals`) – wer kein fertiges Militärgebäude
-  (Turm, großer Turm, Burg) mehr hat, nachdem er eins hatte, ist endgültig besiegt (`IsDefeated`); seine KI denkt nicht mehr (`World` überspringt sie),
-  Siedler/Soldaten handeln nur noch von selbst. je Spieler (`OutcomeOf`, `DecidedAt`): besiegt → verloren, alle Feinde besiegt → gewonnen; der Client zeigt das des lokalen Spielers (Banner mit `system.wonHint`/`lostHint`, Statistik ohne „Weiter“). Gewonnen: weiß oben „Spiel gewonnen“, Fortschritt sofort gespeichert, weiterspielen
-  möglich; Spiel beenden → Statistik („Weiter“) → nächste Missionsbeschreibung über Missionsauswahl und Volkswahl (nach der letzten das Sieg-Video, dann die Auswahl).
-  Gewonnen hebt den Fog of War auf (`FogOn`; Cheat-Wahl `_fogChosen` bleibt für die nächste Partie).
-  Verloren: „Spiel verloren“, keine Befehle mehr (Auswahl, Bauen, Menüs, Tasten außer Esc/F11/F3/T/Leertaste); Kamera, Minimap, Events und Computer-Menü
-  gehen weiter; Esc → Statistik ohne Weiterspielen → dieselbe Missionsbeschreibung.
-  Cheat-Menü: „Mission geschafft“/„Mission verloren“.
-  `VideoPlayer`: `AviFile` (Homestead.Assets, `docs/formate/avi.md`) liefert Kopf und PCM-Ton, das Bild (Indeo 5) dekodiert ein
-  installiertes ffmpeg im eigenen Prozess (`HOMESTEAD_FFMPEG`, neben dem Programm, PATH; sonst übersprungen); Bilder folgen der Uhr ab dem
-  ersten Bild/Tonstart, Lautstärke = Effekte; Esc/Leertaste/Enter/Klick bricht ab.
-- **Einstellungen** (`SettingsScreen`): Hintergrund Datei 02 GUI 14 (`settingsScreen` in `ui.json`, Marmor daneben); oben in den vier
-  Kästchen Reiter mit Icons der Original-Statistikmenüs (Datei 03, dunkel = eingedrückt gewählt, sonst hell; Tab/Shift+Tab): Rohstoffe,
-  Wirtschaft (noch leer), Militär, Darstellung; je Einstellung eine Reihe Werte (Rohstoffe: `depletion` Steine/Berge/Fisch
-  100/75/50/25/10 %/∞; Militär: Zauberkosten-Anstieg konstant/+10/+25/+50 % → `MagicConfig.CostIncrease`; Darstellung: Hardware-Cursor, Vollbild, Sprache Deutsch/English/Polski (Vorgabe English, unabhängig von der Systemsprache; gilt auch für den Installationsdialog),
-  Thema Normal/Gold/Classic/Amazonen (Titelbild und Ladebildschirm; `titleScreen.themes` in `ui.json` mit Gravurfarben, Normal = Gold; `HOMESTEAD_THEME` überstimmt), Musik/Effekte 100/75/50/25 %/aus, Musik je Volk, Bevorzugte Farbe (`DisplaySettings.PreferredColor`, Farbfelder, als Kennung gespeichert), Automatisch speichern
-(Ja/Nein, Vorgabe Nein: alle 15 min Echtzeit im Spiel und bei „Spiel beenden“ in Slot 8, nicht nach Verlust, nicht in Captures), Intro-Video (Ja/Nein, Vorgabe Ja: `MapGame.IntroVideo` = `S3/ADD/001/01_00_00.DAT` bei jedem Start vor dem Titelbildschirm, Ende/Klick → Titel) – Musik ohne Wahl nach Systemsprache; `Lang.Use` setzt auch die Kultur;
-Titelbild der Gold Edition je Sprache, `background` `{de, en}`; Polnisch ohne eigenes Titelbild (das englische), `HOMESTEAD_LANGUAGE=de|en|pl` überstimmt, z. B. für Captures).
-  Ok/Enter speichert `GameSettings` (Abschnitt `game`) und `DisplaySettings` (Client, Abschnitt `display`, sofort angewandt) in
-  `~/.config/homestead/settings.json` (`SettingsFile`: je Abschnitt, Rest der Datei bleibt); Abbrechen/Esc verwirft, Standard setzt den offenen
-  Reiter zurück (Spielwerte: `production.json`). Hardware-Cursor aus: eigener goldener Pfeil (`SoftwareCursor`, in `EndDraw`, nicht in Captures).
-  Neue Partien: `GameSettings.Load(…)` → `GameSetup.Settings` → `Apply(…)` in `OriginalScenario.Load(production:, magic:)`; Spielstände behalten ihre Werte (Arena/Tests: nur `production.json`).
-- **Startscreen** (`StartScreen`): auf dem Kartenwahl-Hintergrund des Originals (`startScreen` in `ui.json`, Datei 02 GUI 8,
-  im 800×600-Raster auf Fenstergröße skaliert, daneben Marmor; ovale Steinknöpfe, Steinleiste unter der Auswahl, Vorschau im schrägen Fenster): Kartenliste mit Vorschau, Tabs Einzelspieler/Mehrspieler/Eigene (Tab-Taste),
-  sortiert nach Spielerzahl (`OriginalMap.ReadPlayerCount` liest nur MapInfo). Tab „Zufallsgenerator“: Einstellungen (Spieler, Symmetrie, Flüsse, Rohstoffe, Steine, Wälder,
-  Schätze, King of the Hill; Dekoration nicht wählbar, immer mittel) – Änderung erzeugt mit gleichem Seed neu, „Neu würfeln“/R neuer Seed. Je Spieler (Tabelle feste Zeilenhöhe, mehr Spieler scrollen): Volk (oder Zufall; Kartenvorgaben gelten je Position),
-  Farbe (`PlayerColors.Palette`, nach Farbton sortiert, Kennungen `Choices`; Klick öffnet Auswahl darunter mit „?“ und allen Farben, belegte
-  durchgestrichen; Spieler 1 vorbelegt mit „Bevorzugte Farbe“ der Einstellungen, Vorgabe Rot; „Zufall“ → `PlayerColors.Assign`), Team (Klick öffnet Auswahl 1–4/„-“, Vorgabe „-“ = keins; `World.Teams`,
-  nach dem Laden gesetzt; `TeamOf`, `AreAllies`), Hardcore.
-  Mehrspieler-Startpositionen gelost (Vorschau schwarz „?“, Klick weist zu/zurück; `GameSetup.Positions` → `GameSetup.ResolvePositions`).
-  Jede Partie (Startscreen, `--map`, Bild↑/↓, Missionen) startet über ein `GameSetup` (`MapGame.SoloSetup` → `StartGame`, siehe `docs/MULTIPLAYER.md`).
-  Hardcore (`World.HardcorePlayers`, `Hardcore`): +10 % Kampfkraft flach (auch über 100 %), +30 % Bewohner je Wohnhaus, +20 % Soldaten-LP
-  (`World.MaxHealth`), −25 % Baumaterial je Stapel (gerundet, mind. 1, `World.ConstructionCost`), Arbeitszeiten × 0,9,
-  Start +2 Schwertkämpfer, +5 Bretter, +5 Stämme (`OriginalScenario.Load(hardcore:)`).
-- **Seitenpanel** (`SidePanel`, große Variante, auf Fensterhöhe skaliert; Menüs zeichnen/prüfen Klicks im Panelraum, `SidePanel.ToPanel`):
-  - Minimap oben im Originalrahmen (dahinter Schwarz; rechts schmaler Goldrand mit Ranke, Datei 4 Sequenz 3): erkundetes Gelände (`Minimap`; nicht mehr in Sicht: halb so hell, ohne Fremdes),
-    eigenes immer weiß, Verbündete türkis (`Minimap.AllyColor`, wie eigenes auch unter Fog; Grenzpfosten auf der Karte bleiben in Spielerfarbe), Gegner immer rot – Gebietsgrenzen und Punkte (`MinimapDot`):
-    Soldaten, Priester, Geologen, Pioniere, Späher draußen (fremde unter Fog nur in Sicht, Späher erst enttarnt), Gebäude/Baustellen als größere schwarze Quadrate (besetzte Militärgebäude innen weiß/rot), sichtbarer Ausschnitt als weißer Rahmen. Klick: Kameraflug 0,35 s; Ziehen verschiebt den Rahmen; Scrollen bricht den Flug ab;
-    Rechtsklick/Alt+Rechtsklick mit Auswahl: Befehl dorthin wie auf der Karte.
-  - Event-Buttons rechts neben dem Computer-Button (`EventButtons`: Info, Kampf, Rohstoffe, Handel; Platz/Bilder in `events.json` `categories`):
-    neues Event → Button blinkt `blinkSeconds` mit 1 Hz, leuchtet dann bis gesehen. Klick (neuestes ungesehenes der Art, sonst neuestes) bzw.
-    Leertaste (neuestes ungesehenes; gehalten nach 1 s mit 10 Hz) → Event-Seite (`PanelTab.Event`: Kategorie, Text weiß), Kameraflug,
-    vier Pfeile `arrowSeconds` auf Gebäude bzw. lebende Figur. `dates`: Grüße an Kalendertagen (MM-dd), einmal im Jahr
-    (`~/.config/homestead/events-shown.json`; `HOMESTEAD_EVENT_DATE=12-25` täuscht vor).
-  - Info-Feld (`InfoFeed`): weiße Notizen unten links im Spielbereich, neue gleiten von unten ein und schieben ältere hoch (höchstens 6), je 60 s;
-    mit Spielerbezug runder Punkt in Spielerfarbe davor (`InfoFeed.Add(…, dot)`);
-    Texte `info.*`: KI-Spieler besiegt (`ConquestGoals.IsDefeated`, vor dem Laden Besiegte nicht; seine Farbe), Abriss-Rückfrage am eigenen
-    letzten fertigen Militärgebäude „Dies ist der letzte Turm“ (eigene Farbe), gespeichert/automatisch/fehlgeschlagen,
-    „Seit n Minuten nicht gespeichert“ alle 30 min Echtzeit seit Speichern/Start/Laden (`MapGame.NoteNews`).
-    Chat (`ChatInput`, auch nach Niederlage): Enter öffnet unten eine Eingabezeile („> “, Caret), dann Terminal-Ansicht: letzte 12 Zeilen (auch
-    verblasste, Verlauf 100) auf dunklem Grund; die Tasten gehen nur in die Zeile (keine Hotkeys/Kamera/F12, Maus geht weiter); Enter sagt sie als
-    Spieler 1 in `World.Chat` (`ChatLog`, gespeichert), Esc verwirft, ↑/↓ frühere Zeilen, Strg+V fügt ein (`SdlClipboard`). Neue Chatzeilen aller
-    Spieler kommen als `chat.line` („Spieler n: …“, Punkt in Spielerfarbe) ins Info-Feld; Geladenes nicht.
-    Befehle (`/…`, nicht im Chat, `MapGame.RunCommand`) nur mit `"cheats": true` im Abschnitt `display` der `settings.json` (`DisplaySettings.Cheats`,
-    nicht im Einstellungsbildschirm); sonst sagt ein zufälliger Computergegner (nicht verbündet, nicht besiegt) `chat.noCheats` im Chat.
-    `/cheats` öffnet/schließt das Cheat-Menü (`CheatMenu`: Soldaten je Typ/Stufe, Priester, Geologen, Späher, Pioniere, Träger,
-    Kriegsmaschinen, +50 Mana, Mission geschafft/verloren, Fog of War an/aus); `/attackme`: alle nicht besiegten Computergegner `AiPlayer.Assault(0)` (Info `chat.attackMe`); Unbekanntes: `chat.unknown` mit der Liste.
-    KI-Chat (`AiChat`, nur mit Schlüssel: Abschnitt `aiChat` der `settings.json` mit `apiKey`, `model` (Standard `claude-haiku-5-5`, ohne Denken;
-    andere Modelle denken immer), `effort` (`low`), sonst `ANTHROPIC_API_KEY`; Token je Anfrage auf der Konsole): jede eigene Zeile → im Hintergrund eine Anfrage an die Claude-API (Anthropic-SDK), eine zur Zeit
-    (dazwischen Gesagtes geht mit der nächsten). Prompt und Charakterstimmen in `data/ai-chat.json` (System gecacht), Lage `AiSituation`.
-    Claude spricht für alle Computergegner über Werkzeuge `say` (→ `World.Say`), `attack` (→ `AiPlayer.Challenge`, `all_in` → `Assault`;
-    je Gegner höchstens alle `attackCooldownSeconds`), `truce` (→ `Truce`, bis `truceMaxMinutes`) und `defend` (→ `Help`, bis `helpMaxMinutes`); angewendet im Spiel-Thread, Antworten zu einem anderen Spiel verworfen; Fehler `chat.aiFailed`;
-    unaufgefordert (`AiChat.Reactions`, `reactions` in ai-chat.json): Waren, die eigene Esel auf dem Land eines Computergegners abladen
-    (`World.GoodsHandedOver`), nach `giftValues` aufsummiert (Gold 10 … Nahrung 2, Rest 0,2, Stamm −1), bei `giftPleased` (60) bzw.
-    `giftInsulted` (−8) eine versteckte Anfrage „das ist passiert“; eroberte Militärgebäude (`buildingCaptured`/`buildingLost`, `captureChance` 15 %) und große
-    Kämpfe (≥ `bigFightSoldiers` Tote je Statistik-Probe, `chance` 30 %), je Gegner höchstens alle `cooldownSeconds` (90);
-    eigene Armee rückt bei einem Gegner an (`army`, Verbündete nicht: ≥ 20 eigene Soldaten draußen in seinem Land oder ≤ 20 Felder vor seinen Militärgebäuden, je Sekunde
-    gezählt, beim Erreichen) mit 30 %, je Gegner höchstens alle 10 min; Prompt: Bündnisse halten das ganze Spiel, verbündete Soldaten im Land schützen; Angriffsbefehle mit Ergebnis auf der Konsole; als `\u00e4` geschriebene Umlaute zurückgewandelt.
-    Mehrspieler später: nur der Server fragt und verteilt die Ergebnisse als Befehle.
-  - Computer-Button unten links (`SystemMenu`, `PanelTab.System`): „Spiel speichern“ (8 Slots mit Karte, Datum, Volk; leere gestrichelt;
-    Klick speichert, auch überschreibend), „Spiel beenden“ mit Rückfrage (Ja unten links → Statistik, Nein unten rechts).
-  - Hauptreiter Bauen/Waren/Siedler (`PanelTabs`: Original-Buttons Datei 03, aktiver gedrückt; Klick hebt Auswahl auf; Untermenüs `panelTabs` in `ui.json`).
-    - Bauen: Baumenü (Kategorien aus `data/ui.json`, Original-Buttons; Klick aufs Icon → Platzieren; eigenes Volk; Zahl fertiger (weiß) und im Bau (orange); Tooltip mit dem Namen nach 1 s Verweilen auf einem Icon, weg beim Verlassen – `BuildMenu.DrawTooltip`, im Bildschirmraum, darf über die Karte ragen).
-    - Waren › Lagerbestand (`StockMenu`, `World.InStock`: Lager-, Ausgabe-, lose Stapel; nicht Eingang/Baustellen).
-    - Waren › Herstellung (`ManufactureMenu`): je Produkt Bestellung mit Auf/Ab (`Production.Ordered`/`ChangeOrdered`, zuerst gemacht) und
-      Anteilsbalken (`ShareBar`: Klick setzt, Ziehen, 5-%-Schritte, nahe Enden 0/100 %).
-    - Waren › Verteilung (`DistributionMenu`): Waren mit ≥ 2 Abnehmern (Reihenfolge `distributionMenu`), rechts je Abnehmer Anteil + `ShareBar`.
-    - Waren › Warentransport (`TransportMenu`): Transportreihenfolge in Sechserreihen (versetzt); Punkt grün = einlagern, rot = nicht; gewählte
-      Ware: einlagern/nicht, ganz hoch, hoch, runter, ganz runter (Bilder `transportMenu`); Icons gleiten.
-    - Siedler › Siedlerstatistik (`SettlersOverview`): Wohnraum, Bedarf, alle Siedler, Soldaten, je Art Porträt + Anzahl (Esel 0; ohne Porträt Figur im Rahmen).
-    - Siedler › Berufe (`ProfessionsMenu`): Anteile ±5 % (Träger mindestens, Planierer/Bauarbeiter höchstens; `Recruitment.ShareOf`/`SetShare`,
-      Vorgaben `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25 %); Spezialberufe Geologen, Pioniere, Späher, Pioniere→Träger (Träger-Porträt)
-      mit Such-Buttons (alle auf Karte, alle im Bild, nächster reihum mit Kameraflug) und 5/1 umwandeln
-      (`Geology.ConvertCarriers` mit `among`: nur Träger im Bild, der Bildmitte nächste zuerst – keiner im Bild: Hinweis; `Geology.PioneersToCarriers`); Umgewandelte sind sofort gewählt (das Menü bleibt offen, `_menuOverSelection`), noch Liefernde kommen nach der Umwandlung dazu.
-    - Siedler › Krieger (`SoldiersMenu`): Kampfkraft, göttliche Aufwertung (Mana-Fortschritt, je Typ Waffen-Button, verziert ab Stufe 2),
-      automatische/manuelle Rekrutierung mit freien Trägern; manuell je Typ Waffen im Vorrat und geplante Rekruten (⇈ +5, ↑ +1, ↓ −1, ⇊ −5;
+- **Title screen** (`TitleScreen`, first without `--map`/`--capture`): main menu image of the Gold Edition (`titleScreen` in `ui.json`, file 61 GUI 1,
+  smooth gold beside it), engraved buttons on the left as in the original (dimensions/colours from the original menu): at the very top Continue
+  (loads `SaveSlots.Latest`, pale without a save game), set off Campaign, Mission CD, Amazon campaign (each → campaign),
+  set off Single player (→ start screen), Multiplayer (→ `MultiplayerScreen`, see `docs/MULTIPLAYER.md`), Settings (→ settings), Load game
+  (list of the 8 slots as a `ListScreen`: name, date, people; empty ones pale; clicking loads, load error above the title), set off Readme/Contribution/Licenses (popup on the
+  original message box file 02 GUI 16, `popup` in `titleScreen`: "Open in browser" → `README.md`/`CONTRIBUTING.md`/`THIRD_PARTY_NOTICES.md` on GitHub, Enter/Esc),
+  set off at the bottom Quit; Esc/"Main menu" of the statistics/Esc in the start screen lead here.
+- **Loading screen** (`LoadingScreen`, `MapGame.ShowLoading`): before every load of a game (start screen, mission, save game) the three helmets,
+  at least 1 s (real time, from the first draw); the game is already drawn hidden underneath while loading (`WarmFrames`, 3 – the first frames fill the atlases,
+  otherwise the fade stutters), then 0.3 s fading out over the running game (from the first fade frame) (`loadingScreen` in `ui.json`, 1024 × 768, edge columns stretched to the side): campaign orange (file 02 GUI 28), Mission CD green
+  (60/0), Amazons purple with torso (48/0), otherwise gold (61/0); theme other than Normal: always its image; captures load immediately.
+- **Campaign** (`CampaignScreen`, above the title screen): choosing the side per campaign (`campaignScreens` in `ui.json`: image and name field
+  per side, heading; clicking selects, "Back"/Esc → title – the original has none). Settlers (`settlers`): per people, file 02 GUI 7, golden frame under the
+  mouse. Mission CD (`missionCd`): file 60 GUI 4 (castaways in the storm), name fields with difficulty (`label`, wrapped),
+  brighter figures file 60 sequence 0. Amazons (`amazons`): file 48 GUI 1, the Amazons on the left (`amazons`), the army of the three peoples on the right (`peoples`); brighter figures under the
+  mouse (file 48, sequence 2, placed by correlation, `lit`). → Intro video of the side → (end or click) description of the first mission
+  (`BriefingScreen` on the start-screen background GUI 8: mission text at the top with scrolling, map in the slanted window with the players' initials
+  at their starting points – own green, others red –, hints on the right, voice-over with it; "Back"/Esc → people selection,
+  "Next"/Enter → mission with the map's peoples/buildings). `data/campaign.json`: per campaign `name` (text key, in the save game name) and `sides` with `name` (text key), `intro`,
+  `outro` (victory video) and `missions` (`map`, `text`/`hint` = entries of the text table in GFX file 07, German/English/Polish by language (`Lang.TextIndex`: column 0/1/4 of the text table, Polish in code page 1250), `voice`,
+  `labels` per map player – so far only mission 1, from the mission text – or `preview` [file, sequence, image] of a finished original preview image
+  instead of the rendered map: Amazons file 48 sequence 3, Z01–Z12 = 0–11, G01–G12 = 12–23, assigned via the water mask); paths in the
+  installation, `GameInstallation.FindPath` case-insensitively. Mission CD: `S3MCD/MAP/MIS_M/R|E|A` (texts 24–31 Romans, 32–39 Egyptians, 40–47 Asians, preview images file 60 sequence 1 = 0–23), without videos and voice-overs
+  (`intro`/`outro`/`voice` omitted: skipped, not in the mission selection). Amazon campaign: `S3QOTA/MIS_M/Z` (Amazons, texts 48–59) and `G`
+  (the three peoples, player 1 changes, texts 60–71), hints +72, videos `S3QOTA/ADD/1/DATAP0_N` (intro Amazons 1, three peoples 2; victory 3 and 5 respectively).
+  Progress (global save game): `CampaignProgress` (`campaign.json` next to the save games, number of missions accomplished per campaign/side);
+  people selection with progress → mission selection (`MissionSelectScreen` over `ListScreen` – shared list with "Load game" –, file 02 GUI 18, `missionScreen` in `ui.json`: the intro first,
+  all accomplished ones and the next, names from the mission texts, after all of them the finale; a longer list scrolls (wheel, arrows, scroll bar), opens at the newest; click → description, whose "Back" returns
+  here, or video and back afterwards; Esc/"Back" → people selection). Videos via `MapGame.PlayVideo(path, after)`. The running mission `MissionRef` (`settlers/Roman/0`, `amazons/peoples/3`) is in the
+  save game (client value `mission`, header `SaveInfo.Mission` – lists show "Campaign Romans, mission 1").
+  Victory/defeat: `World.Goals` (`MissionGoals`, in missions only, saved) checks every second for player 1 (`MissionGoals.Player`): no own building
+  (construction sites too) left, after having had one, or none and no settlers (G06 starts without buildings) → lost; no foreign one that is not allied left (destroyed/captured) → won; once decided, it stays that way. Mission-specific conditions
+  from the texts (holding an outpost, gold amounts …) not yet.
+  Free matches (start screen, old save games too): `ConquestGoals` (`World.Goals` is `IGameGoals`) – whoever no longer has a finished military building
+  (tower, large tower, castle) after having had one is definitively defeated (`IsDefeated`); their AI no longer thinks (`World` skips it),
+  settlers/soldiers act only on their own. Per player (`OutcomeOf`, `DecidedAt`): defeated → lost, all enemies defeated → won; the client shows that of
+  the local player (banner with `system.wonHint`/`lostHint`, statistics without "Resume"). Won: "Game won" in white at the top, progress saved immediately, playing on
+  possible; quit game → statistics ("Resume") → next mission description via mission selection and people selection (after the last one the victory video, then the selection).
+  Winning lifts the fog of war (`FogOn`; the cheat choice `_fogChosen` stays for the next game).
+  Lost: "Game lost", no more commands (selection, building, menus, keys except Esc/F11/F3/T/Space); camera, minimap, events and system menu
+  keep going; Esc → statistics without resuming → the same mission description.
+  Cheat menu: "Mission accomplished"/"Mission lost".
+  `VideoPlayer`: `AviFile` (Homestead.Assets, `docs/formate/avi.md`) provides header and PCM audio; an installed ffmpeg decodes the video (Indeo 5) in its
+  own process (`HOMESTEAD_FFMPEG`, next to the program, PATH; otherwise skipped); frames follow the clock from the first frame/audio start, volume = effects;
+  Esc/Space/Enter/click cancels.
+- **Settings** (`SettingsScreen`): background file 02 GUI 14 (`settingsScreen` in `ui.json`, marble beside it); at the top in the four
+  boxes tabs with icons of the original statistics menus (file 03, dark = selected, pressed in, otherwise light; Tab/Shift+Tab): Resources,
+  Economy (still empty), Military, Display; one row of values per setting (Resources: `depletion` stones/mountains/fish
+  100/75/50/25/10%/∞; Military: spell cost increase constant/+10/+25/+50% → `MagicConfig.CostIncrease`; Display: hardware cursor, full screen, language Deutsch/English/Polski (default English, independent of the system language; applies to the installation dialog too),
+  theme Normal/Gold/Classic/Amazons (title and loading screen; `titleScreen.themes` in `ui.json` with engraving colours, Normal = Gold; `HOMESTEAD_THEME` overrides), music/effects 100/75/50/25%/off, music per people, preferred color
+  (`DisplaySettings.PreferredColor`, colour fields, saved as an identifier), autosave
+  (yes/no, default no: every 15 min real time in-game and on "Quit game" into slot 8, not after a defeat, not in captures), intro video (yes/no, default yes: `MapGame.IntroVideo` = `S3/ADD/001/01_00_00.DAT` at every start before the title screen, end/click → title) – music without a choice by system language; `Lang.Use` sets the culture too;
+  Gold Edition title image per language, `background` `{de, en}`; Polish without its own title image (the English one), `HOMESTEAD_LANGUAGE=de|en|pl` overrides, e.g. for captures).
+  OK/Enter saves `GameSettings` (section `game`) and `DisplaySettings` (client, section `display`, applied immediately) to
+  `~/.config/homestead/settings.json` (`SettingsFile`: per section, the rest of the file stays); cancel/Esc discards, defaults resets the open
+  tab (game values: `production.json`). Hardware cursor off: own golden pointer (`SoftwareCursor`, in `EndDraw`, not in captures).
+  New matches: `GameSettings.Load(…)` → `GameSetup.Settings` → `Apply(…)` in `OriginalScenario.Load(production:, magic:)`; save games keep their values (Arena/tests: `production.json` only).
+- **Start screen** (`StartScreen`): on the original's map selection background (`startScreen` in `ui.json`, file 02 GUI 8,
+  scaled from the 800×600 grid to the window size, marble beside it; oval stone buttons, stone bar under the selection, preview in the slanted window): map list with preview, tabs Single player/Multiplayer/Own maps (Tab key),
+  sorted by player count (`OriginalMap.ReadPlayerCount` only reads MapInfo). Tab "Random generator": settings (players, symmetry, rivers, resources, stones, forests,
+  treasures, King of the Hill; decoration not selectable, always medium) – a change regenerates with the same seed, "reroll"/R a new seed. Per player (table with fixed row height, more players scroll): people (or random; map presets apply per position),
+  colour (`PlayerColors.Palette`, sorted by hue, identifiers `Choices`; clicking opens a picker below with "?" and all colours, taken ones
+  struck through; player 1 preset with the settings' "Preferred color", default red; "Random" → `PlayerColors.Assign`), team (clicking opens a picker 1–4/"-", default "-" = none; `World.Teams`,
+  set after loading; `TeamOf`, `AreAllies`), Hardcore.
+  Multiplayer starting positions drawn by lot (preview black "?", clicking assigns/reverts; `GameSetup.Positions` → `GameSetup.ResolvePositions`).
+  Every game (start screen, `--map`, PageUp/PageDown, missions) starts via a `GameSetup` (`MapGame.SoloSetup` → `StartGame`, see `docs/MULTIPLAYER.md`).
+  Hardcore (`World.HardcorePlayers`, `Hardcore`): +10% combat strength flat (above 100% too), +30% settlers per residence, +20% soldier HP
+  (`World.MaxHealth`), −25% building material per pile (rounded, at least 1, `World.ConstructionCost`), work times × 0.9,
+  start +2 swordsmen, +5 planks, +5 logs (`OriginalScenario.Load(hardcore:)`).
+- **Side panel** (`SidePanel`, large variant, scaled to the window height; menus draw/check clicks in the panel space, `SidePanel.ToPanel`):
+  - Minimap at the top in the original frame (black behind it; on the right a narrow gold border with a vine, file 4 sequence 3): explored terrain (`Minimap`; no longer in sight: half as bright, without foreign things),
+    own always white, allies turquoise (`Minimap.AllyColor`, like own under fog too; border posts on the map stay in the player's colour), opponents always red – territory borders and dots (`MinimapDot`):
+    soldiers, priests, geologists, pioneers, scouts outside (foreign ones under fog only in sight, scouts only once revealed), buildings/construction sites as larger black squares (occupied military buildings white/red inside), visible section as a white frame. Click: camera flight 0.35 s; dragging moves the frame; scrolling cancels the flight;
+    right-click/Alt+right-click with a selection: command there as on the map.
+  - Event buttons to the right of the computer button (`EventButtons`: info, combat, resources, trade; space/images in `events.json` `categories`):
+    a new event → the button blinks for `blinkSeconds` at 1 Hz, then glows until seen. Click (newest unseen of the kind, otherwise newest) or
+    Space (newest unseen; held down after 1 s at 10 Hz) → event page (`PanelTab.Event`: category, text white), camera flight,
+    four arrows `arrowSeconds` on the building or living figure. `dates`: greetings on calendar days (MM-dd), once a year
+    (`~/.config/homestead/events-shown.json`; `HOMESTEAD_EVENT_DATE=12-25` fakes it).
+  - Info feed (`InfoFeed`): white notes at the bottom left of the play area, new ones slide in from below and push older ones up (at most 6), 60 s each;
+    with a player reference a round dot in the player's colour in front (`InfoFeed.Add(…, dot)`);
+    texts `info.*`: AI player defeated (`ConquestGoals.IsDefeated`, not those already defeated before loading; their colour), demolition confirmation on our own
+    last finished military building "This is the last tower" (own colour), saved/autosave/failed,
+    "Not saved for n minutes" every 30 min real time since saving/start/loading (`MapGame.NoteNews`).
+    Chat (`ChatInput`, after a defeat too): Enter opens an input line at the bottom ("> ", caret), then a terminal view: the last 12 lines (faded
+    ones too, history 100) on a dark background; the keys go only into the line (no hotkeys/camera/F12, the mouse keeps working); Enter says it as
+    player 1 in `World.Chat` (`ChatLog`, saved), Esc discards, ↑/↓ earlier lines, Ctrl+V pastes (`SdlClipboard`). New chat lines from all
+    players arrive as `chat.line` ("Player n: …", dot in the player's colour) in the info feed; nothing when loading.
+    Commands (`/…`, not in the chat, `MapGame.RunCommand`) only with `"cheats": true` in the `display` section of `settings.json` (`DisplaySettings.Cheats`,
+    not in the settings screen); otherwise a random computer opponent (not allied, not defeated) says `chat.noCheats` in the chat.
+    `/cheats` opens/closes the cheat menu (`CheatMenu`: soldiers per type/level, priests, geologists, scouts, pioneers, carriers,
+    war machines, +50 mana, mission accomplished/lost, fog of war on/off); `/attackme`: all undefeated computer opponents `AiPlayer.Assault(0)` (info `chat.attackMe`); unknown: `chat.unknown` with the list.
+    AI chat (`AiChat`, only with a key: `aiChat` section of `settings.json` with `apiKey`, `model` (default `claude-haiku-5-5`, without thinking;
+    other models always think), `effort` (`low`), otherwise `ANTHROPIC_API_KEY`; tokens per request on the console): every own line → a request to the Claude API in the background (Anthropic SDK), one at a time
+    (things said in between go with the next one). Prompt and character voices in `data/ai-chat.json` (system cached), situation `AiSituation`.
+    Claude speaks for all computer opponents via the tools `say` (→ `World.Say`), `attack` (→ `AiPlayer.Challenge`, `all_in` → `Assault`;
+    per opponent at most every `attackCooldownSeconds`), `truce` (→ `Truce`, up to `truceMaxMinutes`) and `defend` (→ `Help`, up to `helpMaxMinutes`); applied in the game thread, answers for another game discarded; errors `chat.aiFailed`;
+    unsolicited (`AiChat.Reactions`, `reactions` in ai-chat.json): goods that our own donkeys unload on a computer opponent's land
+    (`World.GoodsHandedOver`), summed by `giftValues` (gold 10 … food 2, rest 0.2, log −1), at `giftPleased` (60) or
+    `giftInsulted` (−8) a hidden request "this happened"; captured military buildings (`buildingCaptured`/`buildingLost`, `captureChance` 15%) and big
+    fights (≥ `bigFightSoldiers` dead per statistics sample, `chance` 30%), per opponent at most every `cooldownSeconds` (90);
+    our own army advancing on an opponent (`army`, not allies: ≥ 20 own soldiers outside in his land or ≤ 20 fields in front of his military buildings, counted
+    every second, on reaching it) at 30%, per opponent at most every 10 min; prompt: alliances last the whole game, allied soldiers in the land protect; attack commands with the result on the console; umlauts written as `\u00e4` converted back.
+    Multiplayer later: only the server asks and distributes the results as commands.
+  - Computer button at the bottom left (`SystemMenu`, `PanelTab.System`): "Save game" (8 slots with map, date, people; empty ones dashed;
+    clicking saves, overwriting too), "Quit game" with a confirmation (Yes at the bottom left → statistics, No at the bottom right).
+  - Main tabs Build/Goods/Settlers (`PanelTabs`: original buttons file 03, active one pressed; clicking clears the selection; submenus `panelTabs` in `ui.json`).
+    - Build: build menu (categories from `data/ui.json`, original buttons; clicking an icon → placing; our own people; number finished (white) and under construction (orange); tooltip with the name after dwelling 1 s on an icon, gone on leaving – `BuildMenu.DrawTooltip`, in screen space, may protrude over the map).
+    - Goods › Stock (`StockMenu`, `World.InStock`: storehouse, output and loose piles; not input/construction sites).
+    - Goods › Manufacture (`ManufactureMenu`): per product an order with up/down (`Production.Ordered`/`ChangeOrdered`, made first) and
+      a share bar (`ShareBar`: clicking sets, dragging, 5% steps, near the ends 0/100%).
+    - Goods › Distribution (`DistributionMenu`): goods with ≥ 2 consumers (order `distributionMenu`), on the right per consumer share + `ShareBar`.
+    - Goods › Transport (`TransportMenu`): transport order in rows of six (offset); dot green = store, red = not; the selected
+      good: store/not, to the very top, up, down, to the very bottom (images `transportMenu`); icons glide.
+    - Settlers › Settler statistics (`SettlersOverview`): housing, demand, all settlers, soldiers, per kind portrait + count (donkeys 0; without a portrait the figure in a frame).
+    - Settlers › Professions (`ProfessionsMenu`): shares ±5% (carriers at least, diggers/builders at most; `Recruitment.ShareOf`/`SetShare`,
+      defaults `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25%); special professions geologists, pioneers, scouts, pioneers→carriers (carrier portrait)
+      with search buttons (all on the map, all in view, nearest in turn with a camera flight) and convert 5/1
+      (`Geology.ConvertCarriers` with `among`: only carriers in view, nearest the view centre first – none in view: a hint; `Geology.PioneersToCarriers`); converted ones are selected immediately (the menu stays open, `_menuOverSelection`), those still delivering join after the conversion.
+    - Settlers › Warriors (`SoldiersMenu`): combat strength, divine upgrade (mana progress, weapon button per type, adorned from level 2),
+      automatic/manual recruitment with free carriers; manual: per type weapons in stock and planned recruits (⇈ +5, ↑ +1, ↓ −1, ⇊ −5;
       `Military.SetManualRecruitment`/`ChangePlanned`).
-    - Siedler › Produktion (`StatisticsMenu`): Diagramm letzte 60 min einer Ware (Einheiten/min, 2-min-Mittel, Skala passt sich an);
-      Warenauswahl `GoodsGrid` (mit Lagerbestand geteilt: Icons `goodsGrid` in `ui.json`, Indizes aus JSettlers' EMaterialType, nicht herstellbar dunkel);
-      gezählt in `World.Statistics` (`ProductionStatistics`, 30-s-Abschnitte).
-  - Gebäude-Klick ersetzt das Baumenü (ohne eigenen Hintergrund): Name, Bild (unskaliert, unten zentriert, beschnitten –
-    `EconomyRenderer.DrawBuildingImage`; bei Enge erst Waren weg, dann Bild niedriger), bei eigenen Status, oben rechts Abriss-Icon wie im Original (Datei 03 GUI 199, `buildingInfo` in `ui.json`) mit Rückfrage wie im Original (nur das Gebäudebild bleibt an seinem Platz, Frage unten, Ja/Nein als helle Texte; jede andere Aktion – Klick daneben beim Loslassen, andere Auswahl, Esc – bricht ab);
-    oben links wie im Original „Arbeit einstellen“ (Haus, GUI 395)/„Arbeit fortsetzen“ (Hand, 194) für Produktion und Baustellen (`World.SetPaused`:
-    Arbeit fertig, dann drinnen; Baustelle: keine Lieferungen/Arbeiter, Anwesende nach ihrem Takt frei), bei Baustellen daneben „Höchste Priorität“
-    (Zahnräder 197, gedrückt mit „!“ 380; `World.SetPriority`), Name dann unter den Icons, Hinweistext über ihnen unter der Maus; Militär: Besatzung je Typ (da/Soll, +/−);
-    Lagerhaus: alle Waren (`GoodsGrid`; Punkt = allgemeine Regel, Klick spezialisiert – roter Rahmen –, nochmal hebt auf);
-    Markt (`BuildingInfo.Market`, „Handel – Land“, ohne Bild; Hafen „Handel – Meer“: Leiste GUI 377 `seaRoute`, Schiff vor ×1 setzt den Steg wie
-    der Hammer der Werft, Routenpunkte aufs Wasser, Route ab dem Liegeplatz): Leiste ×1 ×2 ×3 Paket (Datei 03 GUI 374, `market` in `ui.json`; nicht gesetzt
-    dunkel): Knopf wählen (weiß gerahmt; Stopps erst mit Ziel; gewählter Stopp nochmal = löschen), dann Linksklick auf die Karte setzt
-    ihn (Fahne als Vorschau am Mauszeiger, nur wo Esel hinkommen; Rechtsklick/Esc bricht ab), Route wie der Sammelpunkt der Kaserne; Waren mit Menge darunter, ∞ (386)/0 (389)/Pfeile ±5/±1 für die gewählte Ware; Waren/Baumaterial,
-    Minen-Erfolgschance; Arbeitsbereich (Rechtsklick versetzt, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, sonst nächstes erlaubtes
-    Feld; Sammler nehmen das Ziel nächst der Mitte; Kaserne: Sammelpunkt überall, `Building.HasGatheringPoint`, Pfad mit Fahne).
-    Werft (`BuildingInfo.Dockyard`, `dockyard` in `ui.json`): links Fähre und Handelsschiff (letzte 12 GUI-Bilder der Volksdatei; mit Steg
-    klickbar → Auftrag, der Knopf bleibt eingedrückt (dunkles Bild), beide gesperrt bis zum Stapellauf; unten Baumaterial geliefert/nötig),
-    rechts Hammer (Datei 03 GUI 392) → nächster Linksklick ins Wasser setzt den Steg (blasse Vorschau am Mauszeiger; Rechtsklick/Esc bricht ab;
-    während des Baus gesperrt).
-    Deutsche Namen/Zustände in `data/ui.json`; Text per FontStashSharp mit Systemschrift.
-- **Statistik** (`StatisticsScreen`; „Spiel beenden“, nach verlorenem Spiel Esc; Spiel steht still): blauer Marmor (`statisticsBackground`, Datei 02 GUI 29),
-  Seiten Übersicht (Tabelle, Landanteil), Wirtschaft, Militär, Waren (jede Ware je Minute), Gesellschaft – Diagramme `Charts` (Linien mit Werten
-  unter der Maus, Anteile, Balken) aus `GameHistory`/`ProductionStatistics`; ←/→/Tab blättern; „Weiterspielen“ (Esc; nicht nach „Spiel beenden“),
-  „Zum Hauptmenü“.
-- **Spielernamen** im Spiel (Statistik, Chat, Niederlage, Trait-Hinweise): `PlayerNames.Of` → `start.playerPeople` („Spieler 2 (Römer)“),
-  nie der KI-Charakter (nur noch in der Konsole beim Start). Im `InfoFeed` (Chat, Niederlage) steht der Name in der Spielerfarbe
-  (`Add(…, names)`; sehr dunkle Farben aufgehellt), der Rest weiß. Notizen breiter als die Box (höchstens 40 × Schriftgröße) brechen an
-  Leerzeichen um (zu lange Wörter werden geteilt), Folgezeilen weiter eingerückt (`Hang`, 1,25 × Zeilenhöhe); Umbruch je Notiz gecacht.
-- **Textbuttons** (`TextButton`): Steinknöpfe aus den Menüs vor dem Spiel (`textButton` in `ui.json`, Datei 02 GUI 0, 9-Slice), z. B. Abreißen,
-  Anhalten, Ja/Nein, Rekrutierung, Statistik. Besatzung ±: Auf/Ab-Spinner wie in der Herstellung.
-- **Befehle an die Welt** (Lockstep-Vorbereitung): der Client ändert die Simulation nur über `GameCommand`s – `MapGame.Issue(befehl, danach)`
-  (Ergebnis nach dem Anwenden an `danach`: Meldung, Klang, Auswahl; `TakeCommandResults` nach jedem `Step`), Menüs/Panel/KI-Chat über den Delegaten
-  `IssueCommand` (`IssueReported`: Ergebnis → Meldung). Ausnahmen: Spielaufbau, Capture-/Demo-Code, eigene KI (Taste I, nur Einzelspieler),
-  Statistik-Messpunkt beim Öffnen und Kalender-Ereignisse (beides liest die Spiellogik nicht).
-- **Auswahl/Befehle**: Rahmen oder Klick wählt eigene Figuren, Vorrang Soldaten > Kriegsmaschinen (nie zusammen) > Priester > Geologen > Späher > Pioniere,
-  Träger und andere Berufe nie (Rahmen ohne solche Figuren: das der Mitte nächste Gebäude; Gebäude: weißer Eckrahmen 3 px). Shift fügt hinzu,
-  Strg+Klick alle eigenen dieses Berufs im Bild (Soldaten: alle), Alt+Klick dieses Typs im Bild (Soldaten: Typ, Rang egal). Ausgewählte wie im Original: zwei weiße Eckklammern über dem Kopf, dazwischen
-  runder Punkt mit schwarzem Rand grün→gelb→rot nach LP (`DrawSelectionMarker`).
-  `SelectionPanel` je Art (Typ/Stufe und Volk – Bekehrte zeigen ihres) Porträt (`Portraits`, `ui.json` `portraits`; andere Völker `MapGame.PortraitsOf`) + Anzahl (zu viele: gestaucht, mehr Spalten oder kleiner), unten Kampfkraft – wie Zaubermenü
-  im Inhaltsbereich (`BuildMenu.Content`). Strg+1–9 speichert Gruppe (auch Schiffe; jede Figur/jedes Schiff in höchstens einer – sie verlässt ihre alte; Porträt des ersten Mitglieds wie im `SelectionPanel` bzw. Schiffs-Knopfbild, gleich hoch, breitere Bilder (Kriegsmaschine, Schiff) breiter, folgende rücken weiter, oben rechts, gewählte gelb gerahmt; Klick oder 1–9 wählt; ist die Auswahl genau eine Gruppe, kommt per Shift Hinzugefügtes auch in die Gruppe; zweimal binnen 0,5 s: Kameraflug zum Mittelpunkt; Tote, Gebäude Betretende, Bekehrte fallen raus; im Spielstand als Client-Wert `groups`).
-  Soldaten: Rechtsklick hinschicken/angreifen, Strg+Rechtsklick erzwungen ohne Kampf, Shift+Rechtsklick Wegpunkt (`Military.AddWaypoint`, mit Strg erzwungen),
-  Alt+Rechtsklick Patrouille (`Military.Patrol`); Tab: von der Auswahl bleiben nur verwundete Soldaten (LP < `World.MaxHealth`; Steuergruppen unverändert). Schiffe (`_ships`, statt Siedlern; Klick, Strg: alle im Bild,
-  Rahmen ohne Siedler darin): Rechtsklick fährt hin; Panel: je Art Knopfbild, Name, Anzahl, Fähren „An Bord: n/7“, Handelsschiffe „Ladung: n“, unten „Schiff entladen“ (`BuildingInfo.DrawShips`/`UnloadAt`).
-  Gewählte Einheiten: Rechtsklick auf eine eigene Fähre nahe Land → einsteigen; an Deck stehend gezeichnet (`ShipRenderer`: ganzes Schiff, Passagiere hinter
-  dem Mast, Vorderteil = Sequenz davor, Segel, Passagiere vor dem Mast). Geologen: Rechtsklick hin, auf Gebirge suchen.
-  Priester: Zaubermenü wie im Original statt Auswahl (`SpellMenu`: 8 Zauber je Volk, `menu` in `magic.json` – umgesetzte und Platzhalter mit
-  geratenem Namen/Kosten, nicht wirkbar; Symbole `spellMenu` in `ui.json`; Ladebalken Mana/Kosten: unter 1 Verlauf, dann je Ladung ein Streifen,
-  hell/dunkel im Wechsel, jeder 1,35× so breit wie der vorige, ganzer Balken = alles Mana (im Original gemessen); oben Name/Kosten unter der Maus bzw. Zielhinweis, unten Mana), Zauber wählen, dann Ziel
-  (Zielring rot: wirkt auf niemanden); Rechtsklick hin.
-  Träger umwandeln nur über Siedler › Berufe. Linksklick ins Leere wählt ab (Figuren, Gebäude, Menüs) und leert das Panel wie im Original
-  (`PanelTab.None`, kein Reiter gedrückt); rechts ziehen verschiebt die Karte.
-- **Maus** (`SdlMouse`, überall statt `Mouse.GetState()`; `NextFrame()` als Erstes in `Update`): Tasten aus SDL-Ereignissen (Event-Watch) statt
-  aus MonoGames Abfrage je Frame – eine Taste gilt im Frame als gedrückt, wenn sie unten ist oder seit dem Frame davor gedrückt wurde (Tippen aufs
-  Trackpad geht nicht verloren; auf macOS kommt der Zwei-Finger-Klick so als rechte Taste an, Issue #6). Position aus `SDL_GetMouseState` (relativ zum Fenster; MonoGame rechnet global minus
-  Fensterposition, unter XWayland/COSMIC um den Fensterversatz falsch). Ohne SDL: MonoGames Zustand.
-  SDL-Bibliothek für eigene DllImports: `SdlLibrary` (auch im Plattformordner wie `osx-arm64/`).
-- **Tasten**: Enter Chat (siehe Info-Feld), Esc bricht Platzieren/Zielen ab, sonst Pause wie P; keine Cheat-Tasten (nur `/cheats`, siehe Info-Feld);
-  F Angriff aufs feindliche Militärgebäude unter der Maus, Fog of War (Sicht 1×/s, `FogLayer` blendet weich,
-  klingt über `SoftFields` (3) aus; unerkundet schwarz, erkundet dunkel, fremde Figuren nur in Sicht; an/aus nur im Cheat-Menü), F11 Vollbild (nur für die Sitzung; Vorgabe in den Einstellungen),
-  F2 Skalierung scharf/linear/Catmull-Rom (Standard)/Lanczos2 (nur sitzungsweise, Vorgabe `display.scaling` in den Einstellungen; Welt in kleine RenderTarget, um den Zoom vergrößert – mit neuronalem Upscaling doppelt so groß, Filter mit Zoom/2; Markierungen/Panel scharf;
-  `Shaders/Upscale.fx` → eingebettetes `.mgfx`, nach Änderung `tools/compile-shaders.sh`, braucht Wine),
-  F3 Leistungsanzeige (FPS, ms Simulation/Update/Zeichnen, längster Frame, Draw-Calls; Zeichnen nur, was in den sichtbaren Zeilen und
-  waagerecht im Bild liegt – Rand 96 px, Gebäudestreifen nach Pixelbreite bis 320 px, Schiffe 160 px), F12 gehalten 10× Tempo, T Spielzeit, I KI spielt für dich
-  (andere Spieler immer KI), L KI-Entscheidungen in die Konsole,
-  P/Esc Pause (Banner wie „Spiel gewonnen“; Welt steht, Kamera/Panel/Befehle gehen), Platzieren über das Baumenü (Punkte an passenden Bauplätzen, grün→rot nach Planieraufwand – `World.LevellingEffort` / `levelling.maxWork`; max. 6 ms je Frame,
-  `World.BuildSpotEffort`; Vorschau am nächsten Bauplatz; Q/E Gebäude; endet nach Platzieren, Rechtsklick bricht ab).
-- **Optionen**: `--scene map` (Standard) / `--scene walk` (Lauf-PoC); `--load <slot>` (1–8; Gelände/Objekte aus der Karte, dann Feld für Feld auf Stand);
-  `--map <name>` (Standard: erste Mehrspieler-Karte; `random[:spieler[:none|mirror|repeat[:seed]]]`); `--peoples amazon,roman,…` (offene Völker,
-  Spieler i: Eintrag i mod n; sonst zufällig; Kartenvorgaben 0–3 gelten); `--characters ,general` (KI-Charakter je Spieler, Eintrag i → Spieler i+1, leer = gelost);
-  `--player <n>` (gespielter Spieler freier Partien, 1–8, Vorgabe 1; alle anderen KI).
-- **Lokaler Spieler** (`MapGame._local`, ab 0): der Spieler dieses Rechners – Befehle, Auswahl, Fog of War (`Vision`), Minimap (weiß), Menüs,
-  Gebäude-Panel, Steuergruppen, Events, Sieg/Niederlage (`Goals.OutcomeOf`), KI-Chat (`AiChat.Player`), Startscreen („Du“, bevorzugte Farbe), Capture-Szenarien.
-  Missionen immer `MissionGoals.Player` (0); Spielstände speichern ihn (Client-Wert `player`, ältere: 0). Fürs Mehrspieler später vom Server.
-- **Ton** (`GameAudio`, nicht in Captures): Effekte aus `SND/Siedler3_00.dat` je `SoundCue` (Nummern in `data/sound.json`, am Original erkannt:
-  Schwert 30, Bogen 33 – Ägypter 32 –, Speer 34, Tod 35, Amazone 113, Baum fällt 36, Gebäude fällt 93, Zaubern 75, Heilen 21, Pionier 25/1, Geologe ab
-  `minAmount` 24/1–3, Aussaat Bauer 8; Tabelle `docs/formate/snd.md`; `SoundRef`: Nummer oder `{sound, variants}`), Variante zufällig, nur in Sicht (Fog), im Bild voll, außerhalb bis `hearing` halbe Bildbreiten leiser,
-  links/rechts gepannt, höchstens `maxVoices` gleichzeitig und `perFrame` je Geräusch und Frame. Aus der Bildmitte: Befehl an steuerbare Einheiten (Laufen/Angriff, Suchen, Stehlen, Land einnehmen, Zaubern; `command` 57),
-  Event-Meldung (`events`: Kampf 109, sonst 110), Panel über `UiSounds` (`ui`: Auftrag/Anteil/Besatzung/Transportreihenfolge hoch 47/runter 48,
-  Schalter wie Rekrutierung, Anhalten, Einlagern, Lager-Spezialisierung 54, Arbeitsbereich versetzt 22, Klick aufs Abriss-Icon 51). `WorkSounds`: Arbeit draußen je `Activity` (`work`: Fällen 0, Planieren 2, Bauen 1, Steinmetz 3,
-  Angeln 16) im Takt der Arbeitsanimation (Moment `at` je Runde, `SettlerRenderer.WorkRoundFrames`); Werkstätten (`workshops`: Sägewerk 5,
-  Werkzeug-/Waffenschmied 6/7, Eisen-/Goldschmelze 37/38) etwa alle `everySeconds`, solange `Production.IsProducing`. `Ambience` (`ambience` in `sound.json`): Gelände im Bild alle 0,1 s abgetastet (jedes `sampleStep`-te Feld, `margin` über den Rand hinaus
-  ausblendend, Unerkundetes still), je Art laut nach Anteil (voll ab `fullShare`, gleitet in `fadeSeconds`): Meer 68, Fluss 71, Wüste 67, Wind 73/74
-  (Gebirge, Schnee) als Varianten ohne Pause aneinander (`overlap`), zur Seite des Geländes gepannt; Bienen 117/0 nach Bienenstöcken im Bild (`objects`, jedes Feld gezählt,
-  voll ab `fullCount` 6), leise und nur eins zugleich (`overlap` 0; im Original je Stock eins, übersteuert); Vögel 69/70 auf Gras einzeln alle `everySeconds`
-  von einem Feld im Bild; läuft in der Pause weiter, außerhalb des Spiels still. `SwampBubbles` (nur Darstellung, nicht gespeichert): Blasen auf grünem Sumpf (`Moor`, nicht braunem
-  Schlamm `Mud`) im Bild (je Feld eine alle `bubbles.perFieldSeconds`, nur in Sicht): Datei 1 Sequenz 106 (wächst), dann 107 (sinkt) oder 108 (platzt, Blubbern 72 – leise Aufnahme, `gain` verstärkt sie beim Laden). `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis gestreamt)
-  aus `Tracks` (`SoundConfig.TracksFor`: Liste des eigenen Volks, `music.tracks`, nach Gehör zugeordnet; „Musik je Volk“ aus: alle, eigene zuerst),
-  neue Liste beginnt mit ihrem ersten Stück, dann gemischt, Pause dazwischen, neue Liste ohne das laufende Stück blendet aus; in Menüs vor dem Spiel still. Musik/Musik je Volk/Effekte in den Einstellungen
-  (Darstellung, `DisplaySettings`).
-- **Kriegsmaschinen** (`WarMachineRenderer`, `warMachines` in `ui.json`, Fundstellen `docs/formate/gfx.md`): Körper je Richtung, rollende Räder
-  darüber, Schuss je Richtung, Geschosse im Bogen; Gong fährt wie ein Siedler läuft. Einschlag: kleine graue Explosion (Datei 13 Seq. 49);
-  beschädigte Gebäude rauchen (42, ab halb 43 dunkel) und brennen (41 ab ¼, 40 ab ½, 39 ab ¾ Schaden), bis sie geheilt sind. Auswahl zusammen mit Soldaten (`SelectionKind`, Porträt
-  `WAR_MACHINE`), Rechtsklick: hin bzw. Militärgebäude beschießen; Munitionszahl über dem Punkt; „Munition laden“ im Auswahl-Panel.
-  Werkstatt-Panel (`BuildingInfo.WarWorks`): Maschine/Munition (Klick +1, Strg+Klick zurück, ×n bestellt), Ladungen, Material des
-  aktuellen Auftrags. Ton `machineShot` (geraten), Treffer `machineHit` 88/0. Cheat-Menü: 2 Kriegsmaschinen.
-- **Darstellung**: Schiffe (`ShipRenderer`, `ships` in `ui.json`): Datei 36, je Schiff 4 Sequenzen (Deck, Schatten, Vorderteil, ganz ohne Segel)
-  à 6 Richtungen, Segel 28–34 mit Spielerfarbe; kleines Schiff = Fähre, großes = Handelsschiff (Römer im Spiel geprüft), Ladung als Stapel an Deck; im Bau der Rumpf von unten wachsend. Wellen (`Terrain/WaveLayer`): lange gerade Dünung läuft diagonal (nach links unten), Wasserecken heben sich bis 4 Höhenstufen (Wasserdreiecke im Bild neu gezeichnet, Licht wie Hänge), Kämme mit hellem Wasser-Tile (Bild 16) überblendet, Vorderseite glänzt, darüber das Original-Glitzern (Datei 01 Seq. 26) als überlappende Kacheln (Abstand ¾ Bild, jede zweite Zeile um einen halben Schritt versetzt, nicht mit den Wellen angehoben), Bild nach der Phase der Dünung an der Kachelmitte – spielt ab, während die Front durchläuft, mehrere hintereinander gleichzeitig (Dünung 18 Felder lang, 1,8 Felder/s); Stärke nach Uferabstand (1 Feld ruhig, dann über 14 voll, weich); Schiffe schaukeln mit (nur Darstellung); stehen in der Pause. Figuren nach Volk; Tote: Geist in Spielerfarbe (Datei 12 Seq. 27, `World.Ghosts`); Zauberwirkungen als Original-Statussymbole über dem Kopf (`StatusIcons`, `statusIcons` in `ui.json`: Datei 1 Sequenz 128–133 – Samuraischwert, Stärken, Angst, Schild, Verfluchte Pfeile, Eingefroren –, mehrere nebeneinander; 134/135 Planieren uneben/sehr uneben, 136–138 Info-Zeichen, noch ungenutzt); Stehende ohne Aufgabe wechseln alle 2–30 s
-  die Blickrichtung (nur Darstellung); Turm-Bogenschützen mit Schussanimation im Takt, ohne Schatten (wie im Original), Infanterie im Turm als Fensterbild; Gebäude: Ebene 0, Besatzung, dann weitere Ebenen (Fensterrahmen/Brüstungen davor); in 8-px-Streifen gezeichnet, jeder in der vordersten Sperrfeld-Reihe seiner Spalte (`EconomyRenderer.Strip`, sonst verdeckt ein hohes Gebäude, was seitlich davor steht); Pfeile im flachen Bogen
-  (`docs/formate/gfx.md`). `SettlerAnimations` löst Typ/Aktion/Ware/Richtung über `data/settlers.json` (generiert mit
-  `tools/data-import/convert_jsettlers_movables.py`, nicht von Hand ändern). Baustellen zeigen Schild und Pfosten.
-- **Neurale Hochskalierung** (Pilot, `Neural/`; Einstellung `display.neuralUpscale`, Standard aus, F4 schaltet jederzeit sitzungsweise um): Sprites des `SpriteLibrary`-Pfads (Figuren mit Torso und Schatten, Kartenobjekte, Schiffe, Wasser-Glitzer; Gelände und Porträts nicht) werden beim Laden per Real-ESRGAN realesr-animevideov3 auf x2 hochgerechnet – die x4-Ausgabe des Modells wird in C# mit Lanczos2 (wie `Upscale.fx`) halbiert. Vollständig transparente Pixel erben die Farbe ihrer Nachbarn (keine dunklen Säume), das 1-Bit-Alpha wird aus der binären Deckung per Catmull-Rom rekonstruiert (16 Taps je 2x-Pixel, Schwellwert 0,28 – dünne Linien überleben; Pixel ohne Kante nearby werden übersprungen), die Ausgabe ist prämultipliziert. Modell als ONNX eingebettet: `src/Homestead.Client/Neural/realesr-animevideov3-x4.onnx`, SHA-256 `78baa685a1a92cac6e14ab2af2a8ad0ef56fa48629563b1414e3a7acc54d86e2` (Konvertierung huggingface.co/skillsafe-ai/realesr-animevideov3, Revision `185e9142…`; Gewichte BSD-3-Clause von xinntao/Real-ESRGAN, Lizenztext in THIRD_PARTY_NOTICES.md; ONNX Runtime MIT von Microsoft). ONNX Runtime mit CoreML (macOS) und CPU-Fallback überall; `ORT_DISABLE_TELEMETRY=1` wird vor jeder ORT-Initialisierung nativ (setenv) gesetzt – die 1DS-Telemetrie von Microsoft (geräte-ID, OS/CPU/Prozess-Events) entsteht dadurch gar nicht erst. Ohne native ONNX-Runtime-Bibliothek (osx-x64) schaltet sich das Feature selbst ab und zeigt einen Hinweis. Ein- und Ausgabe bleiben im Arbeitsspeicher – kein Original-Asset wird verändert oder mitgeliefert. Ein Hintergrund-Thread (Eingaben größer 512 px bleiben 1x) leistet die Inferenz, `SpriteLibrary.Pump` lädt die fertigen Bilder auf dem GL-Thread hoch (höchstens 16 pro Frame) in einen Zweitatlas mit Padding 2; gezeichnet wird mit halbem Maßstab und verdoppeltem Versatz – identische Bildschirmgeometrie, `SettlerSprites.Bounds` bleibt 1x.
-  2x-Sprites werden nur im Weltdurchgang gezeichnet: Mit aktivem Feature rendert `MapGame` die Welt bei Zoom > 1 in ein doppelt so großes Renderziel (`worldScale` 2, fällt auf 1 zurück, wenn das Ziel `SpriteAtlas.PageSize` überschreiten würde) und skaliert es mit Zoom/2 durch denselben Filter (`Upscale.fx` unverändert Catmull-Rom/Lanczos2) – sonst würden die 2x-Texel schon im 1:1-Ziel halbiert, bevor der Filter sie sieht. UI und Zoom ≤ 1 bleiben 1x (`SpriteUpscaleState.WorldHiRes`). Ist die Einstellung an, wird beim Spielstart (`MapGame.WarmNeuralUpscale`) der ganze 2x-Atlas der Völker der Partie und der gemeinsamen Dateien vorgerechnet; der Ladebildschirm hält dabei höchstens 10 s (`WarmHoldSeconds`), der Rest läuft im Hintergrund weiter – F4 bleibt progressiv. Beim Beenden wartet `SpriteLibrary.Dispose` begrenzt auf den Worker; eine laufende Inferenz wird nicht zerrissen (der Worker entsorgt seine Session nur, solange der Prozess lebt).
+    - Settlers › Production (`StatisticsMenu`): chart of the last 60 min of a good (units/min, 2-min average, scale adapts);
+      good selection `GoodsGrid` (shared with Stock: icons `goodsGrid` in `ui.json`, indices from JSettlers' EMaterialType, not producible dark);
+      counted in `World.Statistics` (`ProductionStatistics`, 30-s sections).
+  - Clicking a building replaces the build menu (without its own background): name, image (unscaled, centred at the bottom, cropped –
+    `EconomyRenderer.DrawBuildingImage`; when space is tight, first the goods go, then the image gets lower), for own buildings the status, top right the demolish icon as in the original (file 03 GUI 199, `buildingInfo` in `ui.json`) with a confirmation as in the original (only the building image stays in its place, question at the bottom, Yes/No as light texts; any other action – clicking beside it when releasing, another selection, Esc – cancels);
+    top left as in the original "Stop work" (house, GUI 395)/"Resume work" (hand, 194) for production and construction sites (`World.SetPaused`:
+    work finished, then inside; construction site: no deliveries/workers, those present free after their cycle), next to it for construction sites "Highest priority"
+    (gears 197, pressed with "!" 380; `World.SetPriority`), the name then under the icons, hint text above them under the mouse; military: garrison per type (present/wanted, +/−);
+    storehouse: all goods (`GoodsGrid`; dot = general rule, clicking specialises – red frame –, again lifts it);
+    marketplace (`BuildingInfo.Market`, "Trade – land", without image; harbor "Trade – sea": bar GUI 377 `seaRoute`, ship in front of ×1 sets the dock like
+    the shipyard's hammer, route points onto the water, route from the berth): bar ×1 ×2 ×3 package (file 03 GUI 374, `market` in `ui.json`; not set
+    dark): choose a button (white framed; stops only with a destination; clicking the chosen stop again = delete), then a left-click on the map sets
+    it (flag as a preview at the mouse pointer, only where donkeys can get; right-click/Esc cancels), route like the barracks' gathering point; goods with amount underneath, ∞ (386)/0 (389)/arrows ±5/±1 for the selected good; goods/building material,
+    mine success chance; work area (right-click moves it, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, otherwise the next allowed
+    field; gatherers take the target nearest the centre; barracks: gathering point anywhere, `Building.HasGatheringPoint`, path with flag).
+    Shipyard (`BuildingInfo.Dockyard`, `dockyard` in `ui.json`): ferry and trade ship on the left (last 12 GUI images of the people's file; with a dock
+    clickable → order, the button stays pressed (dark image), both locked until the launch; building material delivered/needed at the bottom),
+    hammer on the right (file 03 GUI 392) → the next left-click into the water sets the dock (pale preview at the mouse pointer; right-click/Esc cancels;
+    locked during construction).
+    German names/states in `data/ui.json`; text via FontStashSharp with the system font.
+- **Statistics** (`StatisticsScreen`; "Quit game", after a lost game Esc; the game stands still): blue marble (`statisticsBackground`, file 02 GUI 29),
+  pages Overview (table, land share), Economy, Military, Goods (every good per minute), Society – charts `Charts` (lines with values
+  under the mouse, shares, bars) from `GameHistory`/`ProductionStatistics`; ←/→/Tab page through; "Resume" (Esc; not after "Quit game"),
+  "Main menu".
+- **Player names** in-game (statistics, chat, defeat, trait hints): `PlayerNames.Of` → `start.playerPeople` ("Player 2 (Romans)"),
+  never the AI character (only in the console at startup any more). In the `InfoFeed` (chat, defeat) the name stands in the player's colour
+  (`Add(…, names)`; very dark colours lightened), the rest white. Notes wider than the box (at most 40 × font size) wrap at
+  spaces (overly long words are split), continuation lines indented further (`Hang`, 1.25 × line height); the wrap cached per note.
+- **Text buttons** (`TextButton`): stone buttons from the menus before the game (`textButton` in `ui.json`, file 02 GUI 0, 9-slice), e.g. demolish,
+  pause, Yes/No, recruitment, statistics. Garrison ±: up/down spinners as in manufacture.
+- **Commands to the world** (lockstep preparation): the client changes the simulation only via `GameCommand`s – `MapGame.Issue(command, then)`
+  (result to `then` after applying: message, sound, selection; `TakeCommandResults` after every `Step`), menus/panel/AI chat via the delegate
+  `IssueCommand` (`IssueReported`: result → message). Exceptions: game setup, capture/demo code, own AI (key I, single player only),
+  statistics measuring point on opening and calendar events (the game logic reads neither).
+- **Selection/commands**: a box or a click selects own figures, priority soldiers > war machines (never together) > priests > geologists > scouts > pioneers,
+  carriers and other professions never (a box without such figures: the building nearest to its centre; buildings: white corner frame 3 px). Shift adds,
+  Ctrl+click all own of this profession in view (soldiers: all), Alt+click this type in view (soldiers: type, rank irrelevant). Selected ones as in the original: two white corner brackets above the head, in between
+  a round dot with a black border green→yellow→red by HP (`DrawSelectionMarker`).
+  `SelectionPanel` per kind (type/level and people – converted ones show theirs) portrait (`Portraits`, `ui.json` `portraits`; other peoples `MapGame.PortraitsOf`) + count (too many: compressed, more columns or smaller), combat strength at the bottom – like the spell menu
+  in the content area (`BuildMenu.Content`). Ctrl+1–9 stores a group (ships too; every figure/ship in at most one – it leaves its old one; portrait of the first member as in the `SelectionPanel` or ship button image, the same height, wider images (war machine, ship) wider, following ones move further up, top right, chosen ones framed yellow; clicking or 1–9 selects; if the selection is exactly one group, what Shift adds goes into the group too; twice within 0.5 s: camera flight to the centre; the dead, those entering buildings, converted ones drop out; in the save game as client value `groups`).
+  Soldiers: right-click send there/attack, Ctrl+right-click forced without fighting, Shift+right-click waypoint (`Military.AddWaypoint`, forced with Ctrl),
+  Alt+right-click patrol (`Military.Patrol`); Tab: only wounded soldiers remain of the selection (HP < `World.MaxHealth`; control groups unchanged). Ships (`_ships`, instead of settlers; click, Ctrl: all in view,
+  a box without settlers in it): right-click sails there; panel: button image per kind, name, count, ferries "On board: n/7", trade ships "Cargo: n", "Unload ship" at the bottom (`BuildingInfo.DrawShips`/`UnloadAt`).
+  Chosen units: right-click on an own ferry near land → board; drawn standing on deck (`ShipRenderer`: whole ship, passengers behind
+  the mast, front part = sequence in front of it, sail, passengers in front of the mast). Geologists: right-click there, search on mountains.
+  Priests: spell menu as in the original instead of a selection (`SpellMenu`: 8 spells per people, `menu` in `magic.json` – implemented ones and placeholders with
+  a guessed name/cost, not castable; symbols `spellMenu` in `ui.json`; charge bar mana/cost: below 1 a gradient, then one stripe per charge,
+  alternating light/dark, each 1.35× as wide as the previous one, whole bar = all mana (measured in the original); at the top the name/cost under the mouse or a target hint, at the bottom mana), choose a spell, then a target
+  (target ring red: affects nobody); right-click there.
+  Converting carriers only via Settlers › Professions. A left-click into empty space deselects (figures, buildings, menus) and clears the panel as in the original
+  (`PanelTab.None`, no tab pressed); dragging with the right button moves the map.
+- **Mouse** (`SdlMouse`, everywhere instead of `Mouse.GetState()`; `NextFrame()` first in `Update`): buttons from SDL events (event watch) instead of
+  from MonoGame's per-frame query – a button counts as pressed in the frame if it is down or was pressed since the frame before (taps on the
+  trackpad are not lost; on macOS the two-finger click arrives as the right button this way, issue #6). Position from `SDL_GetMouseState` (relative to the window; MonoGame computes globally minus
+  window position, which is off by the window offset under XWayland/COSMIC). Without SDL: MonoGame's state.
+  SDL library for own DllImports: `SdlLibrary` (in the platform folder too, like `osx-arm64/`).
+- **Keys**: Enter chat (see info feed), Esc cancels placing/aiming, otherwise pause like P; no cheat keys (only `/cheats`, see info feed);
+  F attack on the enemy military building under the mouse, fog of war (sight 1×/s, `FogLayer` fades softly,
+  tapering off over `SoftFields` (3); unexplored black, explored dark, foreign figures only in sight; on/off only in the cheat menu), F11 full screen (for the session only; default in the settings),
+  F2 scaling sharp/linear/Catmull-Rom (default)/Lanczos2 (session only, default `display.scaling` in the settings; world into a small render target, enlarged by the zoom – with neural upscaling twice as large, filter with zoom/2; markers/panel sharp;
+  `Shaders/Upscale.fx` → embedded `.mgfx`, after changes `tools/compile-shaders.sh`, needs Wine),
+  F3 performance display (FPS, ms simulation/update/draw, longest frame, draw calls; draws only what lies in the visible rows and
+  horizontally in view – margin 96 px, building strips by pixel width up to 320 px, ships 160 px), F12 held 10× speed, T game time, I AI plays for you
+  (other players always AI), L AI decisions to the console,
+  P/Esc pause (banner like "Game won"; world stands, camera/panel/commands work), placing via the build menu (dots at suitable build spots, green→red by levelling effort – `World.LevellingEffort` / `levelling.maxWork`; max. 6 ms per frame,
+  `World.BuildSpotEffort`; preview at the nearest build spot; Q/E buildings; ends after placing, right-click cancels).
+- **Options**: `--scene map` (default) / `--scene walk` (walking PoC); `--load <slot>` (1–8; terrain/objects from the map, then field by field up to date);
+  `--map <name>` (default: first multiplayer map; `random[:players[:none|mirror|repeat[:seed]]]`); `--peoples amazon,roman,…` (open peoples,
+  player i: entry i mod n; otherwise random; map presets 0–3 apply); `--characters ,general` (AI character per player, entry i → player i+1, empty = drawn);
+  `--player <n>` (played player of free matches, 1–8, default 1; all others AI).
+- **Local player** (`MapGame._local`, from 0): this machine's player – commands, selection, fog of war (`Vision`), minimap (white), menus,
+  building panel, control groups, events, victory/defeat (`Goals.OutcomeOf`), AI chat (`AiChat.Player`), start screen ("you", preferred color), capture scenarios.
+  Missions always `MissionGoals.Player` (0); save games store it (client value `player`, older ones: 0). For multiplayer later from the server.
+- **Sound** (`GameAudio`, not in captures): effects from `SND/Siedler3_00.dat` per `SoundCue` (numbers in `data/sound.json`, recognized in the original:
+  sword 30, bow 33 – Egyptians 32 –, spear 34, death 35, Amazon 113, tree falls 36, building falls 93, casting 75, healing 21, pioneer 25/1, geologist from
+  `minAmount` 24/1–3, farmer sowing 8; table `docs/formate/snd.md`; `SoundRef`: number or `{sound, variants}`), variant random, only in sight (fog), full in view, outside quieter by up to `hearing` half view widths,
+  panned left/right, at most `maxVoices` simultaneously and `perFrame` per sound and frame. From the centre of the view: command to controllable units (walk/attack, search, steal, claim land, cast; `command` 57),
+  event message (`events`: combat 109, otherwise 110), panel via `UiSounds` (`ui`: order/share/garrison/transport order up 47/down 48,
+  switches like recruitment, pausing, storing, storehouse specialisation 54, work area moved 22, click on the demolish icon 51). `WorkSounds`: work outside per `Activity` (`work`: felling 0, levelling 2, building 1, stonecutter 3,
+  fishing 16) in the rhythm of the work animation (moment `at` per round, `SettlerRenderer.WorkRoundFrames`); workshops (`workshops`: sawmill 5,
+  toolsmith/weaponsmith 6/7, iron/gold smelter 37/38) about every `everySeconds`, as long as `Production.IsProducing`. `Ambience` (`ambience` in `sound.json`): terrain in view sampled every 0.1 s (every `sampleStep`-th field, `margin` fading out beyond the edge,
+  unexplored silent), per kind loud by share (full from `fullShare`, gliding in `fadeSeconds`): sea 68, river 71, desert 67, wind 73/74
+  (mountains, snow) as variants strung together without a pause (`overlap`), panned to the side of the terrain; bees 117/0 by beehives in view (`objects`, every field counted,
+  full from `fullCount` 6), quiet and only one at a time (`overlap` 0; in the original one per hive, overdriven); birds 69/70 on grass individually every `everySeconds`
+  from one field in view; keeps running during a pause, silent outside the game. `SwampBubbles` (presentation only, not saved): bubbles on green swamp (`Moor`, not brown
+  mud `Mud`) in view (one per field every `bubbles.perFieldSeconds`, only in sight): file 1 sequence 106 (grows), then 107 (sinks) or 108 (bursts, bubbling 72 – a quiet recording, `gain` amplifies it on loading). `MusicPlayer`: `MUSIC/TrackNN.ogg` (NVorbis streamed)
+  from `Tracks` (`SoundConfig.TracksFor`: list of our own people, `music.tracks`, assigned by ear; "Music per people" off: all, own first),
+  a new list begins with its first piece, then shuffled, pause in between, a new list without the running piece fades out; silent in the menus before the game. Music/music per people/effects in the settings
+  (Display, `DisplaySettings`).
+- **War machines** (`WarMachineRenderer`, `warMachines` in `ui.json`, locations `docs/formate/gfx.md`): body per direction, rolling wheels
+  above it, firing per direction, projectiles in an arc; the gong moves like a settler walks. Impact: small grey explosion (file 13 seq. 49);
+  damaged buildings smoke (42, from half 43 dark) and burn (41 from ¼, 40 from ½, 39 from ¾ damage) until they are healed. Selection together with soldiers (`SelectionKind`, portrait
+  `WAR_MACHINE`), right-click: go there or bombard a military building; ammunition count above the dot; "Load ammunition" in the selection panel.
+  Works panel (`BuildingInfo.WarWorks`): machine/ammunition (click +1, Ctrl+click back, ×n ordered), loads, material of the
+  current order. Sound `machineShot` (guessed), hit `machineHit` 88/0. Cheat menu: 2 war machines.
+- **Rendering**: ships (`ShipRenderer`, `ships` in `ui.json`): file 36, 4 sequences per ship (deck, shadow, front part, entirely without sails)
+  of 6 directions each, sails 28–34 with the player's colour; the small ship = ferry, the large one = trade ship (checked with Romans in-game), cargo as piles on deck; under construction the hull growing from below. Waves (`Terrain/WaveLayer`): a long straight swell runs diagonally (towards the bottom left), water corners rise by up to 4 height steps (water triangles in view redrawn, light like slopes), crests blended with a light water tile (image 16), the front side gleams, above it the original glitter (file 01 seq. 26) as overlapping tiles (distance ¾ of an image, every second row offset by half a step, not raised with the waves), image by the phase of the swell at the tile centre – plays while the front passes through, several one after another simultaneously (swell 18 fields long, 1.8 fields/s); strength by distance from the shore (1 field calm, then full over 14, soft); ships rock along (presentation only); stand still during a pause. Figures by people; the dead: ghost in the player's colour (file 12 seq. 27, `World.Ghosts`); spell effects as the original's status symbols above the head (`StatusIcons`, `statusIcons` in `ui.json`: file 1 sequences 128–133 – Samurai sword, Strengthen, Festering fear, Ch'ih-Yu's shield, Cursed arrows, Frozen –, several next to each other; 134/135 levelling uneven/very uneven, 136–138 info signs, still unused); those standing without a task change their facing every 2–30 s
+  (presentation only); tower bowmen with a firing animation in rhythm, without a shadow (as in the original), infantry in the tower as a window image; buildings: layer 0, garrison, then further layers (window frames/balustrades in front); drawn in 8-px strips, each in the foremost blocker row of its column (`EconomyRenderer.Strip`, otherwise a tall building hides what stands in front of it sideways); arrows in a flat arc
+  (`docs/formate/gfx.md`). `SettlerAnimations` resolves type/action/good/direction via `data/settlers.json` (generated with
+  `tools/data-import/convert_jsettlers_movables.py`, do not edit by hand). Construction sites show a sign and posts.
+- **Neural upscaling** (pilot, `Neural/`; setting `display.neuralUpscale`, off by default, F4 toggles it any time for the session): sprites on the
+  `SpriteLibrary` path (figures with torso and shadow, map objects, ships, water glitter; not terrain and portraits) are scaled to x2 at load time with
+  Real-ESRGAN realesr-animevideov3 – the model's x4 output is halved in C# with Lanczos2 (like `Upscale.fx`). Fully transparent pixels inherit the colour
+  of their neighbours (no dark fringes), the 1-bit alpha is reconstructed from the binary coverage with Catmull-Rom (16 taps per 2x pixel, threshold 0.28 –
+  thin lines survive; pixels without a nearby edge are skipped), the output is premultiplied. Model embedded as ONNX:
+  `src/Homestead.Client/Neural/realesr-animevideov3-x4.onnx`, SHA-256 `78baa685a1a92cac6e14ab2af2a8ad0ef56fa48629563b1414e3a7acc54d86e2`
+  (conversion huggingface.co/skillsafe-ai/realesr-animevideov3, revision `185e9142…`; weights BSD-3-Clause from xinntao/Real-ESRGAN, licence text in
+  THIRD_PARTY_NOTICES.md; ONNX Runtime MIT from Microsoft). ONNX Runtime with CoreML (macOS) and CPU fallback everywhere;
+  `ORT_DISABLE_TELEMETRY=1` is set natively (setenv) before every ORT initialisation – Microsoft's 1DS telemetry (device ID, OS/CPU/process events)
+  never comes into being in the first place. Without a native ONNX Runtime library (osx-x64) the feature disables itself and shows a hint. Input and
+  output stay in memory – no original asset is changed or shipped. A background thread (inputs larger than 512 px stay 1x) does the inference,
+  `SpriteLibrary.Pump` uploads the finished images on the GL thread (at most 16 per frame) into a secondary atlas with padding 2; drawn at half scale
+  with doubled offset – identical screen geometry, `SettlerSprites.Bounds` stays 1x.
+  2x sprites are drawn only in the world pass: with the feature active, `MapGame` renders the world at zoom > 1 into a render target twice as large
+  (`worldScale` 2, falls back to 1 if the target would exceed `SpriteAtlas.PageSize`) and scales it with zoom/2 through the same filter (`Upscale.fx`
+  unchanged Catmull-Rom/Lanczos2) – otherwise the 2x texels would already be halved in the 1:1 target before the filter sees them. UI and zoom ≤ 1 stay 1x
+  (`SpriteUpscaleState.WorldHiRes`). With the setting on, at game start (`MapGame.WarmNeuralUpscale`) the whole 2x atlas of the match's peoples and the
+  shared files is precomputed; the loading screen holds at most 10 s for it (`WarmHoldSeconds`), the rest continues in the background – F4 stays
+  progressive. On exit `SpriteLibrary.Dispose` waits for the worker with a limit; a running inference is not torn apart (the worker disposes its session
+  only while the process lives).
