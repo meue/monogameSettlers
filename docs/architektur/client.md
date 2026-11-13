@@ -244,7 +244,8 @@ MonoGame game. Capture options: [capture.md](capture.md).
   2x sprites are drawn only in the world pass: with the feature active, `MapGame` renders the world at zoom > 1 into a render target twice as large
   (`worldScale` 2, falls back to 1 if the target would exceed `SpriteAtlas.PageSize`) and scales it with zoom/2 through the same filter (`Upscale.fx`
   unchanged Catmull-Rom/Lanczos2) – otherwise the 2x texels would already be halved in the 1:1 target before the filter sees them. UI and zoom ≤ 1 stay 1x
-  (`SpriteUpscaleState.WorldHiRes`). With the setting on, at game start (`MapGame.WarmNeuralUpscale`) the whole 2x atlas of the match's peoples and the
+  (`SpriteUpscaleState.WorldHiRes`), and so does the point-sampled `Sharp` setting: its path has no world pass, it shows every sprite 1x — to see (or
+  capture) the 2x sprites at all, zoom above 1 with a smooth filter is required (`HOMESTEAD_CAPTURE_ZOOM=2` in captures; their zoom otherwise glides to 1). With the setting on, at game start (`MapGame.WarmNeuralUpscale`) the whole 2x atlas of the match's peoples and the
   shared files is precomputed; the loading screen holds at most 5 s for it (`WarmHoldSeconds`), the rest continues in the background – F4 stays
   progressive. On exit `SpriteLibrary.Dispose` waits for the worker with a limit; a running inference is not torn apart (the worker disposes its session
   only while the process lives).
