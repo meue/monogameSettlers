@@ -60,7 +60,7 @@ jobs:
         env:
           HOMESTEAD_CHECKSUM_FILE: ${{ github.workspace }}/checksums-${{ matrix.os }}.txt
         run: dotnet test tests/Homestead.Simulation.Tests -c Release --filter "FullyQualifiedName~DeterminismTests"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: checksums-${{ matrix.os }}
           path: checksums-${{ matrix.os }}.txt
@@ -155,7 +155,7 @@ jobs:
           esac
           echo "file=publish/$name.${{ matrix.archive }}" >> "$GITHUB_OUTPUT"
           echo "name=$name" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package.outputs.name }}
           path: ${{ steps.package.outputs.file }}
