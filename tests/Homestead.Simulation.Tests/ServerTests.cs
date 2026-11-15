@@ -101,10 +101,36 @@ public class ServerTests : IAsyncLifetime
         Assert.Equal(chats[0], chats[1]);
         Assert.Equal(["hi from 1", "hi from 3"], chats[0].Select(c => c.Text));
 
-        // One leaves: the other hears of it.
+        // One leaves: the other hears of it, plays on, and a computer player takes over the one who left.
         await guest.DisposeAsync();
         var left = await host.WaitForAsync([ServerMessages.Left], Wait);
         Assert.Equal(2, left["player"]!.GetValue<int>());
+        var (_, hostWorld, hostSession) = computers[0];
+        until = DateTime.UtcNow + Wait;
+        while (hostWorld.Tick < Ticks + 100 && DateTime.UtcNow < until)
+            if (!hostSession.TryStep())
+                await Task.Delay(1);
+        Assert.Equal(Ticks + 100, hostWorld.Tick);
+        Assert.Equal([2], hostSession.TakeTakenOver());
+        Assert.Contains(hostWorld.AiPlayers, a => a.Player == 2);
+    }
+
+    [Fact]
+    public async Task Players_of_the_same_name_are_told_apart_and_their_names_go_into_the_game()
+    {
+        await using var host = await Connect("player2");
+        await using var guest = await Connect("Player2");
+        host.Create("Test", Setup());
+        string id = (await host.WaitForAsync([ServerMessages.Lobby], Wait))["game"]!.GetValue<string>();
+        guest.Join(id);
+        var lobby = await guest.WaitForAsync([ServerMessages.Lobby], Wait);
+        Assert.Equal(["player2", "Player2 (2)"], lobby["seats"]!.AsArray().Select(s => s!["name"]!.GetValue<string>()));
+
+        host.Start();
+        var started = ServerMessages.ParseStarted(await guest.WaitForAsync([ServerMessages.Started], Wait));
+        Assert.Equal(["player2", null, "Player2 (2)"], started.Setup.Players.Select(p => p.Name));
+        var world = started.Setup.Start(started.Setup.Map.Open("")).World;
+        Assert.Equal(["player2", null, "Player2 (2)"], world.PlayerNames);
     }
 
     [Fact]
@@ -123,7 +149,7 @@ public class ServerTests : IAsyncLifetime
 
         var mine = GameFingerprint.Of();
         var files = mine.Files.ToDictionary(f => f.Key, f => f.Value);
-        files["production.json"] = "0";
+        files["production.json"] = new string('0', 64);
         await using var other = await Connect("Ben", mine with { Files = files });
         other.Join(id);
         var refused = await other.WaitForAsync([ServerMessages.Refused, ServerMessages.Lobby], Wait);
@@ -156,7 +182,7 @@ public class ServerTests : IAsyncLifetime
         outgoing!.Writer.TryWrite("{\"type\":\"join\",\"game\":42}");
         outgoing.Writer.TryWrite("{\"type\":\"dance\"}");
         Assert.Equal("unreadable message", (await client.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
-        Assert.Equal("unknown message 'dance'", (await client.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
+        Assert.Equal("unknown message", (await client.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
         client.ListGames();
         await client.WaitForAsync([ServerMessages.Games], Wait);
         Assert.True(client.IsOpen);

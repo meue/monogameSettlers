@@ -1,0 +1,18 @@
+# Security updates for what the server image is made of: the base image, NuGet packages, the workflows' actions.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /src/Homestead.Server
+    schedule:
+      interval: weekly
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      nuget:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

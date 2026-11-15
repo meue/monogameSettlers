@@ -43,6 +43,8 @@ Before working on a system, read the matching file and keep it up to date there 
 
 ### Cross-cutting rules
 - Sprites only via `SpriteLibrary` (see graphics conventions); texts only via `Lang.T` (see above).
+- Simulation 100 % deterministic (lockstep): randomness only `new Random(… + World.Seed)`, no clock/threads/`GetHashCode`/`Math.Sin` & co.
+  (`DeterministicMath`), player actions only as `GameCommand` – rules: docs/MULTIPLAYER.md, CONTRIBUTING.md.
 - Captures and inspection exports go to temporary directories only; in captures, save only with a temporary `HOMESTEAD_SAVE_DIR`.
 - Save games: `Snapshot` saves via reflection, new fields need no save code (details: simulation.md, `Persistence/`).
 - Tests that are not about tools: `TestConfig.NoTools`.

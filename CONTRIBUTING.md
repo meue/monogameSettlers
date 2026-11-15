@@ -51,11 +51,32 @@ If you have ever worked with decompiled code of the original, please tell us bef
 
 ### Conventions
 - Code and code comments in **English**.
-- Game logic lives in `Homestead.Simulation` and must not depend on MonoGame; it runs at a fixed tick rate and must stay deterministic.
+- Game logic lives in `Homestead.Simulation` and must not depend on MonoGame; it runs at a fixed tick rate and must stay
+  **deterministic** (see below).
 - Balancing values belong in the JSON files under `data/`, not in code.
 - Generated data (`data/buildings/*.json`, `data/settlers.json`) is never edited by hand – use `data/buildings/overrides.json`
   or the import scripts in `tools/data-import/`.
 - Match the style of the surrounding code; add tests for new behaviour.
+
+### The simulation must be 100 % deterministic
+Multiplayer is lockstep: only the players' commands go over the network, and every computer simulates the whole world
+by itself. That only works if the same commands give **bit for bit the same world** on every computer – on Linux,
+Windows and macOS alike. One differing number, and the games drift apart (a desync); the game stops.
+
+So in `Homestead.Simulation`:
+- **Randomness is fine, but only seeded from the world**: `new Random(<your own constant> + world.Seed)`, kept in the
+  system that uses it. A random critical hit is no problem done that way – the same "random" hit on every computer.
+  Never `Random.Shared`, `new Random()` without a seed, `Guid.NewGuid()` or anything else that differs per computer.
+- **No clock** (`DateTime.Now`, `Stopwatch`, frame times), **no threads or parallel loops**, nothing from the computer
+  it runs on (settings, screen, selection, culture) – the world advances only by ticks and commands.
+- **No `GetHashCode`/`HashCode`** in game logic and no iteration order that depends on it; sort only by numbers or
+  ordinal strings.
+- **No `Math.Sin`, `Cos`, `Atan2` & co.**: they come from each platform's C library and may differ in the last bit.
+  Use `DeterministicMath` (add a function there if one is missing). Plain arithmetic and `Math.Sqrt` are fine.
+- **Everything a player does is a `GameCommand`** (`Commands/`), never a direct change of the world from the client.
+
+`DeterminismTests` plays a long AI game and compares checksums; the build runs it on all three platforms. It can't
+cover every system, so think about it when you write new logic. Details: [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md).
 
 ## Be nice
 
