@@ -10,7 +10,7 @@ COPY . .
 RUN dotnet publish src/Homestead.Server/Homestead.Server.csproj -c Release -o /app \
     ${VERSION:+-p:MinVerVersionOverride=$VERSION}
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 WORKDIR /app
 COPY --from=build /app .
 USER $APP_UID
