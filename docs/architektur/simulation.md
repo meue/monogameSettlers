@@ -83,7 +83,7 @@ on Linux, Windows (x64) and macOS (ARM), `determinism-compare` compares.
   - `Housing`: residences release carriers and provide that much housing (plus the starting population, `SettleStartPopulation`). Carriers and workers
     need space (diggers/builders too – construction sites recruit at most a share of `Share.Diggers`/`Builders`, at least one each), not soldiers,
     geologists, scouts, pioneers. Without space they go on strike (`Settler.IsStriking`): first idle carriers, then workers (they stay inside).
-  - `Recruitment`: carriers fetch a tool, become specialists. Tests that are not about tools:
+  - `Recruitment`: carriers fetch a tool, become specialists; the three shares together ≤ 100% (`SetShare` limits them). Tests that are not about tools:
     `TestConfig.NoTools`.
   - `Idling`: stranded carriers/professions outside our own land flee to the nearest reachable own field (`RefugeRadius` 64, otherwise an own building
     door); without one they wander around and die after 30–60 s (fixed per settler by hash, ghost, death sound), rescued back on own land.

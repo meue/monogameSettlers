@@ -176,3 +176,19 @@ public sealed class PanelTabs : IDisposable
 
     private sealed record Tab(string Name, Texture2D Normal, Texture2D Pressed, List<Menu> Menus);
 }
+
+/// <summary>
+/// The side panel's sub-menu ids of <c>data/ui.json</c> (<c>panelTabs</c>): the values
+/// <see cref="PanelTabs.CurrentMenu"/> returns and the panel menus are keyed under, so the spellings must stay as they are.
+/// </summary>
+internal static class PanelMenuIds
+{
+    public const string Stock = "stock";
+    public const string Tools = "tools";
+    public const string Distribution = "distribution";
+    public const string Transport = "transport";
+    public const string Overview = "overview";
+    public const string Professions = "professions";
+    public const string Soldiers = "soldiers";
+    public const string Statistics = "statistics";
+}

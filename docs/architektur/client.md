@@ -109,7 +109,7 @@ MonoGame game. Capture options: [capture.md](capture.md).
   - Computer button at the bottom left (`SystemMenu`, `PanelTab.System`): "Save game" (8 slots with map, date, people; empty ones dashed;
     clicking saves, overwriting too), "Quit game" with a confirmation (Yes at the bottom left → statistics, No at the bottom right).
   - Main tabs Build/Goods/Settlers (`PanelTabs`: original buttons file 03, active one pressed; clicking clears the selection; submenus `panelTabs` in `ui.json`).
-    - Build: build menu (categories from `data/ui.json`, original buttons; clicking an icon → placing; our own people; number finished (white) and under construction (orange); tooltip with the name after dwelling 1 s on an icon, gone on leaving – `BuildMenu.DrawTooltip`, in screen space, may protrude over the map).
+    - Build: build menu (categories from `data/ui.json`, original buttons; clicking an icon → placing; our own people; number finished (white) and under construction (orange); tooltip with the name after dwelling 1 s on an icon, gone on leaving – `BuildMenu.DrawTooltip`, in screen space, may protrude over the map). The same box next to the cursor (`UiTooltip`, likewise after 1 s) also names the icon-only controls of the submenus (stock, manufacture, goods transport, distribution, settler statistics, professions, warriors, production) and the icons at the top of the building panel (demolish, stop/resume work, highest priority, work area).
     - Goods › Stock (`StockMenu`, `World.InStock`: storehouse, output and loose piles; not input/construction sites).
     - Goods › Manufacture (`ManufactureMenu`): per product an order with up/down (`Production.Ordered`/`ChangeOrdered`, made first) and
       a share bar (`ShareBar`: clicking sets, dragging, 5% steps, near the ends 0/100%).
@@ -118,7 +118,7 @@ MonoGame game. Capture options: [capture.md](capture.md).
       good: store/not, to the very top, up, down, to the very bottom (images `transportMenu`); icons glide.
     - Settlers › Settler statistics (`SettlersOverview`): housing, demand, all settlers, soldiers, per kind portrait + count (donkeys 0; without a portrait the figure in a frame).
     - Settlers › Professions (`ProfessionsMenu`): shares ±5% (carriers at least, diggers/builders at most; `Recruitment.ShareOf`/`SetShare`,
-      defaults `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25%); special professions geologists, pioneers, scouts, pioneers→carriers (carrier portrait)
+      defaults `keptCarriers`/`maxDiggers`/`maxBuilders` 30/25/25%, sum ≤ 100%, the locked half of the raise buttons grey); special professions geologists, pioneers, scouts, pioneers→carriers (carrier portrait)
       with search buttons (all on the map, all in view, nearest in turn with a camera flight) and convert 5/1
       (`Geology.ConvertCarriers` with `among`: only carriers in view, nearest the view centre first – none in view: a hint; `Geology.PioneersToCarriers`); converted ones are selected immediately (the menu stays open, `_menuOverSelection`), those still delivering join after the conversion.
     - Settlers › Warriors (`SoldiersMenu`): combat strength, divine upgrade (mana progress, weapon button per type, adorned from level 2),
@@ -127,17 +127,19 @@ MonoGame game. Capture options: [capture.md](capture.md).
     - Settlers › Production (`StatisticsMenu`): chart of the last 60 min of a good (units/min, 2-min average, scale adapts);
       good selection `GoodsGrid` (shared with Stock: icons `goodsGrid` in `ui.json`, indices from JSettlers' EMaterialType, not producible dark);
       counted in `World.Statistics` (`ProductionStatistics`, 30-s sections).
-  - Clicking a building replaces the build menu (without its own background): name, image (unscaled, centred at the bottom, cropped –
+  - Clicking a building replaces the build menu (without its own background): name, image (centred at the bottom, scaled down to the box – never cropped –
     `EconomyRenderer.DrawBuildingImage`; when space is tight, first the goods go, then the image gets lower), for own buildings the status, top right the demolish icon as in the original (file 03 GUI 199, `buildingInfo` in `ui.json`) with a confirmation as in the original (only the building image stays in its place, question at the bottom, Yes/No as light texts; any other action – clicking beside it when releasing, another selection, Esc – cancels);
     top left as in the original "Stop work" (house, GUI 395)/"Resume work" (hand, 194) for production and construction sites (`World.SetPaused`:
     work finished, then inside; construction site: no deliveries/workers, those present free after their cycle), next to it for construction sites "Highest priority"
-    (gears 197, pressed with "!" 380; `World.SetPriority`), the name then under the icons, hint text above them under the mouse; military: garrison per type (present/wanted, +/−);
+    (gears 197, pressed with "!" 380; `World.SetPriority`), for finished own buildings with a work area the button for it in the horizontal middle
+    (rings on a stone tile as in the original, GUI 203; clicking frames it, the next left-click moves the work area like a right-click, that one/Esc cancels; `BuildingInfo.WorkArea`),
+    the name then under the icons (their meaning given by the shared tooltip box next to the cursor); military: garrison per type (present/wanted, +/−);
     storehouse: all goods (`GoodsGrid`; dot = general rule, clicking specialises – red frame –, again lifts it);
     marketplace (`BuildingInfo.Market`, "Trade – land", without image; harbor "Trade – sea": bar GUI 377 `seaRoute`, ship in front of ×1 sets the dock like
     the shipyard's hammer, route points onto the water, route from the berth): bar ×1 ×2 ×3 package (file 03 GUI 374, `market` in `ui.json`; not set
     dark): choose a button (white framed; stops only with a destination; clicking the chosen stop again = delete), then a left-click on the map sets
     it (flag as a preview at the mouse pointer, only where donkeys can get; right-click/Esc cancels), route like the barracks' gathering point; goods with amount underneath, ∞ (386)/0 (389)/arrows ±5/±1 for the selected good; goods/building material,
-    mine success chance; work area (right-click moves it, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, otherwise the next allowed
+    mine success chance (goods block centred below the label in the free area, one good horizontally); work area (right-click moves it, `World.SetWorkCenter`, max. `MaxWorkCenterDistance` = 20, otherwise the next allowed
     field; gatherers take the target nearest the centre; barracks: gathering point anywhere, `Building.HasGatheringPoint`, path with flag).
     Shipyard (`BuildingInfo.Dockyard`, `dockyard` in `ui.json`): ferry and trade ship on the left (last 12 GUI images of the people's file; with a dock
     clickable → order, the button stays pressed (dark image), both locked until the launch; building material delivered/needed at the bottom),

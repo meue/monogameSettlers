@@ -35,10 +35,8 @@ public sealed class BuildMenu : IDisposable
     private readonly Dictionary<string, Texture2D> _icons = new();
     private int _category;
 
-    /// <summary>Seconds the cursor rests on an icon before its tooltip appears.</summary>
-    private const double TooltipDelay = 1;
+    private readonly UiTooltip.Hover _hover = new();
     private BuildingDefinition? _hovered;
-    private double _hoverSince, _lastDrawn = double.NegativeInfinity;
 
     public BuildMenu(GraphicsDevice device, GfxDirectory gfx, BuildingCatalog catalog)
     {
@@ -122,14 +120,8 @@ public sealed class BuildMenu : IDisposable
     public void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, BuildingDefinition? placing, Vector2 cursor,
         IReadOnlyDictionary<string, (int Finished, int Building)> counts, double now)
     {
-        // The hover starts anew on another icon, off the icons, or when the menu was hidden in between.
-        var hovered = BuildingAt(cursor);
-        if (hovered != _hovered || now - _lastDrawn > 0.2)
-        {
-            _hovered = hovered;
-            _hoverSince = now;
-        }
-        _lastDrawn = now;
+        _hovered = BuildingAt(cursor);
+        _hover.Update(_hovered?.Name, now);
 
         for (int i = 0; i < _categories.Count; i++)
         {
@@ -164,26 +156,14 @@ public sealed class BuildMenu : IDisposable
     }
 
     /// <summary>
-    /// The name of the icon the cursor has rested on for <see cref="TooltipDelay"/>, next to the cursor in screen
+    /// The name of the icon the cursor has rested on for <see cref="UiTooltip.Delay"/>, next to the cursor in screen
     /// space (so it may reach over the map), kept inside <paramref name="area"/>. Call after <see cref="Draw"/>.
     /// </summary>
     public void DrawTooltip(SpriteBatch batch, Texture2D pixel, UiFont font, Vector2 cursor, Rectangle area, float scale, double now)
     {
-        if (_hovered is null || now - _lastDrawn > 0.2 || now - _hoverSince < TooltipDelay)
+        if (_hovered is not { } hovered || !_hover.Due(now))
             return;
-        string text = Lang.Find("buildings." + _hovered.Name) ?? _hovered.Name;
-        int size = Math.Max(12, (int)MathF.Round(14 * scale));
-        var measured = font.Measure(text, size);
-        int width = (int)measured.X + 16, height = (int)measured.Y + 10;
-        int x = (int)cursor.X + 14, y = (int)cursor.Y + 18;
-        if (x + width > area.Right)
-            x = (int)cursor.X - 14 - width;
-        if (y + height > area.Bottom)
-            y = (int)cursor.Y - 8 - height;
-        var box = new Rectangle(x, y, width, height);
-        batch.Draw(pixel, box, new Color(10, 10, 14) * 0.92f);
-        Charts.Frame(batch, pixel, box, new Color(200, 170, 70) * 0.7f);
-        Charts.Write(batch, font, text, new Vector2(x + 8, y + 5), Charts.Text, size);
+        UiTooltip.Draw(batch, pixel, font, Lang.Find(LangKeys.Buildings + hovered.Name) ?? hovered.Name, cursor, area, scale);
     }
 
     /// <summary>A count right-aligned at <paramref name="topRight"/>; nothing for zero.</summary>

@@ -43,4 +43,7 @@ public sealed class StockMenu
     /// <summary>The good under the point and how many are in stock (hover text), or null.</summary>
     public string? Hover(Vector2 panel, World world, int player) =>
         _grid.GoodAt(panel, GridTop, RowHeight) is { } good ? $"{good.Name}: {world.InStock(player, good.Material)} in stock" : null;
+
+    /// <summary>The tooltip of the good under the panel point (its name), or null.</summary>
+    public string? TooltipAt(Vector2 panel) => _grid.GoodAt(panel, GridTop, RowHeight) is { } good ? good.Name : null;
 }

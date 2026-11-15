@@ -241,6 +241,19 @@
     "unload": "Schiff entladen",
     "cargo": "Ladung: {0}"
   },
+  "dockyard": {
+    "dockAim": "Klicken Sie ins Wasser: Die Anlegestelle wird an den besten Platz in der Nähe gesetzt (Rechtsklick: abbrechen)",
+    "setDockFirst": "Legen Sie zuerst eine Anlegestelle fest (der Hammer)",
+    "onStocks": "{0} in Bau: {1}% fertig",
+    "ordered": "{0} in Auftrag gegeben: Träger bringen das Baumaterial",
+    "dockStays": "Die Anlegestelle bleibt, solange ein Schiff gebaut wird",
+    "dockElsewhere": "Anlegestelle bei {0},{1}: woanders festlegen",
+    "setDock": "Anlegestelle festlegen (dann ins Wasser klicken)",
+    "buildFerry": "Fähre in Auftrag geben",
+    "buildShip": "Handelsschiff in Auftrag geben",
+    "noDockPlace": "Dort ist kein Platz für eine Anlegestelle (offenes Wasser auf eigenem Land nahe der Werft)",
+    "dockPlaced": "Anlegestelle bei {0},{1}"
+  },
   "buildingStatus": {
     "active": "Aktiv",
     "pausing": "Hält an",
@@ -578,13 +591,30 @@
     "divine": "Göttl. Aufwertung: {0}%",
     "manual": "Manuell",
     "automatic": "Automatisch",
-    "recruitment": "Rekrutierung"
+    "recruitment": "Rekrutierung",
+    "upgrade": "Göttliche Aufwertung: {0}",
+    "planMore": "Geplante Rekruten +{0}",
+    "planFewer": "Geplante Rekruten −{0}"
   },
   "professions": {
     "carriers": "Träger",
     "diggers": "Planierer",
     "builders": "Bauarb.",
-    "special": "Spezialberufe"
+    "special": "Spezialberufe",
+    "geologists": "Geologen",
+    "pioneers": "Pioniere",
+    "scouts": "Späher",
+    "share": "Anteil {0}: ±5 %",
+    "shareFull": "{0}: Die Anteile summieren sich bereits auf 100 %",
+    "shareZero": "{0}: Der Anteil ist bereits 0 %",
+    "findWorld": "Alle {0} auf der Karte auswählen",
+    "findScreen": "Alle {0} im Bild auswählen",
+    "findOne": "Zum nächsten der {0} fliegen",
+    "convert": "{0} Träger werden {1}",
+    "toCarriers": "{0} Pioniere werden Träger",
+    "shareMax": "{0} höchstens (rauf/runter: 5 % mehr/weniger)",
+    "carriersMin": "Träger mindestens (rauf/runter: 5 % mehr/weniger)",
+    "notYet": " (noch nicht vorhanden)"
   },
   "selection": {
     "steal": "Waren stehlen",
@@ -609,6 +639,26 @@
   "distribution": {
     "construction": "Baustelle"
   },
+  "settlers": {
+    "bearer": "Träger",
+    "digger": "Planierer",
+    "bricklayer": "Bauarbeiter",
+    "worker": "Arbeiter",
+    "mage": "Priester",
+    "geologist": "Geologe",
+    "thief": "Dieb",
+    "pioneer": "Pionier",
+    "donkey": "Esel"
+  },
+  "transport": {
+    "store": "Einlagern",
+    "doNotStore": "Nicht einlagern",
+    "top": "Ganz nach vorn",
+    "up": "Eins nach vorn",
+    "down": "Eins nach hinten",
+    "bottom": "Ganz nach hinten",
+    "place": "Platz {0} in der Transportreihenfolge"
+  },
   "cheats": {
     "swordsman": "Schwertkämpfer",
     "bowman": "Bogenschützen",
@@ -624,6 +674,12 @@
     "fog": "Fog of War an/aus"
   },
   "building": {
+    "workArea": "Arbeitsbereich versetzen",
+    "workAreaArmed": "Auf den Zielort des Arbeitsbereichs klicken, Rechtsklick bricht ab",
+    "workAreaUndone": "Auswahl des Arbeitsbereichs aufgehoben",
+    "workAreaMoved": "Arbeitsbereich nach {0},{1} versetzt",
+    "workAreaMovedCapped": "Arbeitsbereich nach {0},{1} versetzt (max. {2} Felder)",
+    "gatheringPointMoved": "Sammelpunkt nach {0},{1} versetzt",
     "ammoLoads": "Munition: {0}",
     "trade": "Handel – Land",
     "seaTrade": "Handel – Meer",
