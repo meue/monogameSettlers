@@ -186,9 +186,10 @@ cheats that change the world are prevented by the simulation itself (commands on
 For operators: [the server's README](../src/Homestead.Server/README.md) (limits, TLS, Docker flags, what isn't covered).
 
 Server (`Hub`, `Connection`, `ServerLimits`; every limit is configuration, section `Limits`):
-- **Connections**: `Admit` before accepting – totals and per address (IPv6 per /64; behind a proxy `X-Forwarded-For`, only with
+- **Connections**: `Admit` before accepting – totals and per address (IPv6 per /56, `IPv6PrefixLength`; behind a proxy `X-Forwarded-For`, only with
   `TrustForwardedHeaders`); `Origin` header → 403 (browsers only, so no web page can use visitors as clients); Kestrel's limits set explicitly
   (headers, request size, timeouts), no `Server` header; WebSocket pings with a timeout.
+- **Games**: `MaxGames` in all, `MaxGamesPerAddress` in the lobby per address – otherwise 13 addresses with 16 connections each fill all 200.
 - **Rate limits**: token buckets per connection for frames (not messages: empty fragments cost too) and bytes; lobby requests cost 5.
 - **Output**: bytes queued per connection are bounded, one send has a timeout – a client that stops reading is dropped instead of filling the
   memory or blocking its task forever. The queue was unbounded, and `await writing` could hang for good.

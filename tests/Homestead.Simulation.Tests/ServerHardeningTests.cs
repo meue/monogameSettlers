@@ -192,8 +192,13 @@ public class ServerHardeningTests
     [Fact]
     public void One_ipv6_network_counts_as_one_address()
     {
+        // A /56 is what a customer gets: its 256 /64 networks are one address.
         Assert.Equal(ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:2::1")), ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:2:ffff::9")));
-        Assert.NotEqual(ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:2::1")), ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:3::1")));
+        Assert.Equal(ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:200::1")), ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:2ff::1")));
+        Assert.NotEqual(ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:200::1")), ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:300::1")));
+        // Configurable, e.g. /48.
+        Assert.Equal(ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:200::1"), 48), ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1:ff00::1"), 48));
+        Assert.NotEqual(ServerLimits.AddressKey(IPAddress.Parse("2001:db8:1::1"), 48), ServerLimits.AddressKey(IPAddress.Parse("2001:db8:2::1"), 48));
     }
 
     [Fact]
@@ -307,6 +312,27 @@ public class ServerHardeningTests
 
         second.Create("Two", Setup(2));
         Assert.Contains("full", (await second.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task One_address_cannot_open_every_game()
+    {
+        await using var server = await TestServer.Start("Limits:MaxGamesPerAddress=2");
+        await using var first = await server.Connect("First");
+        await using var second = await server.Connect("Second");
+        await using var third = await server.Connect("Third");
+        first.Create("One", Setup(2));
+        await first.WaitForAsync([ServerMessages.Lobby], Wait);
+        second.Create("Two", Setup(2));
+        await second.WaitForAsync([ServerMessages.Lobby], Wait);
+
+        third.Create("Three", Setup(2));
+        Assert.Contains("too many open games", (await third.WaitForAsync([ServerMessages.Error], Wait))["message"]!.GetValue<string>());
+
+        // A host opening its game anew does not count its old one.
+        first.Create("One again", Setup(2));
+        await first.WaitForAsync([ServerMessages.Lobby], Wait);
+        Assert.Contains("2 games", await server.Status());
     }
 
     [Fact]

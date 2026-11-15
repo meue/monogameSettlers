@@ -11,13 +11,25 @@ namespace Homestead.Server;
 /// </summary>
 public sealed record ServerLimits
 {
-    /// <summary>WebSocket connections at once, in all and per address (per /64 network for IPv6, where one computer has plenty).</summary>
+    /// <summary>WebSocket connections at once, in all and per address (per <see cref="IPv6PrefixLength"/> network for IPv6).</summary>
     public int MaxConnections { get; init; } = 1000;
 
     public int MaxConnectionsPerAddress { get; init; } = 16;
 
+    /// <summary>
+    /// The IPv6 network that counts as one address. Providers hand a customer a whole /56 (often) or /48, not a /64: counted per /64,
+    /// one customer would be 256 or 65 536 addresses.
+    /// </summary>
+    public int IPv6PrefixLength { get; init; } = 56;
+
     /// <summary>Games at once. A connection opens one at a time.</summary>
     public int MaxGames { get; init; } = 200;
+
+    /// <summary>
+    /// Games in the lobby opened from one address: without it, a handful of addresses fill every game of the server (a connection
+    /// opens one, an address has <see cref="MaxConnectionsPerAddress"/>) and keep them as long as they send something now and then.
+    /// </summary>
+    public int MaxGamesPerAddress { get; init; } = 4;
 
     /// <summary>Seconds a connection has to say hello.</summary>
     public double HandshakeSeconds { get; init; } = 10;
@@ -57,15 +69,22 @@ public sealed record ServerLimits
     public bool TrustForwardedHeaders { get; init; }
 
     /// <summary>The key the per-address limit counts by.</summary>
-    public static string AddressKey(IPAddress? address)
+    public static string AddressKey(IPAddress? address, int ipv6PrefixLength = 56)
     {
         if (address is null)
             return "unknown";
         if (address.IsIPv4MappedToIPv6)
             address = address.MapToIPv4();
-        return address.AddressFamily == AddressFamily.InterNetworkV6
-            ? Convert.ToHexString(address.GetAddressBytes().AsSpan(0, 8))
-            : address.ToString();
+        if (address.AddressFamily != AddressFamily.InterNetworkV6)
+            return address.ToString();
+        int bits = Math.Clamp(ipv6PrefixLength, 1, 128);
+        byte[] bytes = address.GetAddressBytes();
+        for (int i = 0; i < bytes.Length; i++)
+        {
+            int keep = Math.Clamp(bits - 8 * i, 0, 8);
+            bytes[i] &= (byte)(0xFF << (8 - keep));
+        }
+        return $"{Convert.ToHexString(bytes)}/{bits}";
     }
 }
 

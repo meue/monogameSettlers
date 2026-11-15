@@ -33,6 +33,9 @@ internal sealed class Connection(int id, WebSocket socket, ServerLimits limits)
     /// <summary>The player this computer plays in <see cref="Game"/>.</summary>
     public int Seat { get; set; }
 
+    /// <summary>Where it comes from, as the per-address limits count it (<see cref="ServerLimits.AddressKey"/>).</summary>
+    public string Address { get; init; } = "";
+
     /// <summary>When it connected and when its last message came (<see cref="Environment.TickCount64"/>).</summary>
     public long Connected { get; } = Environment.TickCount64;
 

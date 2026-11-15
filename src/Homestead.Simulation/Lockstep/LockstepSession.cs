@@ -171,7 +171,11 @@ public sealed class LockstepSession
         {
             int size = Encoding.UTF8.GetByteCount(_codec.Encode(_outgoing[used])) + 1;
             if (size > TurnRelay.MaxInputBytes)
+            {
+                // Never sent, so never applied anywhere: the same on every computer, but the player should hear of it.
+                Console.Error.WriteLine($"command {_outgoing[used].GetType().Name} too large to send ({size} bytes > {TurnRelay.MaxInputBytes}), dropped");
                 continue;
+            }
             if (bytes + size > TurnRelay.MaxInputBytes)
                 break;
             bytes += size;

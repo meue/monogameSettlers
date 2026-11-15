@@ -72,7 +72,7 @@ public static class ServerApp
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 return;
             }
-            string address = ServerLimits.AddressKey(context.Connection.RemoteIpAddress);
+            string address = ServerLimits.AddressKey(context.Connection.RemoteIpAddress, limits.IPv6PrefixLength);
             if (!hub.Admit(address))
             {
                 context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
@@ -81,7 +81,7 @@ public static class ServerApp
             try
             {
                 using var socket = await context.WebSockets.AcceptWebSocketAsync();
-                await hub.RunAsync(socket, context.RequestAborted);
+                await hub.RunAsync(socket, address, context.RequestAborted);
             }
             finally
             {

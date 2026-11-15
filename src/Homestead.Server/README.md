@@ -54,8 +54,10 @@ below every one of them. Set them as environment variables, e.g. `-e Limits__Max
 | Setting | Default | What it does |
 |---|---|---|
 | `Limits__MaxConnections` | 1000 | WebSocket connections at once |
-| `Limits__MaxConnectionsPerAddress` | 16 | The same per IP address (per /64 network for IPv6). Raise it for a LAN party of more than 16 behind one address |
+| `Limits__MaxConnectionsPerAddress` | 16 | The same per IP address (per IPv6 network, see below). Raise it for a LAN party of more than 16 behind one address |
+| `Limits__IPv6PrefixLength` | 56 | The IPv6 network that counts as one address. Providers give a customer a /56 or a /48; set 48 if your players' providers do |
 | `Limits__MaxGames` | 200 | Games at once, in the lobby or running |
+| `Limits__MaxGamesPerAddress` | 4 | Games waiting in the lobby opened from one address, so a few addresses cannot fill the server's games |
 | `Limits__HandshakeSeconds` | 10 | Time a new connection has to say hello |
 | `Limits__IdleSeconds` | 1800 | A connection outside a running game that sends nothing is dropped after this |
 | `Limits__StallSeconds` | 180 | Players a running game has waited this long for are dropped, the game goes on without them. A player reading the statistics holds up the game, so keep it generous |

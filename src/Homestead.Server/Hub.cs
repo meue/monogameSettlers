@@ -94,11 +94,12 @@ public sealed class Hub(LockstepOptions options, ServerLimits limits, ILogger<Hu
         }
     }
 
-    public async Task RunAsync(WebSocket socket, CancellationToken cancel)
+    /// <summary>Serves one computer's WebSocket; <paramref name="address"/> is its <see cref="ServerLimits.AddressKey"/>.</summary>
+    public async Task RunAsync(WebSocket socket, string address, CancellationToken cancel)
     {
         Connection connection;
         lock (_gate)
-            _connections.Add(connection = new Connection(++_nextId, socket, limits));
+            _connections.Add(connection = new Connection(++_nextId, socket, limits) { Address = address });
         var writing = connection.WriteAsync(cancel);
         try
         {
@@ -311,6 +312,11 @@ public sealed class Hub(LockstepOptions options, ServerLimits limits, ILogger<Hu
         if (_games.Count >= limits.MaxGames)
         {
             Error(connection, "the server is full");
+            return;
+        }
+        if (_games.Values.Count(g => !g.Started && g.Host.Address == connection.Address) >= limits.MaxGamesPerAddress)
+        {
+            Error(connection, "too many open games from your address");
             return;
         }
         string id;
