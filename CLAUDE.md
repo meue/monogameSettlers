@@ -46,6 +46,9 @@ Before working on a system, read the matching file and keep it up to date there 
 - Simulation 100 % deterministic (lockstep): randomness only `new Random(… + World.Seed)`, no clock/threads/`GetHashCode`/`Math.Sin` & co.
   (`DeterministicMath`), player actions only as `GameCommand` – rules: docs/MULTIPLAYER.md, CONTRIBUTING.md.
 - Captures and inspection exports go to temporary directories only; in captures, save only with a temporary `HOMESTEAD_SAVE_DIR`.
+- Rendering changes are verified with a pixel diff of captures against a baseline (same map and frame), never by eye: equal-looking images have masked
+  unengaged code paths more than once. Make sure the capture exercises the path under test — the neural 2x pass needs `HOMESTEAD_CAPTURE_ZOOM=2` and a
+  smooth filter, without it no 2x sprite is drawn at all (see capture.md).
 - Save games: `Snapshot` saves via reflection, new fields need no save code (details: simulation.md, `Persistence/`).
 - Tests that are not about tools: `TestConfig.NoTools`.
 
@@ -60,6 +63,7 @@ Own crop codes: grain 200–207 (207 ripe), wine 208–210, rice 211–214, beeh
 - Terrain atlas: texture coordinates half a texel inside the cell, otherwise lines bleed in from neighbouring cells.
 - Sprites only via `SpriteLibrary` (shared atlas pages, `SpriteAtlas`); no separate `Texture2D` per image (draw calls).
 - Walk sequences: 72 frames = 6 directions of 12 each (SW, W, NW, NE, E, SE); frame 0 standing, 1–11 one cycle per grid step.
+- Sprites optionally x2 via neural upscaling (`SpriteLibrary` path only, Real-ESRGAN/ONNX in `Neural/`, telemetry natively off, osx-x64 without a native library: the feature disables itself); off by default, F4 per session, with the setting active the 2x atlas is precomputed at game start (details: docs/architektur/client.md).
 - Load GUI images from the original files at runtime via `GfxDirectory`/`SpriteLibrary` from the installation (like all original sprites).
 
 ## Installing the original

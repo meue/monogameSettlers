@@ -8,6 +8,14 @@ namespace Homestead.Client;
 public enum Language { German, English, Polish }
 
 /// <summary>
+/// How the world picture reaches the screen at zoom above 1 (F2): <c>Linear</c> blurry, <c>CatmullRom</c> the
+/// balanced default, then the point-sampled <c>Sharp</c> pixels and <c>Lanczos2</c> — in that order, so the two
+/// "sharp" ones sit next to each other and the list climbs with sharpness; F2 cycles the same way. With the
+/// neural 2x sprites on, that target is double size and the filter scales by zoom / 2 (see MapGame).
+/// </summary>
+public enum Scaling { Linear, CatmullRom, Sharp, Lanczos2 }
+
+/// <summary>
 /// The look of the title and loading screens: <c>Normal</c> the Gold Edition's title and each campaign's loading
 /// screen; the others always gold, the original's orange (<c>Classic</c>) or the Amazons' purple.
 /// </summary>
@@ -52,6 +60,12 @@ public sealed record DisplaySettings
     /// <summary>Chat commands (<c>/cheats</c>, <c>/attackme</c> …) work; only in the file, the settings screen keeps it as it is.</summary>
     public bool Cheats { get; init; }
 
+    /// <summary>Neural x2 upscaling of the sprites (experimental, off by default); F4 switches it for the session only.</summary>
+    public bool NeuralUpscale { get; init; }
+
+    /// <summary>The world picture's scaling filter at zoom above 1; F2 switches it for the session only.</summary>
+    public Scaling Scaling { get; init; } = Scaling.CatmullRom;
+
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
     {
@@ -74,6 +88,11 @@ public sealed record DisplaySettings
             AutoSave = Flag("autoSave", settings.AutoSave),
             IntroVideo = Flag("introVideo", settings.IntroVideo),
             Cheats = Flag("cheats", settings.Cheats),
+            NeuralUpscale = Flag("neuralUpscale", settings.NeuralUpscale),
+            Scaling = display.TryGetProperty("scaling", out var scaling) && scaling.ValueKind == JsonValueKind.String
+                    && Enum.TryParse<Scaling>(scaling.GetString(), ignoreCase: true, out var filter) && Enum.IsDefined(filter)
+                ? filter
+                : settings.Scaling,
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
                 ? Lang.Parse(language.GetString())
                 : settings.Language,
@@ -102,5 +121,7 @@ public sealed record DisplaySettings
             ["introVideo"] = IntroVideo,
             ["preferredColor"] = PlayerColors.Choices[PreferredColor].Id,
             ["cheats"] = Cheats,
+            ["neuralUpscale"] = NeuralUpscale,
+            ["scaling"] = Scaling.ToString().ToLowerInvariant(),
         }, path);
 }
