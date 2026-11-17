@@ -22,9 +22,11 @@ public sealed record PlayerCheck(int Player, StateCheck Check);
 /// <summary>
 /// Every player's commands for a turn, from the server: by player, each player's in the order issued; with the checks the
 /// turn's inputs carried, by player, and the furthest turn any player has sent an input for (<paramref name="Newest"/>: how
-/// far ahead the fastest computer is, so a slower one can catch up).
+/// far ahead the fastest computer is, so a slower one can catch up) and the players who left the game before the turn
+/// (<paramref name="Left"/>: a computer player takes each over with this turn).
 /// </summary>
-public sealed record TurnBundle(long Turn, IReadOnlyList<GameCommand> Commands, IReadOnlyList<PlayerCheck>? Checks = null, long Newest = 0);
+public sealed record TurnBundle(long Turn, IReadOnlyList<GameCommand> Commands, IReadOnlyList<PlayerCheck>? Checks = null, long Newest = 0,
+    IReadOnlyList<int>? Left = null);
 
 /// <summary>
 /// The network format of commands (JSON): every <see cref="GameCommand"/> type by its name in <c>$type</c>, found by
@@ -66,7 +68,8 @@ public sealed class CommandCodec
             TypeInfoResolver = resolver,
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             AllowOutOfOrderMetadataProperties = true,
-            Converters = { new JsonStringEnumConverter(), new DefinitionConverter(this), new SpellConverter() },
+            // Enums by name only: a number could be any value, none of the enum's.
+            Converters = { new JsonStringEnumConverter(allowIntegerValues: false), new DefinitionConverter(this), new SpellConverter() },
         };
     }
 
@@ -80,10 +83,42 @@ public sealed class CommandCodec
 
     public string Encode(TurnBundle bundle) => JsonSerializer.Serialize(bundle, _options);
 
-    public TurnBundle DecodeBundle(string json) => JsonSerializer.Deserialize<TurnBundle>(json, _options) ?? throw new JsonException("no turn bundle");
+    /// <summary>
+    /// A bundle from the server. Its commands and checks come from other computers, as they sent them: one that cannot be read is
+    /// left out (the same on every computer, they have the same program and data) instead of ending the game for all.
+    /// </summary>
+    /// <exception cref="JsonException">Not a bundle at all.</exception>
+    public TurnBundle DecodeBundle(string json)
+    {
+        var wire = JsonSerializer.Deserialize<WireBundle>(json, _options) ?? throw new JsonException("no turn bundle");
+        var commands = new List<GameCommand>(wire.Commands?.Length ?? 0);
+        foreach (var command in wire.Commands ?? [])
+            if (TryRead(() => JsonSerializer.Deserialize<GameCommand>(command, _options)) is { } read)
+                commands.Add(read);
+        var checks = wire.Checks?.Select(c => TryRead(() => JsonSerializer.Deserialize<PlayerCheck>(c, _options)))
+            .Where(c => c is { Check.Checksums: not null }).Select(c => c!).ToArray();
+        return new TurnBundle(wire.Turn, commands, checks, wire.Newest, wire.Left?.Where(p => p is >= 0 and < GameSetup.MaxPlayers).Distinct().ToArray());
+    }
+
+    private sealed record WireBundle(long Turn, JsonElement[]? Commands, JsonElement[]? Checks, long Newest, int[]? Left);
+
+    /// <summary>What was read; null for anything broken (unknown type, missing or wrong fields, unknown buildings, bad text …).</summary>
+    private static T? TryRead<T>(Func<T?> read) where T : class
+    {
+        try
+        {
+            return read();
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            return null;
+        }
+    }
 
     private BuildingDefinition Definition(Civilization people, string name)
     {
+        if (!Enum.IsDefined(people))
+            throw new JsonException("no such people");
         if (!_catalogs.TryGetValue(people, out var catalog))
             _catalogs[people] = catalog = BuildingCatalog.Load(people, _dataDirectory);
         return catalog.Find(name) ?? throw new JsonException($"no building '{name}' for {people}");

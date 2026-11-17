@@ -68,9 +68,59 @@ public sealed class ServerConnection : IAsyncDisposable
         }
     }
 
+    /// <summary>The server's port unless the address names another (<c>run-server.sh</c>, the Docker image).</summary>
+    public const int DefaultPort = 8080;
+
+    /// <summary>Where the server takes WebSockets.</summary>
+    public const string Path = "/ws";
+
+    /// <summary>
+    /// The WebSocket address of what a player typed: <c>host</c> or <c>host:port</c> (port <see cref="DefaultPort"/> if none), or with
+    /// a scheme – <c>ws://</c>, or <c>wss://</c> behind a TLS proxy (its own default port, 443). The path is <see cref="Path"/> unless one
+    /// is given (older settings have it). Null: no address.
+    /// </summary>
+    public static Uri? AddressOf(string? text)
+    {
+        text = text?.Trim() ?? "";
+        if (text.Length == 0)
+            return null;
+        bool schemed = text.Contains("://", StringComparison.Ordinal);
+        if (!Uri.TryCreate(schemed ? text : "ws://" + text, UriKind.Absolute, out var uri) || uri.Scheme is not ("ws" or "wss")
+            || uri.Host.Length == 0 || uri.UserInfo.Length > 0 || uri.Query.Length > 0 || uri.Fragment.Length > 0)
+            return null;
+        var address = new UriBuilder(uri);
+        // A port written down counts; else ws:// (or none) means this server's own, wss:// the proxy's.
+        if (uri.IsDefaultPort && uri.Scheme == "ws" && !HasPort(text))
+            address.Port = DefaultPort;
+        if (uri.AbsolutePath is "" or "/")
+            address.Path = Path;
+        return address.Uri;
+    }
+
+    /// <summary>The address as the field shows it: what <see cref="AddressOf"/> adds anyway left out.</summary>
+    public static string ShortAddress(string text)
+    {
+        text = text.Trim();
+        if (text.EndsWith(Path, StringComparison.Ordinal))
+            text = text[..^Path.Length];
+        return text.StartsWith("ws://", StringComparison.Ordinal) ? text["ws://".Length..] : text;
+    }
+
+    private static bool HasPort(string text)
+    {
+        string authority = text[(text.IndexOf("://", StringComparison.Ordinal) is var s and >= 0 ? s + 3 : 0)..].Split('/')[0];
+        return authority.StartsWith('[') ? authority.Contains("]:", StringComparison.Ordinal) : authority.Contains(':');
+    }
+
     /// <summary>The reasons of a <see cref="ServerMessages.Refused"/> message.</summary>
     public static IReadOnlyList<string> Reasons(JsonObject refused) =>
-        (refused["reasons"] as JsonArray ?? []).Select(r => r?.GetValue<string>() ?? "").ToArray();
+        (refused["reasons"] as JsonArray ?? []).Take(MaxReasons).Select(r => r is JsonValue value && value.TryGetValue(out string? text) ? PlayerText.Clean(text, 200) : "")
+        .ToArray();
+
+    private const int MaxReasons = 20;
+
+    /// <summary>Messages kept for the game loop: an honest server never gets near (the game loop takes them every frame), so more end the connection.</summary>
+    private const int MaxQueued = 100_000;
 
     public void ListGames() => Send(ServerMessages.List);
 
@@ -170,19 +220,33 @@ public sealed class ServerConnection : IAsyncDisposable
                     else
                         lock (_messages)
                             _messages.Add(received);
+                    if (_bundles.Count + _messages.Count > MaxQueued)
+                    {
+                        ClosedBecause ??= "too many messages";
+                        return;
+                    }
                 }
                 message.SetLength(0);
             }
         }
-        catch (Exception e) when (e is OperationCanceledException or WebSocketException or ObjectDisposedException or System.Text.Json.JsonException)
+        catch (Exception e) when (e is not OutOfMemoryException)
         {
+            // Whatever a server sends: this task ending quietly would look like a server keeping silent.
             ClosedBecause ??= e.Message;
         }
     }
 
+    /// <summary>
+    /// Leaves the game (or lobby) and closes the connection: the server hears of it at once from the <c>leave</c> message, even if
+    /// the close itself never gets through (a process ending before it), and the others need not wait for a time-out.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
+        if (IsOpen)
+            Leave();
         _outgoing.Writer.TryComplete();
+        // What is queued (the leave) goes out before the close.
+        await _writing.WaitAsync(TimeSpan.FromSeconds(1)).ContinueWith(_ => { });
         try
         {
             if (_socket.State == WebSocketState.Open)

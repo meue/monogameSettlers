@@ -308,19 +308,37 @@ public sealed class EconomyRenderer
     }
 
     /// <summary>
-    /// The finished building as in the game (unscaled), standing on the bottom of the box and centered;
-    /// what does not fit is cut off at the sides and the top.
+    /// The finished building as in the game, standing on the bottom of the box, its body centered and scaled
+    /// down to fit body and shadow - so never cut off at the sides and the top.
     /// </summary>
     public void DrawBuildingImage(SpriteBatch batch, BuildingDefinition definition, Rectangle box, Color playerColor)
     {
         var layers = definition.FinalImages.Select(i => (Sprites: Sprites(i.File, i.Sequence), Frame: i.Image)).ToList();
-        var bounds = layers.Select(l => l.Sprites.Bounds(l.Frame)).OfType<Rectangle>().ToList();
+        var bounds = layers.Select(l => Extent(l.Sprites, l.Frame)).OfType<Rectangle>().ToList();
         if (bounds.Count == 0)
             return;
         var all = bounds.Aggregate(Rectangle.Union);
-        var anchor = new Vector2(box.Center.X - all.Center.X, box.Bottom - all.Bottom);
+        // What the eye reads as centered is the building, not body and shadow together: a shadow reaching
+        // one side would tilt the body off the middle. The fit still covers the full extent - centered on
+        // the body, its wider side beyond the body sets the scale.
+        var bodies = layers.Select(l => l.Sprites.Bounds(l.Frame)).OfType<Rectangle>().ToList();
+        var body = bodies.Count > 0 ? bodies.Aggregate(Rectangle.Union) : all;
+        float middle = body.X + body.Width / 2f;
+        float overhang = Math.Max(middle - all.X, all.X + all.Width - middle);
+        // The contain-fit leaves this much of the box free, so body and shadow never touch its edges.
+        const float FitMargin = 2f;
+        float scale = Math.Min(1f, Math.Min((box.Width / 2f - FitMargin) / overhang, (box.Height - 2 * FitMargin) / all.Height));
+        var anchor = new Vector2(box.Center.X - middle * scale, box.Bottom - (all.Y + all.Height) * scale);
         foreach (var (sprites, frame) in layers)
-            sprites.DrawClipped(batch, frame, anchor, box, playerColor);
+            sprites.Draw(batch, frame, anchor, scale, playerColor);
+    }
+
+    /// <summary>Body and shadow of a frame together relative to the anchor - the shadow may reach past the body.</summary>
+    private static Rectangle? Extent(SettlerSprites sprites, int frame)
+    {
+        var body = sprites.Bounds(frame);
+        var shadow = sprites.ShadowBounds(frame);
+        return body is null ? shadow : shadow is null ? body : Rectangle.Union(body.Value, shadow.Value);
     }
 
     /// <summary>A small pile of one unit of a good fitted into a box (info panel).</summary>

@@ -6,6 +6,8 @@ namespace Homestead.Simulation.Commands;
 /// <summary>Distribution: the share of a good that goes to one kind of building.</summary>
 public sealed record SetDistribution(int Player, Material Material, string Target, double Share) : GameCommand(Player)
 {
+    internal override bool IsValid(World world) => world.Logistics.TakesShare(Player, Material, Target);
+
     internal override object? Apply(World world)
     {
         world.Logistics.SetShare(Player, Material, Target, Share);
@@ -69,6 +71,9 @@ public sealed record SetRecruitmentShare(int Player, Share Share, double Value) 
 /// </summary>
 public sealed record ConvertCarriers(int Player, int Count, Profession Profession, int[]? Among) : GameCommand(Player)
 {
+    /// <summary>Only what the professions menu offers: any other profession would be a free soldier or priest, without its type or weapon.</summary>
+    internal override bool IsValid(World world) => Profession is Profession.Geologist or Profession.Scout or Profession.Pioneer;
+
     internal override object? Apply(World world)
     {
         var chosen = new List<Settler>();

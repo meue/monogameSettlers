@@ -22,6 +22,12 @@ public abstract record GameCommand(int Player)
     /// <summary>Applies the command; the result (counts, outcomes) goes back to the client that issued it.</summary>
     internal abstract object? Apply(World world);
 
+    /// <summary>
+    /// Rules of this command beyond its fields' (<see cref="CommandGuard"/>): whether its values make sense at all. False: not applied,
+    /// on any computer.
+    /// </summary>
+    internal virtual bool IsValid(World world) => true;
+
     /// <summary>The player's own settlers (alive) among the ids.</summary>
     protected List<Settler> Own(World world, IReadOnlyCollection<int> ids)
     {
@@ -32,6 +38,9 @@ public abstract record GameCommand(int Player)
     /// <summary>The player's own building with the id, if it still stands.</summary>
     protected Building? OwnBuilding(World world, int id) =>
         world.Buildings.FirstOrDefault(b => b.Id == id && b.Exists && b.Player == Player);
+
+    /// <summary>The player's own market or harbor with the id, if it still stands.</summary>
+    protected Building? OwnMarket(World world, int id) => OwnBuilding(world, id) is { } building && world.Trade.IsTradingPost(building) ? building : null;
 
     /// <summary>Any building with the id, if it still stands (an attack's target).</summary>
     protected static Building? AnyBuilding(World world, int id) => world.Buildings.FirstOrDefault(b => b.Id == id && b.Exists);
@@ -51,6 +60,9 @@ public abstract record GameCommand(int Player)
 /// </summary>
 public sealed class CommandQueue
 {
+    /// <summary>The result of a command that could not be applied (<see cref="CommandGuard"/>); no client is waiting for such a command's outcome.</summary>
+    public static readonly object Refused = new();
+
     private readonly List<GameCommand> _pending = new();
     private long _issued;
 
@@ -91,6 +103,27 @@ public sealed class CommandQueue
         var due = _pending.ToList();
         _pending.Clear();
         foreach (var command in due)
-            applied.Add((command, command.Apply(world)));
+            applied.Add((command, Result(world, command)));
+    }
+
+    /// <summary>
+    /// The command applied, if it can be. With other computers involved an exception that slips past the guard must not end
+    /// the game: it comes up the same on every computer, so all of them go on from the same state. Alone it is a bug to see.
+    /// </summary>
+    private static object? Result(World world, GameCommand command)
+    {
+        if (!CommandGuard.Accepts(world, command))
+            return Refused;
+        if (!world.Multiplayer)
+            return command.Apply(world);
+        try
+        {
+            return command.Apply(world);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            Console.Error.WriteLine($"command {command.GetType().Name} of player {command.Player + 1} failed: {e.Message}");
+            return Refused;
+        }
     }
 }

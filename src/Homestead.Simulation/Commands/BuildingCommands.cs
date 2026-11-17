@@ -73,7 +73,7 @@ public sealed record SetTradeAmount(int Player, int Market, Material Material, i
 {
     internal override object? Apply(World world)
     {
-        if (OwnBuilding(world, Market) is { } market)
+        if (OwnMarket(world, Market) is { } market)
             world.Trade.SetRemaining(market, Material, Amount);
         return null;
     }
@@ -84,7 +84,7 @@ public sealed record ChangeTradeAmount(int Player, int Market, Material Material
 {
     internal override object? Apply(World world)
     {
-        if (OwnBuilding(world, Market) is { } market)
+        if (OwnMarket(world, Market) is { } market)
             world.Trade.ChangeRemaining(market, Material, Delta);
         return null;
     }
@@ -93,9 +93,11 @@ public sealed record ChangeTradeAmount(int Player, int Market, Material Material
 /// <summary>A market's route: its destination, or a stop on the way (null: removed). Result: whether it was set.</summary>
 public sealed record SetTradeRoute(int Player, int Market, int? Stop, GridPoint? Point) : GameCommand(Player)
 {
+    internal override bool IsValid(World world) => Stop is null or >= 0 and < Trade.Stops;
+
     internal override object? Apply(World world)
     {
-        if (OwnBuilding(world, Market) is not { } market)
+        if (OwnMarket(world, Market) is not { } market)
             return false;
         return Stop is { } stop ? world.Trade.SetStop(market, stop, Point) : Point is { } destination && world.Trade.SetDestination(market, destination);
     }

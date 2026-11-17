@@ -86,13 +86,17 @@ public sealed class WarMachines : IAssembly
     public IReadOnlyDictionary<Material, int> CostOf(Building works, WarWork work) =>
         KindFor(works) is { } kind ? work == WarWork.Machine ? kind.Cost : kind.Ammo : new Dictionary<Material, int>();
 
+    /// <summary>Orders a works takes at once: far more than a game can use, the queue is kept and saved by every computer.</summary>
+    private const int MaxOrders = 100;
+
     /// <summary>
     /// Orders a machine or a load of ammunition at a finished works of the player's people (not ammunition for the gong);
     /// they are made one after the other, in the order given. False if it cannot be ordered.
     /// </summary>
     public bool Order(Building works, WarWork work)
     {
-        if (!works.Exists || works.State != BuildingState.Finished || KindFor(works) is not { } kind || work == WarWork.Ammo && kind.Shots <= 0)
+        if (!works.Exists || works.State != BuildingState.Finished || KindFor(works) is not { } kind || work == WarWork.Ammo && kind.Shots <= 0
+            || StateOf(works).Queue.Count >= MaxOrders)
             return false;
         StateOf(works).Queue.Add(work);
         return true;

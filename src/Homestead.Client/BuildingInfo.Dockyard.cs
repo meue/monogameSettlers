@@ -91,6 +91,8 @@ public sealed partial class BuildingInfo
             batch.Draw(pixel, DockButton, HoverColor);
     }
 
+    private static string ShipName(ShipKind kind) => Lang.T(kind == ShipKind.Ferry ? "ships.ferry" : "ships.tradeShip");
+
     /// <summary>A click on a shipyard's panel (panel space). Returns a message, or null if it hit nothing.</summary>
     public string? DockyardClick(Vector2 panel, World world, Building building, int ownPlayer)
     {
@@ -100,18 +102,18 @@ public sealed partial class BuildingInfo
         {
             _dockAiming = building;
             UiSounds.Toggle();
-            return "click into the water: the dock goes to the best place near it (right click: cancel)";
+            return Lang.T("dockyard.dockAim");
         }
         if (FerryButton.Contains(panel) || TradeShipButton.Contains(panel))
         {
             var kind = FerryButton.Contains(panel) ? ShipKind.Ferry : ShipKind.TradeShip;
             if (world.Shipping.DockOf(building) is null)
-                return "set a dock first (the hammer)";
+                return Lang.T("dockyard.setDockFirst");
             if (world.Shipping.Building(building) is { } onStocks)
-                return $"{onStocks} on the stocks: {Math.Round(world.Shipping.Progress(building) * 100 ?? 0)}% built";
+                return Lang.T("dockyard.onStocks", ShipName(onStocks), Math.Round(world.Shipping.Progress(building) * 100 ?? 0));
             Issue!(new OrderShip(ownPlayer, building.Id, kind));
             UiSounds.Toggle();
-            return $"{kind} ordered: carriers bring its material";
+            return Lang.T("dockyard.ordered", ShipName(kind));
         }
         return null;
     }
@@ -122,17 +124,17 @@ public sealed partial class BuildingInfo
         if (building.Player != ownPlayer || !OffersDockyard(world, building) || _confirming == building)
             return null;
         if (DockButton.Contains(panel) && world.Shipping.Building(building) is not null)
-            return "the dock stays while a ship is built";
+            return Lang.T("dockyard.dockStays");
         if (DockButton.Contains(panel))
             return world.Shipping.DockOf(building) is { } dock
-                ? $"dock at {dock.Land.X},{dock.Land.Y}: set it elsewhere"
-                : "set the dock (then click into the water)";
+                ? Lang.T("dockyard.dockElsewhere", dock.Land.X, dock.Land.Y)
+                : Lang.T("dockyard.setDock");
         if ((FerryButton.Contains(panel) || TradeShipButton.Contains(panel)) && world.Shipping.Building(building) is { } onStocks)
-            return $"{onStocks} on the stocks: {Math.Round(world.Shipping.Progress(building) * 100 ?? 0)}% built";
+            return Lang.T("dockyard.onStocks", ShipName(onStocks), Math.Round(world.Shipping.Progress(building) * 100 ?? 0));
         if (FerryButton.Contains(panel))
-            return "build a ferry";
+            return Lang.T("dockyard.buildFerry");
         if (TradeShipButton.Contains(panel))
-            return "build a trade ship";
+            return Lang.T("dockyard.buildShip");
         return null;
     }
 
@@ -141,12 +143,12 @@ public sealed partial class BuildingInfo
         Issue!(new PlaceDock(dockyard.Player, dockyard.Id, clicked), result =>
         {
             if (result is not true)
-                return "no place for a dock there (open water on own land near the building)";
+                return Lang.T("dockyard.noDockPlace");
             if (_dockAiming == dockyard)
                 _dockAiming = null;
             UiSounds.WorkArea();
             var dock = world.Shipping.DockOf(dockyard)!.Value;
-            return $"dock at {dock.Land.X},{dock.Land.Y}";
+            return Lang.T("dockyard.dockPlaced", dock.Land.X, dock.Land.Y);
         });
 
     /// <summary>

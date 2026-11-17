@@ -6,6 +6,7 @@ using Homestead.Client.Terrain;
 using Homestead.Simulation;
 using Homestead.Simulation.Ai;
 using Homestead.Simulation.Buildings;
+using System.Text.Json.Nodes;
 using Homestead.Simulation.Commands;
 using Homestead.Simulation.Events;
 using Homestead.Simulation.Lockstep;
@@ -203,6 +204,9 @@ public sealed class MapGame : Game
 
     /// <summary>HOMESTEAD_CAPTURE_EVENT=1: a capture run jumps to every new event, to show the arrows.</summary>
     private readonly bool _captureEvent = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_EVENT") == "1";
+
+    /// <summary>HOMESTEAD_CAPTURE_TOOLTIP=&lt;button&gt;: a capture run rests the mouse on that header button of the building panel.</summary>
+    private readonly string? _captureTooltip = Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_TOOLTIP");
     private SoldiersMenu? _soldiersMenu;
     private SettlersOverview? _settlersOverview;
     private ProfessionsMenu? _professionsMenu;
@@ -678,9 +682,15 @@ public sealed class MapGame : Game
                 {
                     map = started.Setup.Map.Open(_mapDirectory);
                 }
-                catch (Exception e) when (e is FileNotFoundException or IOException or InvalidDataException)
+                catch (Exception e) when (e is FileNotFoundException or IOException or InvalidDataException or UnauthorizedAccessException)
                 {
-                    screen.Fail(Lang.T("multiplayer.noMap", e.Message));
+                    screen.Fail(Lang.T("multiplayer.noMap", PlayerText.Clean(e.Message, 200)));
+                    break;
+                }
+                if (started.Setup.Problems(map.Players.Count) is { Count: > 0 } problems)
+                {
+                    Console.WriteLine($"bad game from the server: {string.Join("; ", problems)}");
+                    screen.Fail(Lang.T("multiplayer.badServer"));
                     break;
                 }
                 var connection = screen.TakeConnection();
@@ -702,11 +712,18 @@ public sealed class MapGame : Game
     /// <summary>HOMESTEAD_CAPTURE_SERVER: a capture run playing a multiplayer game through this server.</summary>
     private string? CaptureServer => _captureDirectory is null ? null : Environment.GetEnvironmentVariable("HOMESTEAD_CAPTURE_SERVER");
 
-    /// <summary>Ends a multiplayer game's connection (the other players are told by the server).</summary>
-    private void EndNetworkGame()
+    /// <summary>
+    /// Ends a multiplayer game's connection (the other players are told by the server). <paramref name="wait"/>: the program ends,
+    /// so the leave must be out before – otherwise a process slow to end keeps the connection open and the others wait for it.
+    /// </summary>
+    private void EndNetworkGame(bool wait = false)
     {
         if (_connection is { } connection)
-            _ = connection.DisposeAsync().AsTask();
+        {
+            var closing = connection.DisposeAsync().AsTask();
+            if (wait)
+                closing.Wait(TimeSpan.FromSeconds(3));
+        }
         _connection = null;
         _session = null;
         _waitingFor = 0;
@@ -722,11 +739,20 @@ public sealed class MapGame : Game
         if (_connection is not { } connection || _session is not { } session)
             return;
         foreach (var message in connection.Receive())
-            if (ServerMessages.TypeOf(message) == ServerMessages.Left && message["player"]?.GetValue<int>() is { } player)
+            switch (ServerMessages.TypeOf(message))
             {
-                string name = PlayerNames.Of(_world, player);
-                _info.Add(Lang.T("multiplayer.playerLeft", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
+                case ServerMessages.Refused:
+                    // Dropped by the server (not responding, out of sync …): why it ends.
+                    _info.Add(Lang.T("multiplayer.refused", string.Join("; ", ServerConnection.Reasons(message))), _now);
+                    break;
             }
+        // Told when the computer player takes over (the same turn on every computer), not when the server's message comes.
+        foreach (int player in session.TakeTakenOver())
+        {
+            string name = PlayerNames.Of(_world, player);
+            _info.Add(Lang.T("multiplayer.playerLeft", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
+            _info.Add(Lang.T("multiplayer.computerTakesOver", name), _now, PlayerColors.Of(player), (name, PlayerColors.Of(player)));
+        }
         if (_networkTroubleTold)
             return;
         if (session.Desync is { } desync)
@@ -736,6 +762,12 @@ public sealed class MapGame : Game
             Console.WriteLine($"desync at turn {desync.Turn} (tick {desync.Tick}): " +
                               string.Join("; ", desync.Players.Select(p => $"player {p.Player + 1}: {string.Join(", ", p.Parts)}")));
             _info.Add(Lang.T("multiplayer.desync", parts), _now);
+        }
+        else if (session.Failure is { } failure)
+        {
+            _networkTroubleTold = true;
+            Console.WriteLine($"lockstep stopped: {failure}");
+            _info.Add(Lang.T("multiplayer.badServer"), _now);
         }
         else if (!connection.IsOpen)
         {
@@ -1073,6 +1105,10 @@ public sealed class MapGame : Game
     /// </summary>
     private void OpenStatistics(bool canResume)
     {
+        // Quitting a network game: it is left now, not after the statistics – this computer steps no more from here on, and the
+        // others would wait for it (then a computer player takes over the own people).
+        if (!canResume)
+            EndNetworkGame();
         _placing = _aiming = false;
         _statistics?.Dispose();
         // A decided mission leads on ("Weiter"): won to the next one, lost to the same one again; lost there is no way back.
@@ -1492,6 +1528,32 @@ public sealed class MapGame : Game
 
     private ILookup<int, (GridPoint Point, int Ring, Color? Tint)>? _marks;
     private (Building?, bool, GridPoint?, string) _marksKey;
+
+    private readonly UiTooltip.Hover _menuHover = new();
+
+    /// <summary>The tooltip of the icon-only control under the panel point (its text is the hover timing's key), or null.</summary>
+    private string? MenuTooltip(Vector2 panel)
+    {
+        // The building panel's header icons name themselves on hover too.
+        if (ShowsBuildingInfo)
+            return _buildingInfo.TooltipAt(panel, _world, _selectedBuilding!, _local);
+        // The sub-menus' icon controls are reachable only while a sub-menu is the panel's content.
+        bool showsSubMenu = !ShowsSelection && _tabs.Current is (PanelTab.Goods or PanelTab.Settlers);
+        if (!showsSubMenu)
+            return null;
+        return _tabs.CurrentMenu switch
+        {
+            PanelMenuIds.Transport => _transportMenu!.TooltipAt(panel, _world, _local),
+            PanelMenuIds.Professions => _professionsMenu!.TooltipAt(panel),
+            PanelMenuIds.Soldiers => _soldiersMenu!.TooltipAt(panel, _world, _local, _buildingInfo),
+            PanelMenuIds.Overview => _settlersOverview!.TooltipAt(panel),
+            PanelMenuIds.Statistics => _statisticsMenu!.TooltipAt(panel),
+            PanelMenuIds.Stock => _stockMenu!.TooltipAt(panel),
+            PanelMenuIds.Tools => _manufactureMenu!.TooltipAt(panel),
+            PanelMenuIds.Distribution => _distributionMenu!.TooltipAt(panel),
+            _ => null,
+        };
+    }
 
     /// <summary>The selected market's route, to notice when it changes.</summary>
     private string RouteKey() =>
@@ -2157,6 +2219,9 @@ public sealed class MapGame : Game
                 UiSounds.Toggle();
                 _message = $"{_buildingInfo.NameOf(_selectedBuilding.Definition)}: {(priority ? "highest priority" : "normal priority")}";
             }
+            // A finished building with a work area: its button arms moving the area (like the shipyard's hammer).
+            if (onMenu && released && _buildingInfo.WorkAreaClick(panelCursor, _world, _selectedBuilding!, _local) is { } workArea)
+                _message = workArea;
             // A market's route and goods.
             if (onMenu && _buildingInfo.MarketHover(panelCursor, _world, _selectedBuilding!, _local) is { } marketHover)
                 _message = marketHover;
@@ -2234,11 +2299,11 @@ public sealed class MapGame : Game
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "distribution")
             {
-                if (onMenu && _distributionMenu!.Hover(panelCursor) is { } hover)
+                if (onMenu && _distributionMenu!.Hover(panelCursor, _font) is { } hover)
                     _message = hover;
                 bool pressed = mouse.LeftButton == ButtonState.Pressed && IsActive;
                 bool justPressed = pressed && _previousMouse.LeftButton == ButtonState.Released;
-                if (_distributionMenu!.Update(panelCursor, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
+                if (_distributionMenu!.Update(panelCursor, _font, pressed, justPressed, onMenu, _world, _local, IssueReported) is { } done)
                     _message = done;
             }
             else if (_tabs.Current == PanelTab.Goods && _tabs.CurrentMenu == "transport" && onMenu)
@@ -2294,7 +2359,10 @@ public sealed class MapGame : Game
             // The selection is exactly a group: what Shift adds to it joins the group too.
             var before = (Settlers: _group.ToList(), Ships: _ships.ToList());
             int? joinedGroup = ShiftDown(Keyboard.GetState()) ? _controlGroups.Matching(_group, _ships) : null;
-            if (!_placing && !_buildingInfo.AimsRoute(_selectedBuilding) && !_buildingInfo.AimsDock(_selectedBuilding) && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
+            // The building panel's aiming modes (market route, dock, work area) take the map's next click themselves.
+            bool panelAims = _buildingInfo.AimsRoute(_selectedBuilding) || _buildingInfo.AimsDock(_selectedBuilding)
+                || _buildingInfo.AimsWorkCenter(_selectedBuilding);
+            if (!_placing && !panelAims && Vector2.Distance(dragStart, cursorScreen) >= DragThreshold)
                 SelectInBox(dragStart, cursorScreen);
             else
                 Click(cursorScreen);
@@ -2455,6 +2523,8 @@ public sealed class MapGame : Game
                 _buildingInfo.CancelRoute();
             else if (_buildingInfo.AimsDock(_selectedBuilding))
                 _buildingInfo.CancelDock();
+            else if (_buildingInfo.AimsWorkCenter(_selectedBuilding))
+                _buildingInfo.CancelWorkCenter();
             else if (_buildingInfo.Asking is not null)
                 _buildingInfo.Cancel();
             else if (_placing)
@@ -2596,6 +2666,13 @@ public sealed class MapGame : Game
         if (_buildingInfo.AimsDock(_selectedBuilding) && _selectedBuilding is { Exists: true } dockyard)
         {
             _buildingInfo.DockCommand(_world, dockyard, ScreenToGrid(screen));
+            return;
+        }
+
+        // A building's work-area button chosen: the click moves the work area there.
+        if (_buildingInfo.AimsWorkCenter(_selectedBuilding) && _selectedBuilding is { Exists: true } works)
+        {
+            _buildingInfo.WorkCenterCommand(_world, works, ScreenToGrid(screen));
             return;
         }
 
@@ -2958,7 +3035,8 @@ public sealed class MapGame : Game
             return;
         // Only the own commands: in a lockstep game the others' carry their own numbers.
         foreach (var (command, result) in _world.Commands.Applied)
-            if (command.Player == _local && _awaiting.Remove(command.Sequence, out var then))
+            // A refused command has no outcome to show: the callers read the result of one that was applied.
+            if (command.Player == _local && _awaiting.Remove(command.Sequence, out var then) && result != CommandQueue.Refused)
                 then(result);
     }
 
@@ -3106,6 +3184,13 @@ public sealed class MapGame : Game
             _message = "";
             return;
         }
+        // Moving a work area with the panel's button: cancelled (a plain right click still moves it below).
+        if (_buildingInfo.AimsWorkCenter(_selectedBuilding))
+        {
+            _buildingInfo.CancelWorkCenter();
+            _message = "";
+            return;
+        }
         // Ships: over the water to the open water nearest the click.
         if (_ships.Count > 0)
         {
@@ -3121,15 +3206,7 @@ public sealed class MapGame : Game
         // A selected own building with a work area: move the work area there (at most 20 steps away, a gathering point anywhere).
         if (_selectedBuilding is { Exists: true, HasWorkArea: true } worksite && worksite.Player == _local)
         {
-            Issue(new SetWorkCenter(_local, worksite.Id, clicked), result =>
-            {
-                if (result is not GridPoint center)
-                    return;
-                UiSounds.WorkArea();
-                _message = worksite.HasGatheringPoint ? $"gathering point moved to {center.X},{center.Y}"
-                    : center == clicked ? $"work area moved to {center.X},{center.Y}"
-                    : $"work area moved to {center.X},{center.Y} (at most {World.MaxWorkCenterDistance} fields away)";
-            });
+            _buildingInfo.WorkCenterCommand(_world, worksite, clicked);
             return;
         }
         var priests = _group.Where(s => s.Profession == Profession.Priest && !_world.Magic.IsBusy(s)).ToList();
@@ -3621,6 +3698,14 @@ public sealed class MapGame : Game
         _sidePanel.Draw(_spriteBatch, _pixel, _minimap?.Texture, _gameMap.Size, visible, MinimapDots());
         SidePanel.Begin(_spriteBatch, viewport.Height);
         var panelMouse = SidePanel.ToPanel(SdlMouse.GetState().Position.ToVector2(), viewport.Height);
+        var tooltipCursor = SdlMouse.GetState().Position.ToVector2();
+        // HOMESTEAD_CAPTURE_TOOLTIP=<button>: capture runs cannot hover, so the mouse rests on that header button.
+        if (_captureDirectory is not null && _captureTooltip is { } pinned && ShowsBuildingInfo
+            && _buildingInfo.HeaderButton(pinned, _world, _selectedBuilding!, _local) is { } pinnedButton)
+        {
+            panelMouse = pinnedButton.Center.ToVector2();
+            tooltipCursor = SidePanel.ToScreen(panelMouse, viewport.Height);
+        }
         if (ShowsBuildingInfo)
             _buildingInfo.Draw(_spriteBatch, _pixel, SidePanel.ContentHeight, _font, _economyRenderer, _settlerRenderer, Own.Civilization, _world, _selectedBuilding!, _local,
                 panelMouse);
@@ -3678,6 +3763,10 @@ public sealed class MapGame : Game
         _cheats.Draw(_spriteBatch, _pixel, viewport.Width, _font, SdlMouse.GetState().Position.ToVector2());
         _buildMenu?.DrawTooltip(_spriteBatch, _pixel, _font, SdlMouse.GetState().Position.ToVector2(), viewport.Bounds,
             SidePanel.Scale(viewport.Height), _now);
+        string? tooltip = MenuTooltip(panelMouse);
+        if (_menuHover.Update(tooltip, _now))
+            UiTooltip.Draw(_spriteBatch, _pixel, _font, tooltip!, tooltipCursor, viewport.Bounds,
+                SidePanel.Scale(viewport.Height));
         DrawOutcome(viewport);
         float infoLeft = SidePanel.Width * SidePanel.Scale(viewport.Height) + 12;
         _info.Draw(_spriteBatch, _pixel, _font, infoLeft, viewport.Height - 10, viewport.Width - infoLeft - 12,
@@ -4753,6 +4842,15 @@ public sealed class MapGame : Game
         base.EndDraw();
     }
 
+    /// <summary>The window closed or the game quit: a network game is left first, while the program still runs for sure.</summary>
+    protected override void OnExiting(object sender, ExitingEventArgs args)
+    {
+        EndNetworkGame(wait: true);
+        _multiplayerScreen?.Dispose();
+        _multiplayerScreen = null;
+        base.OnExiting(sender, args);
+    }
+
     protected override void UnloadContent()
     {
         _terrain?.Dispose();
@@ -4784,6 +4882,7 @@ public sealed class MapGame : Game
         _goodsGrid?.Dispose();
         _manufactureMenu?.Dispose();
         _transportMenu?.Dispose();
+        _buildingInfo.Dispose();
         _tabs?.Dispose();
         _font.Dispose();
         _atlas.Dispose();

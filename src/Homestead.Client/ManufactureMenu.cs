@@ -126,6 +126,15 @@ public sealed class ManufactureMenu : IDisposable
         return null;
     }
 
+    /// <summary>The tooltip of the product icon under the panel point (its name), or null.</summary>
+    public string? TooltipAt(Vector2 panel)
+    {
+        foreach (var (product, y) in Rows())
+            if (Icon(y).Contains(panel))
+                return NameOf(product);
+        return null;
+    }
+
     private string NameOf(Material product) => _grid.Goods.FirstOrDefault(g => g.Material == product)?.Name ?? product.ToString();
 
     private static Rectangle Half(Rectangle spinner, bool upper) =>

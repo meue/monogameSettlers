@@ -241,6 +241,19 @@
     "unload": "Unload ship",
     "cargo": "Cargo: {0}"
   },
+  "dockyard": {
+    "dockAim": "Click into the water: the dock goes to the best place near it (right click: cancel)",
+    "setDockFirst": "Set a dock first (the hammer)",
+    "onStocks": "{0} on the stocks: {1}% built",
+    "ordered": "{0} ordered: carriers bring its material",
+    "dockStays": "The dock stays while a ship is built",
+    "dockElsewhere": "Dock at {0},{1}: set it elsewhere",
+    "setDock": "Set the dock (then click into the water)",
+    "buildFerry": "Order ferry",
+    "buildShip": "Order trade ship",
+    "noDockPlace": "No place for a dock there (open water on own land near the building)",
+    "dockPlaced": "Dock at {0},{1}"
+  },
   "buildingStatus": {
     "active": "Active",
     "pausing": "Pausing",
@@ -390,6 +403,7 @@
     "hardcoreHint": "Hardcore: +10 % combat strength, +30 % settlers per residence, +20 % hit points, −25 % building costs, 10 % faster production, more starting equipment.",
     "player": "Player {0}",
     "playerPeople": "Player {0} ({1})",
+    "namedPeople": "{0} ({1})",
     "playerCount": "{0} players",
     "randomHeading": "Create a random map",
     "randomMapName": "Random map {0}-{1}",
@@ -587,13 +601,30 @@
     "divine": "Divine upgrade: {0}%",
     "manual": "Manual",
     "automatic": "Automatic",
-    "recruitment": "Recruitment"
+    "recruitment": "Recruitment",
+    "upgrade": "Divine upgrade: {0}",
+    "planMore": "Planned recruits +{0}",
+    "planFewer": "Planned recruits −{0}"
   },
   "professions": {
     "carriers": "Carriers",
     "diggers": "Diggers",
     "builders": "Builders",
-    "special": "Special professions"
+    "special": "Special professions",
+    "geologists": "Geologists",
+    "pioneers": "Pioneers",
+    "scouts": "Scouts",
+    "share": "{0} share: ±5 %",
+    "shareFull": "{0}: The shares already sum to 100 %",
+    "shareZero": "{0}: The share is already 0 %",
+    "findWorld": "Select all {0} on the map",
+    "findScreen": "Select all {0} on the screen",
+    "findOne": "Fly to the next of the {0}",
+    "convert": "{0} carriers become {1}",
+    "toCarriers": "{0} pioneers become carriers",
+    "shareMax": "{0} at most (up/down: 5 % more/less)",
+    "carriersMin": "Carriers kept at least (up/down: 5 % more/less)",
+    "notYet": " (not there yet)"
   },
   "selection": {
     "steal": "Steal goods",
@@ -618,6 +649,26 @@
   "distribution": {
     "construction": "Construction site"
   },
+  "settlers": {
+    "bearer": "Carrier",
+    "digger": "Digger",
+    "bricklayer": "Bricklayer",
+    "worker": "Worker",
+    "mage": "Priest",
+    "geologist": "Geologist",
+    "thief": "Thief",
+    "pioneer": "Pioneer",
+    "donkey": "Donkey"
+  },
+  "transport": {
+    "store": "Store",
+    "doNotStore": "Do not store",
+    "top": "To the very front",
+    "up": "One place up",
+    "down": "One place down",
+    "bottom": "To the very back",
+    "place": "Place {0} in the transport order"
+  },
   "cheats": {
     "swordsman": "swordsmen",
     "bowman": "bowmen",
@@ -633,6 +684,12 @@
     "fog": "Fog of war on/off"
   },
   "building": {
+    "workArea": "Move work area",
+    "workAreaArmed": "Click where the work area goes, right-click cancels",
+    "workAreaUndone": "Work area choice undone",
+    "workAreaMoved": "Work area moved to {0},{1}",
+    "workAreaMovedCapped": "Work area moved to {0},{1} (at most {2} fields away)",
+    "gatheringPointMoved": "Gathering point moved to {0},{1}",
     "ammoLoads": "Ammunition: {0}",
     "trade": "Trade – land",
     "seaTrade": "Trade – sea",
@@ -671,7 +728,7 @@
     "title": "Multiplayer",
     "name": "Your name",
     "server": "Server",
-    "serverHint": "The server's address, e.g. ws://192.168.1.10:8080/ws (your own: docker run -p 8080:8080 homestead-server).",
+    "serverHint": "The server's address, e.g. 192.168.1.10:8080 (your own: ./run-server.sh; behind TLS: wss://…).",
     "connect": "Connect",
     "connecting": "Connecting …",
     "refused": "Refused: {0}",
@@ -698,8 +755,10 @@
     "gameName": "{0}'s game",
     "noMap": "The map is missing here: {0}",
     "playerLeft": "{0} left the game.",
+    "computerTakesOver": "{0} is now controlled by the computer.",
     "desync": "The games went apart ({0}) – the game stands still.",
     "connectionLost": "Connection to the server lost.",
+    "badServer": "The server sent something invalid.",
     "noPause": "Pausing multiplayer games is still to come.",
     "desyncBanner": "Out of sync",
     "desyncHint": "The computers no longer play the same game – Esc: quit",
