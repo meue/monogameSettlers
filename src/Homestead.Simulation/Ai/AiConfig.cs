@@ -116,6 +116,17 @@ public sealed record AiConfig
         double ArmyRatio, double Commit = 0, double AbortRatio = 0, int MaxDistance = 0,
         IReadOnlyDictionary<string, double>? GarrisonWeight = null);
 
+    /// <summary>Offensives the AI chat starts (see <c>offensive</c> in ai.json); null in games saved before: <see cref="OffensiveRules.Default"/>.</summary>
+    public OffensiveRules? Offensive { get; init; }
+
+    /// <param name="Range">The next target at most this far from the last one.</param>
+    /// <param name="FrontRange">Or this far from allied soldiers out on enemy land (preferred).</param>
+    /// <param name="Ratio">The force against the target's defence.</param>
+    public sealed record OffensiveRules(int Range, int FrontRange, double Ratio)
+    {
+        public static readonly OffensiveRules Default = new(40, 30, 1.0);
+    }
+
     /// <summary>Campaigns out of plain superiority (see <c>superiority</c> in ai.json); null in games saved before: <see cref="SuperiorityRules.Default"/>.</summary>
     public SuperiorityRules? Superiority { get; init; }
 
@@ -265,6 +276,10 @@ public sealed record AiConfig
                     (long)Math.Round(superiority.GetProperty("intervalSeconds").GetDouble() * World.TicksPerSecond),
                     superiority.GetProperty("armyRatio").GetDouble(), superiority.GetProperty("ratio").GetDouble())
                 : SuperiorityRules.Default,
+            Offensive = root.TryGetProperty("offensive", out var offensive)
+                ? new OffensiveRules(offensive.GetProperty("range").GetInt32(), offensive.GetProperty("frontRange").GetInt32(),
+                    offensive.GetProperty("ratio").GetDouble())
+                : OffensiveRules.Default,
             Wounded = military.TryGetProperty("wounded", out var wounded)
                 ? new WoundedRules(wounded.GetProperty("maxSoldiers").GetInt32(), wounded.GetProperty("withdrawHealth").GetDouble(),
                     wounded.GetProperty("rejoinHealth").GetDouble(), wounded.GetProperty("holdRatio").GetDouble(),

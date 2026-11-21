@@ -121,7 +121,11 @@ public sealed partial class AiChat
                         break;
                     }
                     _lastAttack[ai.Player] = world.Tick;
-                    issue(new AiReply(ai.Player, attack.AllIn ? AiReplyKind.Assault : AiReplyKind.Challenge, attack.Target), result =>
+                    // Asked by an ally (the human on its team): an offensive, target after target through the enemy's land.
+                    var kind = attack.AllIn ? AiReplyKind.Assault : world.AreAllies(ai.Player, Player) ? AiReplyKind.Offensive : AiReplyKind.Challenge;
+                    if (kind == AiReplyKind.Offensive)
+                        order += " (offensive)";
+                    issue(new AiReply(ai.Player, kind, attack.Target), result =>
                     {
                         bool taken = result is true;
                         if (!taken)
@@ -272,7 +276,7 @@ public sealed partial class AiChat
     });
 
     private static readonly Tool AttackTool = Schema("attack",
-        "One computer player sends soldiers against another player: a campaign against a weakly held military building (retreats when beaten), or all_in: everything, until that player is gone.",
+        "One computer player sends soldiers against another player: a campaign against a weakly held military building (retreats when beaten); by an ally of the speaker an offensive that marches on from building to building near the last one and the speaker's army until it gets stuck; or all_in: everything, until that player is gone.",
         new()
         {
             ["player"] = new { type = "integer", description = "Number of the computer player attacking." },

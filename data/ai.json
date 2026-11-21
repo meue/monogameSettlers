@@ -146,6 +146,12 @@
     "_garrisonWeightComment": "Per building name: its garrison counts this many times in the defence (others once). A castle's soldiers are much harder to get at (one fighter at the door, bowmen on the roofs).",
     "garrisonWeight": { "castle": 2 }
   },
+  "offensive": {
+    "_comment": "An offensive (AI chat: an ally asked to attack a common enemy) starts like a challenge against that player, then goes on campaign after campaign with no time limit: the next target is any enemy's occupied military building within range fields of the last target, or within frontRange of allied soldiers out on enemy land (preferred: that distance counts half), whatever the distance from the own land, the way and the character's timing say, with ratio times its defence and at least half the other spare fighters along. Over when nothing is within reach or strong enough, on a retreat, a campaign given up or an assault.",
+    "range": 40,
+    "frontRange": 30,
+    "ratio": 1.0
+  },
   "superiority": {
     "_comment": "For every player, against enemies out of reach (big maps): from startMinutes on, every intervalSeconds the whole armies are compared plainly (all soldiers, in buildings and outside, by strength). Against the weakest enemy the own army outnumbers armyRatio times (0: never) a campaign starts like a challenge: whatever the distance, the way, the character's timing and attack.armyRatio say, with ratio times the defence of that enemy's military building nearest the own land, at least half the other spare fighters along. Not while enemies stand on the own land, a campaign or an assault runs, nor against a player in truce.",
     "startMinutes": 60,

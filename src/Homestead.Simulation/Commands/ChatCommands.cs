@@ -11,7 +11,7 @@ public sealed record Say(int Player, string Text) : GameCommand(Player)
 
 /// <summary>
 /// What a computer player (<see cref="GameCommand.Player"/>) does on the AI chat's word: take up a challenge from
-/// <see cref="Target"/> (all in: assault him), a truce with him, or help him as an ally. Result: whether it does.
+/// <see cref="Target"/> (all in: assault him; asked by an ally: an offensive), a truce with him, or help him as an ally. Result: whether it does.
 /// </summary>
 public sealed record AiReply(int Player, AiReplyKind Kind, int Target, long Ticks = 0) : GameCommand(Player)
 {
@@ -26,6 +26,8 @@ public sealed record AiReply(int Player, AiReplyKind Kind, int Target, long Tick
             case AiReplyKind.Assault:
                 ai.Assault(Target);
                 return ai.AssaultOn == Target;
+            case AiReplyKind.Offensive:
+                return ai.StartOffensive(Target);
             case AiReplyKind.Truce:
                 return ai.Truce(Target, Ticks);
             default:
@@ -34,7 +36,7 @@ public sealed record AiReply(int Player, AiReplyKind Kind, int Target, long Tick
     }
 }
 
-public enum AiReplyKind { Challenge, Assault, Truce, Help }
+public enum AiReplyKind { Challenge, Assault, Truce, Help, Offensive }
 
 /// <summary>Cheats (only with cheats on; in a multiplayer game they do nothing, result null).</summary>
 public sealed record Cheat(int Player, CheatKind Kind, GridPoint At = default) : GameCommand(Player)
