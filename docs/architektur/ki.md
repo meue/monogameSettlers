@@ -53,7 +53,8 @@ Concept of the characters and tactics: [../KI-TACTICS.md](../KI-TACTICS.md).
     `rotatingTowers` (Unyielding: 30%, redrawn every minute), Hothead: one heap.
   - `AiPlayer.Campaign`: gathers soldiers, captures enemy military buildings at 1.5:1 (garrison weighted by
     `attack.garrisonWeight`, castle double). While gathering, it gives up only below 85% of the cancellation
-    threshold; an abandoned/vacated target is left alone for 60 s.
+    threshold; an abandoned/vacated target is left alone for 60 s. Ends once the target is no enemy's any more
+    (taken by us or an ally – before, it besieged the ally's building for good and refused every challenge).
     Values: `attack.armyRatio` (0 = irrelevant), `attack.commit` (share of free soldiers, 1 = all), `attack.abortRatio` (0 = never give up),
     `attack.maxDistance` (0 = irrelevant), `military.retreatRatio` (0 = never retreat).
   - `AiPlayer.Assault` (cheat `/attackme`, `AssaultOn`, saved): instead of strikes/campaign/defence/hospital,

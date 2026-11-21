@@ -132,9 +132,11 @@ public sealed partial class AiPlayer
         c.Soldiers.RemoveAll(s => s.IsDead || s.IsInside || s.Player != Player); // also won over by a spell
         c.Resting.IntersectWith(c.Soldiers);
         var target = c.Target;
-        if (!target.Exists || target.Player == Player || c.Soldiers.Count == 0)
+        // Taken by an ally (or the own side) counts as won: otherwise it would besiege a friend's building for good.
+        if (!target.Exists || !IsEnemy(target.Player) || c.Soldiers.Count == 0)
         {
             Note(target.Player == Player ? $"took the {target.Definition.Name} at {target.Position.X},{target.Position.Y}"
+                : target.Exists && !IsEnemy(target.Player) ? $"player {target.Player + 1} took the {target.Definition.Name} at {target.Position.X},{target.Position.Y}"
                 : c.Soldiers.Count == 0 ? $"lost the campaign against {target.Position.X},{target.Position.Y}"
                 : $"the {target.Definition.Name} at {target.Position.X},{target.Position.Y} is gone");
             if (c.Soldiers.Count > 0)

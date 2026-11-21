@@ -56,6 +56,25 @@ public class AiChatTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_campaign_ends_when_an_ally_takes_the_target()
+    {
+        // A save: the human took the Egyptian tower two allies were attacking; their campaigns went on against the
+        // human's tower for good, and every later "attack them" in the chat was promised but refused.
+        var (world, ai, enemyTower) = Standoff();
+        world.PlayerCount = 3;
+        world.Teams.AddRange([1, 0, 1]);
+        Assert.True(ai.Challenge(1));
+        Run(world, 90 * World.TicksPerSecond, () => ai.CampaignAttacking);
+        Assert.True(ai.CampaignAttacking);
+
+        typeof(Building).GetProperty(nameof(Building.Player))!.SetValue(enemyTower, 2); // as taken by player 3
+        Run(world, 5 * World.TicksPerSecond);
+        Assert.Null(ai.CampaignAgainst);
+        Assert.Contains(ai.Log, l => l.Contains("player 3 took the tower"));
+        Assert.DoesNotContain(world.Settlers, s => s.Player == 0 && world.Military.AttackTarget(s) == enemyTower);
+    }
+
+    [Fact]
     public void A_skirmisher_takes_up_a_challenge_far_beyond_its_reach_with_half_its_idle_fighters()
     {
         // The skirmisher only campaigns within 60 fields of its land (attack.maxDistance); a challenge goes anyway (a save:
