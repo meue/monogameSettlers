@@ -56,6 +56,24 @@ public class AiChatTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Regard_follows_the_war_between_the_two_not_only_the_armies()
+    {
+        // The AI (player 1) far outnumbers player 2: contempt. After player 2 took three of its towers it is respect,
+        // the bigger army notwithstanding.
+        var (world, _, _) = Standoff(idle: 30, farArmy: 0);
+        Run(world, 1);
+        Assert.Equal("contempt", AiSituation.Build(world, 1).Players[0].Regard);
+        var captured = typeof(GameHistory).GetMethod("Captured", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        for (int i = 0; i < 3; i++)
+            captured.Invoke(world.History, [1, 0]);
+        Assert.Equal(3, world.History.CapturedFrom(1, 0));
+        Assert.Equal("respect", AiSituation.Build(world, 1).Players[0].Regard);
+        Assert.Contains("\"regard\":\"respect\"", AiSituation.Describe(world, 1));
+        // Not about the speaker itself.
+        Assert.Null(AiSituation.Build(world, 1).Players[1].Regard);
+    }
+
+    [Fact]
     public void A_campaign_ends_when_an_ally_takes_the_target()
     {
         // A save: the human took the Egyptian tower two allies were attacking; their campaigns went on against the

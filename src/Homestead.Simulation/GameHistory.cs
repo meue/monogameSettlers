@@ -51,6 +51,9 @@ public sealed class GameHistory
     private readonly Dictionary<int, List<HistorySample>> _samples = new();
     private readonly Dictionary<int, int> _kills = new(), _losses = new(), _captured = new(), _lost = new(), _finished = new(), _destroyed = new();
 
+    // Between two players (key: by * 256 + victim): soldiers killed and military buildings captured. Lazy: games saved before have none.
+    private Dictionary<int, int>? _killsOf, _capturedFrom;
+
     internal GameHistory(World world)
     {
         _world = world;
@@ -72,14 +75,27 @@ public sealed class GameHistory
     {
         _losses[victim.Player] = _losses.GetValueOrDefault(victim.Player) + 1;
         if (by is not null)
+        {
             _kills[by.Player] = _kills.GetValueOrDefault(by.Player) + 1;
+            Count(_killsOf ??= new(), by.Player, victim.Player);
+        }
     }
 
     internal void Captured(int winner, int loser)
     {
         _captured[winner] = _captured.GetValueOrDefault(winner) + 1;
         _lost[loser] = _lost.GetValueOrDefault(loser) + 1;
+        Count(_capturedFrom ??= new(), winner, loser);
     }
+
+    private static void Count(Dictionary<int, int> counts, int by, int victim) =>
+        counts[by * 256 + victim] = counts.GetValueOrDefault(by * 256 + victim) + 1;
+
+    /// <summary>Soldiers of <paramref name="victim"/> killed by soldiers of <paramref name="by"/> so far.</summary>
+    public int KillsOf(int by, int victim) => _killsOf?.GetValueOrDefault(by * 256 + victim) ?? 0;
+
+    /// <summary>Military buildings <paramref name="by"/> captured from <paramref name="victim"/> so far.</summary>
+    public int CapturedFrom(int by, int victim) => _capturedFrom?.GetValueOrDefault(by * 256 + victim) ?? 0;
 
     internal void Finished(Building building) => _finished[building.Player] = _finished.GetValueOrDefault(building.Player) + 1;
 
