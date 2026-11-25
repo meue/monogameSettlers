@@ -117,8 +117,9 @@ public sealed class SpriteAtlas : IDisposable
 /// </summary>
 public sealed class SpriteLibrary : IDisposable
 {
-    /// <summary>Per-frame cap on 2x uploads: each one is a texture SetData on the game's thread, a hitch guard.</summary>
-    private const int UploadsPerFrame = 16;
+    /// <summary>Per-frame cap on 2x uploads (texture SetData on the game's thread, a hitch guard); a sequence once
+    /// started is always uploaded whole, so the cap may be exceeded by the rest of one sequence.</summary>
+    private const int UploadsPerFrame = 64;
 
     private readonly GraphicsDevice _device;
     private readonly SpriteAtlas _atlas;
@@ -126,11 +127,12 @@ public sealed class SpriteLibrary : IDisposable
     private readonly SpriteUpscaleState _upscale = new();
     private readonly Func<IUpscaler> _upscalerFactory;
     private readonly BlockingCollection<(GfxFile File, int Number, int Sequence)> _pending = new();
-    private readonly ConcurrentQueue<(int File, int Sequence, int Frame, SpriteLayerKind Layer, GfxBitmap Bitmap)> _completed = new();
+    /// <summary>Finished sequences: all 2x images of one sequence at once, so it switches resolution as a whole
+    /// (attaching frame by frame let an animation flicker between 1x and 2x frames for minutes).</summary>
+    private readonly ConcurrentQueue<(int File, int Sequence, List<(int Frame, SpriteLayerKind Layer, GfxBitmap Bitmap)> Images)> _completed = new();
     private readonly HashSet<(int File, int Sequence)> _attempted = new();
     private Thread? _worker;
     private volatile bool _workerRunning;
-    private volatile bool _workerWorking;
     private SpriteAtlas? _hiResAtlas;
 
     public SpriteLibrary(GraphicsDevice device, GfxDirectory gfx) : this(device, gfx, static () => new OnnxUpscaler())
@@ -158,9 +160,6 @@ public sealed class SpriteLibrary : IDisposable
     /// the session whatever the setting says; the game shows a notice instead.
     /// </summary>
     public bool NeuralUpscaleUnavailable { get; private set; }
-
-    /// <summary>True while 2x images are still being computed or uploaded: the loading screen holds until it drains.</summary>
-    public bool NeuralUpscalePending => _pending.Count > 0 || _workerWorking || !_completed.IsEmpty;
 
     /// <summary>
     /// Marks the world pass of this frame: while set, sprites draw their 2x images (the game renders the world
@@ -191,23 +190,6 @@ public sealed class SpriteLibrary : IDisposable
             QueueForUpscale(file, sequence);
     }
 
-    /// <summary>
-    /// Preloads every settler sequence of the given GFX files into the 1x atlas and queues it for upscaling:
-    /// with the setting on, a starting game computes its 2x atlas during the loading screen instead of the
-    /// first minutes of play. Files first in the list are done first, so the game's own people comes before
-    /// the others. Only the game's (GL) thread may call this: it fills the atlas.
-    /// </summary>
-    public void Warmup(IEnumerable<int> files)
-    {
-        if (!_upscale.Enabled)
-            return;
-        foreach (int file in files.Where(HasSettlers))
-            for (int sequence = 0; sequence < Gfx.Open(file).SettlerCount; sequence++)
-                Sequence(file, sequence);
-    }
-
-    private bool HasSettlers(int file) => Gfx.FileNumbers.Contains(file) && Gfx.Open(file).SettlerCount > 0;
-
     public SettlerSprites Sequence(int file, int sequence)
     {
         if (!_sequences.TryGetValue((file, sequence), out var sprites))
@@ -229,9 +211,11 @@ public sealed class SpriteLibrary : IDisposable
         int uploaded = 0;
         while (uploaded < maxUploadsPerFrame && _completed.TryDequeue(out var result))
         {
-            if (_sequences.TryGetValue((result.File, result.Sequence), out var sprites))
-                sprites.AttachHiRes(result.Frame, result.Layer, atlas.Add(result.Bitmap));
-            uploaded++;
+            if (!_sequences.TryGetValue((result.File, result.Sequence), out var sprites))
+                continue;
+            foreach (var (frame, layer, bitmap) in result.Images)
+                sprites.AttachHiRes(frame, layer, atlas.Add(bitmap));
+            uploaded += result.Images.Count;
         }
         return uploaded;
     }
@@ -300,28 +284,26 @@ public sealed class SpriteLibrary : IDisposable
             {
                 if (!_pending.TryTake(out var job, Timeout.Infinite))
                     break; // Adding is finished: Dispose is stopping the worker.
-                _workerWorking = true;
                 try
                 {
+                    var images = new List<(int, SpriteLayerKind, GfxBitmap)>();
                     int frames = job.File.GetSettlerFrameCount(job.Sequence);
                     for (int frame = 0; frame < frames && _workerRunning; frame++)
                     {
-                        Upscale(upscaler, job, frame, SpriteLayerKind.Body, job.File.ReadSettler(job.Sequence, frame));
-                        Upscale(upscaler, job, frame, SpriteLayerKind.Torso, job.File.ReadSettlerTorso(job.Sequence, frame));
+                        Upscale(upscaler, images, frame, SpriteLayerKind.Body, job.File.ReadSettler(job.Sequence, frame));
+                        Upscale(upscaler, images, frame, SpriteLayerKind.Torso, job.File.ReadSettlerTorso(job.Sequence, frame));
                         // Shadows are the format's constant semi-transparent black (no detail a model could add):
-                        // reconstructed on the CPU, which keeps their translucency and skips a third of the inferences.
-                        Upscale(upscaler, job, frame, SpriteLayerKind.Shadow, job.File.ReadSettlerShadow(job.Sequence, frame),
+                        // only their contour is rebuilt on the CPU, which skips a third of the inferences.
+                        Upscale(upscaler, images, frame, SpriteLayerKind.Shadow, job.File.ReadSettlerShadow(job.Sequence, frame),
                             shadow: true);
                     }
+                    if (_workerRunning)
+                        _completed.Enqueue((job.Number, job.Sequence, images));
                 }
                 catch (Exception e)
                 {
                     // A sequence that cannot be read stays 1x; the worker lives on.
                     Console.WriteLine($"Neural upscale: file {job.Number} sequence {job.Sequence} stays 1x ({e.Message})");
-                }
-                finally
-                {
-                    _workerWorking = _pending.Count > 0;
                 }
             }
         }
@@ -335,14 +317,13 @@ public sealed class SpriteLibrary : IDisposable
         }
     }
 
-    private void Upscale(IUpscaler upscaler, (GfxFile File, int Number, int Sequence) job, int frame,
+    private static void Upscale(IUpscaler upscaler, List<(int, SpriteLayerKind, GfxBitmap)> images, int frame,
         SpriteLayerKind kind, GfxBitmap? bitmap, bool shadow = false)
     {
         if (bitmap is not { Width: > 0, Height: > 0 })
             return;
-        // Shadow layers never reach the model: UpscaleShadow keeps their semi-transparent black (see RunWorker).
         var high = shadow ? UpscaleMath.UpscaleShadow(bitmap) : upscaler.Upscale(bitmap);
         if (high is not null)
-            _completed.Enqueue((job.Number, job.Sequence, frame, kind, high));
+            images.Add((frame, kind, high));
     }
 }

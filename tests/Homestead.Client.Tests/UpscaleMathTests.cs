@@ -33,10 +33,8 @@ public class UpscaleMathTests
     }
 
     [Fact]
-    public void Transparent_pixels_inherit_their_opaque_neighbors_color()
+    public void Transparent_pixels_take_the_color_of_their_neighbors_not_their_garbage()
     {
-        // The RGB under a transparent pixel is garbage that would poison the inference; the neighbor's
-        // color gives the model something plausible at the edge instead of black seams.
         var bitmap = Bitmap(2, 1, [Px(200, 200, 200, 0), Px(1, 2, 3)]);
 
         float[] planes = UpscaleMath.ToNchwRgb(bitmap);
@@ -44,30 +42,6 @@ public class UpscaleMathTests
         AssertPlane(planes, 0, 1 / 255f, 1 / 255f);
         AssertPlane(planes, 1, 2 / 255f, 2 / 255f);
         AssertPlane(planes, 2, 3 / 255f, 3 / 255f);
-    }
-
-    [Fact]
-    public void Fully_transparent_bitmaps_stay_black()
-    {
-        var bitmap = Bitmap(3, 2, new uint[6].Select(_ => Px(90, 80, 70, 0)).ToArray());
-
-        Assert.All(UpscaleMath.ToNchwRgb(bitmap), value => Assert.Equal(0, value, 5));
-    }
-
-    [Fact]
-    public void Transparent_regions_connected_to_opaque_fill_completely()
-    {
-        // A wide transparent stretch between two opaque ends: the fill propagates across all of it (the model
-        // gets plausible colors everywhere near the sprite, not just one ring in).
-        int width = 3 * UpscaleMath.ColorFillPasses;
-        var pixels = new uint[width];
-        pixels[0] = Px(10, 20, 30);
-        pixels[^1] = Px(10, 20, 30);
-        var bitmap = Bitmap(width, 1, pixels);
-
-        uint[] colors = UpscaleMath.FillTransparentRgb(bitmap);
-
-        Assert.All(colors, color => Assert.NotEqual(0u, color));
     }
 
     [Fact]
@@ -102,116 +76,117 @@ public class UpscaleMathTests
         Assert.Throws<ArgumentOutOfRangeException>(() => UpscaleMath.HalveLanczos(new float[3 * 3], 3, 1));
     }
 
+    private static uint[] Solid(int count) => Enumerable.Repeat(Px(0, 0, 0), count).ToArray();
+
     [Fact]
     public void Combine_packs_rgb_bytes_and_doubles_the_offsets()
     {
-        // 1x1 source, constant halved planes: every output pixel is that color.
-        var source = Bitmap(1, 1, [Px(0, 0, 0)], offsetX: 7, offsetY: -2);
-        var halved = new float[3 * 2 * 2];
-        for (int i = 0; i < 4; i++)
+        var source = Bitmap(5, 5, Solid(25), offsetX: 7, offsetY: -2);
+        var halved = new float[3 * 10 * 10];
+        for (int i = 0; i < 100; i++)
         {
             halved[i] = 1f;
-            halved[8 + i] = 128 / 255f;
+            halved[200 + i] = 128 / 255f;
         }
 
         GfxBitmap result = UpscaleMath.Combine(halved, source);
 
-        Assert.Equal(2, result.Width);
-        Assert.Equal(2, result.Height);
-        Assert.Equal(14, result.OffsetX);
-        Assert.Equal(-4, result.OffsetY);
-        Assert.All(result.Pixels, pixel => Assert.Equal(Px(255, 0, 128), pixel));
-    }
-
-    [Fact]
-    public void Combine_places_a_vertical_edge_between_the_2x_pixels()
-    {
-        // Left half opaque, right half transparent: the reconstructed contour (Catmull-Rom over the binary
-        // coverage, threshold 0.28) falls exactly where the source edge is, doubled: between output columns
-        // 3 and 4. A hard 2x2 replication would put the step two columns wide.
-        var source = Bitmap(4, 4, Enumerable.Range(0, 16).Select(i => i % 4 < 2 ? Px(0, 0, 0) : Px(0, 0, 0, 0)).ToArray());
-        var halved = new float[3 * 8 * 8];
-        for (int i = 0; i < halved.Length; i++)
-            halved[i] = 0.5f;
-
-        GfxBitmap result = UpscaleMath.Combine(halved, source);
-
-        for (int y = 0; y < 8; y++)
-            for (int x = 0; x < 8; x++)
-            {
-                uint pixel = result.Pixels[y * 8 + x];
-                if (x <= 3)
-                {
-                    Assert.Equal(0xFF00_0000u, pixel & 0xFF00_0000u);
-                    Assert.Equal(Px(128, 128, 128), pixel); // the model's color, opaque so unpremultiplied
-                }
-                else
-                    // Premultiplied: nothing of the color extrapolated past the edge may show.
-                    Assert.Equal(0u, pixel);
-            }
-    }
-
-    [Fact]
-    public void Combine_keeps_a_one_pixel_line_two_pixels_wide()
-    {
-        // A single covered source column peaks at ~0.87 coverage in both of its 2x columns (and ~0.23 in the
-        // neighbors): the threshold of 0.28 keeps the line, a threshold of 0.5 would drop it entirely.
-        var source = Bitmap(4, 4, Enumerable.Range(0, 16).Select(i => i % 4 == 1 ? Px(0, 0, 0) : Px(0, 0, 0, 0)).ToArray());
-        var halved = new float[3 * 8 * 8];
-
-        GfxBitmap result = UpscaleMath.Combine(halved, source);
-
-        for (int y = 0; y < 8; y++)
-            for (int x = 0; x < 8; x++)
-                Assert.Equal(x is 2 or 3 ? 0xFF00_0000u : 0u, result.Pixels[y * 8 + x] & 0xFF00_0000u);
-    }
-
-    [Fact]
-    public void UpscaleShadow_keeps_the_semi_transparent_black_and_the_contour()
-    {
-        // Shadow pixels are the format's constant 0x88000000: the 2x shadow may keep that translucency — the
-        // model path's opaque alpha is what made shadows solid black — and its contour falls where Combine's
-        // falls (the same coverage reconstruction), here between output columns 3 and 4.
-        uint shadow = 0x8800_0000u;
-        var source = Bitmap(4, 4, Enumerable.Range(0, 16).Select(i => i % 4 < 2 ? shadow : 0u).ToArray());
-
-        GfxBitmap result = UpscaleMath.UpscaleShadow(source);
-
-        Assert.Equal(8, result.Width);
-        Assert.Equal(8, result.Height);
-        for (int y = 0; y < 8; y++)
-            for (int x = 0; x < 8; x++)
-                Assert.Equal(x <= 3 ? shadow : 0u, result.Pixels[y * 8 + x]);
-    }
-
-    [Fact]
-    public void UpscaleShadow_doubles_the_offsets_and_leaves_empty_shadows_empty()
-    {
-        var source = Bitmap(2, 2, new uint[4], offsetX: 7, offsetY: -2);
-
-        GfxBitmap result = UpscaleMath.UpscaleShadow(source);
-
-        Assert.Equal(4, result.Width);
-        Assert.Equal(4, result.Height);
-        Assert.Equal(14, result.OffsetX);
-        Assert.Equal(-4, result.OffsetY);
-        Assert.All(result.Pixels, pixel => Assert.Equal(0u, pixel));
+        Assert.Equal((10, 10, 14, -4), (result.Width, result.Height, result.OffsetX, result.OffsetY));
+        Assert.Equal(Px(255, 0, 128), result.Pixels[5 * 10 + 5]); // Inside the sprite: untouched.
     }
 
     [Fact]
     public void Combine_clamps_out_of_range_values_into_bytes()
     {
-        var source = Bitmap(1, 1, [Px(0, 0, 0)]);
-        var halved = new float[3 * 2 * 2];
-        for (int i = 0; i < 4; i++)
+        var source = Bitmap(5, 5, Solid(25));
+        var halved = new float[3 * 10 * 10];
+        for (int i = 0; i < 100; i++)
         {
             halved[i] = 1.5f;
-            halved[4 + i] = -0.5f;
-            halved[8 + i] = 1f;
+            halved[100 + i] = -0.5f;
+            halved[200 + i] = 1f;
         }
 
-        GfxBitmap result = UpscaleMath.Combine(halved, source);
-
-        Assert.All(result.Pixels, pixel => Assert.Equal(Px(255, 0, 255), pixel));
+        Assert.Equal(Px(255, 0, 255), UpscaleMath.Combine(halved, source).Pixels[5 * 10 + 5]);
     }
+
+    [Fact]
+    public void Combine_premultiplies_the_color_on_a_soft_edge()
+    {
+        var pixels = Solid(25);
+        for (int i = 0; i < 25; i += 5) // The left two columns transparent: a vertical edge.
+            pixels[i] = pixels[i + 1] = 0;
+        var halved = Enumerable.Repeat(1f, 3 * 10 * 10).ToArray();
+
+        GfxBitmap result = UpscaleMath.Combine(halved, Bitmap(5, 5, pixels));
+
+        var soft = result.Pixels.Single2DRowMiddle(10);
+        Assert.Contains(soft, pixel => pixel >> 24 is > 0 and < 255);
+        Assert.All(soft, pixel => Assert.Equal(pixel >> 24, pixel & 0xFF));
+    }
+
+    [Fact]
+    public void Smooth_alpha_keeps_the_inside_opaque_and_the_far_outside_clear()
+    {
+        var pixels = Solid(49);
+        for (int y = 0; y < 7; y++)
+            for (int x = 0; x < 3; x++)
+                pixels[y * 7 + x] = 0;
+
+        float[] alpha = UpscaleMath.SmoothAlpha(Bitmap(7, 7, pixels));
+
+        Assert.Equal(0, alpha[7 * 14 + 1], 4);
+        Assert.Equal(1, alpha[7 * 14 + 11], 4);
+    }
+
+    [Fact]
+    public void Smooth_alpha_turns_a_staircase_into_more_than_two_levels()
+    {
+        var pixels = new uint[64];
+        for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
+                pixels[y * 8 + x] = x >= y ? Px(0, 0, 0) : 0;
+
+        float[] alpha = UpscaleMath.SmoothAlpha(Bitmap(8, 8, pixels));
+
+        Assert.True(alpha.Select(value => MathF.Round(value, 2)).Distinct().Count() > 4);
+    }
+
+    [Fact]
+    public void Smooth_alpha_keeps_the_level_of_a_shadow()
+    {
+        var pixels = Enumerable.Repeat(Px(0, 0, 0, 128), 25).ToArray();
+
+        Assert.Equal(128 / 255f, UpscaleMath.SmoothAlpha(Bitmap(5, 5, pixels))[5 * 10 + 5], 3);
+    }
+
+    [Fact]
+    public void A_shadow_stays_semi_transparent_black_without_the_model()
+    {
+        var pixels = Enumerable.Repeat(0x8800_0000u, 25).ToArray();
+
+        GfxBitmap result = UpscaleMath.UpscaleShadow(Bitmap(5, 5, pixels, offsetX: 7, offsetY: -2));
+
+        Assert.Equal((10, 10, 14, -4), (result.Width, result.Height, result.OffsetX, result.OffsetY));
+        Assert.Equal(0x8800_0000u, result.Pixels[5 * 10 + 5]);
+        Assert.All(result.Pixels, pixel => Assert.Equal(0u, pixel & 0x00FF_FFFFu));
+    }
+
+    [Fact]
+    public void A_single_pixel_line_survives()
+    {
+        var pixels = new uint[49];
+        for (int y = 0; y < 7; y++)
+            pixels[y * 7 + 3] = Px(0, 0, 0);
+
+        float[] alpha = UpscaleMath.SmoothAlpha(Bitmap(7, 7, pixels));
+
+        Assert.True(alpha[7 * 14 + 6] > 0.5f);
+    }
+}
+
+internal static class RowHelpers
+{
+    /// <summary>The middle row of a square image of this width.</summary>
+    public static uint[] Single2DRowMiddle(this uint[] pixels, int width) => pixels.Skip(width / 2 * width).Take(width).ToArray();
 }

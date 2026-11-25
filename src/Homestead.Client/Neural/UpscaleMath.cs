@@ -14,92 +14,66 @@ public static class UpscaleMath
     /// </summary>
     public const int MaxUpscaleInput = 512;
 
-    /// <summary>
-    /// A 2x pixel is opaque when the Catmull-Rom resampled binary coverage of the source reaches this. Above
-    /// half (0.5) thin lines would drop out (a one-pixel line peaks at ~0.87 in one and ~0.23 in the neighbor);
-    /// 0.28 keeps those lines while still cutting the half-covered pixels at a sharp edge.
-    /// </summary>
-    public const float CoverageThreshold = 0.28f;
+    /// <summary>How far colors grow into the transparent area: the model looks a few pixels around each one.</summary>
+    private const int BleedPasses = 4;
+
+    /// <summary>Where the contour lies in the interpolated coverage: below 0.5, so that thin lines (poles, spears) survive.</summary>
+    private const float EdgeLevel = 0.28f;
+
+    /// <summary>Sample points per axis of a 2x pixel for the edge's coverage.</summary>
+    private const int EdgeSamples = 4;
 
     /// <summary>
-    /// How many scan passes <see cref="FillTransparentRgb"/> makes at most: one colors everything connected to
-    /// an opaque pixel, so this only bounds the work on pathological inputs (the passes stop early when nothing
-    /// changes).
-    /// </summary>
-    public const int ColorFillPasses = 16;
-
-    /// <summary>
-    /// Planar RGB in [0,1] (plane, row, column) for the model's NCHW input. Fully transparent pixels inherit
-    /// the nearest opaque neighbor's color (<see cref="FillTransparentRgb"/>) instead of the garbage under the
-    /// 1-bit alpha: black would bleed back out of the model as dark seams at the edges.
+    /// Planar RGB in [0,1] (plane, row, column) for the model's NCHW input. The RGB under transparent pixels is garbage
+    /// that would poison the inference, and black would show as a dark seam on soft edges, so the colors of the opaque
+    /// neighbors grow outwards over <see cref="BleedPasses"/> pixels; black only beyond that.
     /// </summary>
     public static float[] ToNchwRgb(GfxBitmap bitmap)
     {
+        uint[] colors = BleedColors(bitmap);
         var planes = new float[3 * bitmap.Width * bitmap.Height];
-        uint[] colors = FillTransparentRgb(bitmap);
         int plane = bitmap.Width * bitmap.Height;
         for (int i = 0; i < colors.Length; i++)
         {
-            uint color = colors[i];
-            planes[i] = (color & 0xFF) / 255f;
-            planes[plane + i] = ((color >> 8) & 0xFF) / 255f;
-            planes[2 * plane + i] = ((color >> 16) & 0xFF) / 255f;
+            uint pixel = colors[i];
+            planes[i] = (pixel & 0xFF) / 255f;
+            planes[plane + i] = ((pixel >> 8) & 0xFF) / 255f;
+            planes[2 * plane + i] = ((pixel >> 16) & 0xFF) / 255f;
         }
         return planes;
     }
 
-    /// <summary>
-    /// The RGB of every pixel with transparent ones filled from their surroundings: each still-empty pixel takes
-    /// the average of the eight neighbors that already have a color (opaque ones to begin with, ones filled
-    /// earlier in the same scan for a start). In practice one pass colors everything connected to an opaque
-    /// pixel; the passes only bound the work (they stop early when nothing changes). All-transparent bitmaps
-    /// stay black.
-    /// </summary>
-    public static uint[] FillTransparentRgb(GfxBitmap bitmap)
+    /// <summary>Opaque pixels as they are; a transparent one takes the mean color of its colored neighbors, pass by pass (alpha byte: colored or not).</summary>
+    private static uint[] BleedColors(GfxBitmap bitmap)
     {
         int width = bitmap.Width, height = bitmap.Height;
         var colors = new uint[bitmap.Pixels.Length];
-        bool filled = false;
-        for (int i = 0; i < bitmap.Pixels.Length; i++)
-            if (bitmap.Pixels[i] >> 24 != 0)
-            {
-                colors[i] = bitmap.Pixels[i] & 0xFF_FFFFu;
-                filled = true;
-            }
-        if (!filled)
-            return colors;
-        for (int pass = 0; pass < ColorFillPasses; pass++)
+        for (int i = 0; i < colors.Length; i++)
+            colors[i] = bitmap.Pixels[i] >> 24 == 0 ? 0 : bitmap.Pixels[i] | 0xFF00_0000u;
+        for (int pass = 0; pass < BleedPasses; pass++)
         {
-            bool changed = false;
+            var next = (uint[])colors.Clone();
             for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
                 {
-                    int i = y * width + x;
-                    if (colors[i] != 0)
+                    if (colors[y * width + x] >> 24 != 0)
                         continue;
                     int r = 0, g = 0, b = 0, count = 0;
-                    for (int dy = -1; dy <= 1; dy++)
-                        for (int dx = -1; dx <= 1; dx++)
+                    for (int ny = Math.Max(y - 1, 0); ny <= Math.Min(y + 1, height - 1); ny++)
+                        for (int nx = Math.Max(x - 1, 0); nx <= Math.Min(x + 1, width - 1); nx++)
                         {
-                            int nx = x + dx, ny = y + dy;
-                            if ((dx == 0 && dy == 0) || nx < 0 || ny < 0 || nx >= width || ny >= height)
+                            uint color = colors[ny * width + nx];
+                            if (color >> 24 == 0)
                                 continue;
-                            uint neighbor = colors[ny * width + nx];
-                            if (neighbor == 0)
-                                continue;
-                            r += (int)(neighbor & 0xFF);
-                            g += (int)(neighbor >> 8 & 0xFF);
-                            b += (int)(neighbor >> 16 & 0xFF);
+                            r += (int)(color & 0xFF);
+                            g += (int)((color >> 8) & 0xFF);
+                            b += (int)((color >> 16) & 0xFF);
                             count++;
                         }
                     if (count > 0)
-                    {
-                        colors[i] = (uint)(r / count) | (uint)(g / count) << 8 | (uint)(b / count) << 16;
-                        changed = true;
-                    }
+                        next[y * width + x] = (uint)(r / count) | (uint)(g / count) << 8 | (uint)(b / count) << 16 | 0xFF00_0000u;
                 }
-            if (!changed)
-                break;
+            colors = next;
         }
         return colors;
     }
@@ -138,13 +112,8 @@ public static class UpscaleMath
     }
 
     /// <summary>
-    /// The halved RGB back into a 2x bitmap. The 1-bit alpha is not replicated as blocks: the binary coverage is
-    /// resampled with Catmull-Rom (the kernel of <c>Upscale.fx</c>, 16 taps per 2x pixel, taps clamped at the
-    /// edges) and thresholded at <see cref="CoverageThreshold"/>, which places the contour with 2x sub-pixel
-    /// accuracy instead of jagged steps. Where no edge is near (the 5×5 source window around a pixel is all in or
-    /// all out) the coverage is simply copied. The RGB is the model's output premultiplied by that alpha, as the
-    /// game blends premultiplied: fully transparent pixels are black instead of showing the colors the model
-    /// extrapolated past the edge. Offsets doubled.
+    /// The halved RGB back into a 2x bitmap: bytes clamped to [0,1], premultiplied (as SpriteBatch expects) by the
+    /// anti-aliased alpha of <see cref="SmoothAlpha"/>, offsets doubled.
     /// </summary>
     public static GfxBitmap Combine(float[] halved, GfxBitmap source)
     {
@@ -152,133 +121,103 @@ public static class UpscaleMath
         if (halved.Length != 3 * width * height)
             throw new ArgumentException("Halved buffer is not twice the source size in every dimension.", nameof(halved));
         int plane = width * height;
-        bool[] opaque = OpaqueMap(source);
         var pixels = new uint[plane];
-        for (int i = 0; i < plane; i++)
-        {
-            if (!opaque[i])
-                continue; // Premultiplied: nothing to see, the color stays zero.
-            pixels[i] = ToByte(halved[i]) | ToByte(halved[plane + i]) << 8 | ToByte(halved[2 * plane + i]) << 16 | 0xFF00_0000u;
-        }
+        float[] alpha = SmoothAlpha(source);
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                int i = y * width + x;
+                float a = alpha[i];
+                pixels[i] = ToByte(halved[i] * a) | ToByte(halved[plane + i] * a) << 8 | ToByte(halved[2 * plane + i] * a) << 16 | ToByte(a) << 24;
+            }
         return new GfxBitmap(width, height, source.OffsetX * 2, source.OffsetY * 2, pixels);
     }
 
     /// <summary>
-    /// The 2x image of a shadow layer without the neural network: shadow pixels are the constant semi-transparent
-    /// black of the format (<c>GfxColor.Shadow</c>, <c>0x88000000</c> — no color detail a model could improve),
-    /// so only the contour is reconstructed, with the same sub-pixel coverage of <see cref="Combine"/>, and the
-    /// translucency is kept: the model path's opaque alpha would make the shadow solid black. A cheap CPU loop,
-    /// not an inference. Offsets doubled.
+    /// The 2x image of a shadow layer without the model: shadows are one constant semi-transparent black, so there is
+    /// no color for it to improve, only the contour of <see cref="SmoothAlpha"/> (which keeps their level). Premultiplied
+    /// black: the alpha byte alone. Offsets doubled.
     /// </summary>
     public static GfxBitmap UpscaleShadow(GfxBitmap source)
     {
-        int width = source.Width * 2, height = source.Height * 2;
-        bool[] opaque = OpaqueMap(source);
-        var pixels = new uint[width * height];
-        for (int i = 0; i < pixels.Length; i++)
-            if (opaque[i])
-                pixels[i] = 0x8800_0000u; // GfxColor.Shadow, kept semi-transparent.
-        return new GfxBitmap(width, height, source.OffsetX * 2, source.OffsetY * 2, pixels);
+        float[] alpha = SmoothAlpha(source);
+        var pixels = new uint[alpha.Length];
+        for (int i = 0; i < alpha.Length; i++)
+            pixels[i] = ToByte(alpha[i]) << 24;
+        return new GfxBitmap(source.Width * 2, source.Height * 2, source.OffsetX * 2, source.OffsetY * 2, pixels);
     }
 
     /// <summary>
-    /// Which 2x pixels are covered, for <see cref="Combine"/> and <see cref="UpscaleShadow"/>: near an edge the
-    /// binary source coverage resampled with Catmull-Rom reaches <see cref="CoverageThreshold"/>, elsewhere the
-    /// source pixel's coverage is copied (the same condition <see cref="Combine"/> applied per pixel).
+    /// The 1-bit (shadows: one constant value) alpha at 2x with soft edges. Catmull-Rom over the source makes a smooth
+    /// contour out of the staircase (outside the image transparent); each 2x pixel is covered by what share of its
+    /// <see cref="EdgeSamples"/>² sample points lie inside that contour. Pixels without an edge nearby skip all that.
     /// </summary>
-    private static bool[] OpaqueMap(GfxBitmap source)
+    public static float[] SmoothAlpha(GfxBitmap source)
     {
-        int width = source.Width * 2, height = source.Height * 2;
-        bool[] coverage = Coverage(source);
-        bool[] edges = EdgeMap(coverage, source.Width, source.Height);
-        var opaque = new bool[width * height];
+        int width = source.Width, height = source.Height;
+        float peak = 0;
+        var coverage = new float[width * height];
+        for (int i = 0; i < coverage.Length; i++)
+            peak = MathF.Max(peak, coverage[i] = (source.Pixels[i] >> 24) / 255f);
+        var result = new float[4 * width * height];
+        if (peak == 0)
+            return result;
+        for (int i = 0; i < coverage.Length; i++)
+            coverage[i] = coverage[i] > 0 ? 1 : 0;
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
             {
-                int sx = x / 2, sy = y / 2;
-                opaque[y * width + x] = edges[sy * source.Width + sx]
-                    ? CoverageAt(coverage, source.Width, source.Height, x, y) >= CoverageThreshold
-                    : coverage[sy * source.Width + sx];
+                float flat = Flat(coverage, width, height, x, y);
+                for (int by = 0; by < 2; by++)
+                    for (int bx = 0; bx < 2; bx++)
+                        result[(2 * y + by) * 2 * width + 2 * x + bx] =
+                            peak * (flat >= 0 ? flat : Covered(coverage, width, height, x + bx / 2f, y + by / 2f));
             }
-        return opaque;
+        return result;
     }
 
-    /// <summary>The 1-bit coverage of a source bitmap: opaque pixels count as fully covered, transparent as empty.</summary>
-    private static bool[] Coverage(GfxBitmap source)
+    /// <summary>The value of the 5x5 pixels around a pixel if they all agree (nothing to smooth), else -1.</summary>
+    private static float Flat(float[] coverage, int width, int height, int x, int y)
     {
-        var coverage = new bool[source.Pixels.Length];
-        for (int i = 0; i < source.Pixels.Length; i++)
-            coverage[i] = source.Pixels[i] >> 24 != 0;
-        return coverage;
+        float Value(int sx, int sy) => sx >= 0 && sy >= 0 && sx < width && sy < height ? coverage[sy * width + sx] : 0;
+        float first = Value(x, y);
+        for (int sy = y - 2; sy <= y + 2; sy++)
+            for (int sx = x - 2; sx <= x + 2; sx++)
+                if (Value(sx, sy) != first)
+                    return -1;
+        return first;
     }
 
-    /// <summary>
-    /// Which source pixels have an edge nearby: the 5×5 window around them holds covered and uncovered pixels
-    /// both (the 4×4 Catmull-Rom footprint of any of their 2x pixels reaches two source pixels out). Only these
-    /// need the resampling; everywhere else the coverage is copied.
-    /// </summary>
-    private static bool[] EdgeMap(bool[] coverage, int width, int height)
+    /// <summary>Share of the sample points of the half-pixel area at (x, y) (source pixels, top left) inside the contour.</summary>
+    private static float Covered(float[] coverage, int width, int height, float x, float y)
     {
-        var edges = new bool[coverage.Length];
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
+        int inside = 0;
+        for (int sy = 0; sy < EdgeSamples; sy++)
+            for (int sx = 0; sx < EdgeSamples; sx++)
             {
-                bool any = false, anyEmpty = false;
-                for (int dy = -2; dy <= 2 && !(any && anyEmpty); dy++)
-                    for (int dx = -2; dx <= 2; dx++)
+                // Pixel centers lie on whole coordinates here: a pixel's area reaches half a pixel to each side.
+                float u = x - 0.5f + (sx + 0.5f) / (2 * EdgeSamples), v = y - 0.5f + (sy + 0.5f) / (2 * EdgeSamples);
+                int left = (int)MathF.Floor(u), top = (int)MathF.Floor(v);
+                float[] wx = CatmullRom(u - left), wy = CatmullRom(v - top);
+                float sum = 0;
+                for (int ty = 0; ty < 4; ty++)
+                    for (int tx = 0; tx < 4; tx++)
                     {
-                        int nx = x + dx, ny = y + dy;
-                        if (nx < 0 || ny < 0 || nx >= width || ny >= height)
-                            continue;
-                        if (coverage[ny * width + nx])
-                            any = true;
-                        else
-                            anyEmpty = true;
+                        int px = left - 1 + tx, py = top - 1 + ty;
+                        if (px >= 0 && py >= 0 && px < width && py < height)
+                            sum += wx[tx] * wy[ty] * coverage[py * width + px];
                     }
-                edges[y * width + x] = any && anyEmpty;
+                if (sum >= EdgeLevel)
+                    inside++;
             }
-        return edges;
+        return inside / (float)(EdgeSamples * EdgeSamples);
     }
 
-    /// <summary>
-    /// The Catmull-Rom resampled coverage at 2x pixel (<paramref name="x"/>, <paramref name="y"/>): the sample
-    /// point is the pixel's center in source coordinates (the same <c>-0.5</c> convention as <c>Upscale.fx</c>),
-    /// the four taps per axis clamp at the bitmap's edge like the shader's sampler.
-    /// </summary>
-    private static float CoverageAt(bool[] coverage, int width, int height, int x, int y)
-    {
-        // The center of 2x pixel x lies at (x + 0.5) / 2 - 0.5 in source pixels: inside source pixel x / 2, a
-        // quarter from its left edge (x even) or from its right edge (x odd, fraction 0.25).
-        float fx = (x + 0.5f) / 2 - 0.5f, fy = (y + 0.5f) / 2 - 0.5f;
-        var wx = CatmullRom(fx - MathF.Floor(fx));
-        var wy = CatmullRom(fy - MathF.Floor(fy));
-        float sum = 0;
-        int rowStart = (int)MathF.Floor(fy) - 1, columnStart = (int)MathF.Floor(fx) - 1;
-        for (int tapY = 0; tapY < 4; tapY++)
-        {
-            int sy = Math.Clamp(rowStart + tapY, 0, height - 1);
-            for (int tapX = 0; tapX < 4; tapX++)
-            {
-                int sx = Math.Clamp(columnStart + tapX, 0, width - 1);
-                if (coverage[sy * width + sx])
-                    sum += wx[tapX] * wy[tapY];
-            }
-        }
-        return sum;
-    }
-
-    /// <summary>The Catmull-Rom weights of the taps at -1, 0, 1, 2 around <paramref name="t"/> in [0,1),
-    /// like <c>Upscale.fx</c>.</summary>
+    /// <summary>Catmull-Rom weights of the taps at -1, 0, 1, 2 around the fraction t.</summary>
     private static float[] CatmullRom(float t)
     {
         float t2 = t * t, t3 = t2 * t;
-        return
-        [
-            -0.5f * t3 + t2 - 0.5f * t,
-            1.5f * t3 - 2.5f * t2 + 1,
-            -1.5f * t3 + 2 * t2 + 0.5f * t,
-            0.5f * t3 - 0.5f * t2,
-        ];
+        return [-0.5f * t3 + t2 - 0.5f * t, 1.5f * t3 - 2.5f * t2 + 1, -1.5f * t3 + 2 * t2 + 0.5f * t, 0.5f * t3 - 0.5f * t2];
     }
 
     /// <summary>Lanczos2 (a = 2) weights of the four taps around a half-pixel, like <c>Upscale.fx</c>'s kernel.</summary>

@@ -379,11 +379,6 @@ public sealed class MapGame : Game
     /// <summary>Whether the user wants the neural upscaling this session: the setting at the start, F4 afterwards
     /// (it stays true when the system cannot deliver, so the corner notice keeps explaining why it is off).</summary>
     private bool _neuralWanted;
-    /// <summary>How long the loading screen waits at most for the precomputed 2x atlas (WarmNeuralUpscale);
-    /// what is not done by then continues in the background. Shadows cost no inference (UpscaleShadow), so most
-    /// of a match's sprites fit into 5 s; a longer hold kept players waiting without visible progress.</summary>
-    private const double WarmHoldSeconds = 5;
-    private readonly System.Diagnostics.Stopwatch _warmupHold = new();
     private bool _showClock;
 
     /// <param name="peoples">Peoples for the players whose people the map leaves open (see <see cref="OriginalScenario.Load"/>).</param>
@@ -930,25 +925,6 @@ public sealed class MapGame : Game
         _controlGroups = new ControlGroups(_local);
         _selectedBuilding = null;
         _camera = ToWorld(_start);
-        WarmNeuralUpscale();
-    }
-
-    /// <summary>
-    /// With the setting on, the whole 2x atlas of this game is precomputed while the loading screen still holds:
-    /// every settler sequence of the peoples in the match and of the shared files is loaded and queued (the
-    /// worker finishes in the background; see the loading hold in <see cref="Update"/>). F4 alone does not warm —
-    /// a mid-session toggle stays progressive by design.
-    /// </summary>
-    private void WarmNeuralUpscale()
-    {
-        if (!_sprites.NeuralUpscaleEnabled)
-            return;
-        var peoples = _playerCatalogs.Select(c => c.Civilization).Distinct().ToList();
-        // "cN" file groups (SettlerAnimations): people 0-3 → 10-19, 20-29, 30-39, 40-49; the rest is shared.
-        IEnumerable<int> Shared() => _gfx.FileNumbers.Where(f => f < 10 || f >= 60);
-        IEnumerable<int> PeopleFiles(Civilization people) => _gfx.FileNumbers.Where(f => f / 10 == (int)people + 1);
-        var files = Shared().Concat(peoples.SelectMany(PeopleFiles).Distinct());
-        _sprites.Warmup(files);
     }
 
     /// <summary>
@@ -1007,7 +983,6 @@ public sealed class MapGame : Game
             ? new Vector2(camX, camY)
             : ToWorld(_start);
         _message = $"game loaded ({_map.Name})";
-        WarmNeuralUpscale();
     }
 
     /// <summary>A game started or loaded: no notes yet, defeats before it untold, the time since saving from 0.</summary>
@@ -1719,13 +1694,8 @@ public sealed class MapGame : Game
             {
                 _afterLoading = null;
                 load();
-                _warmupHold.Restart();
-            }
-            if (_loading is { Loaded: false } && _afterLoading is null
-                && (!_sprites.NeuralUpscalePending || _warmupHold.Elapsed.TotalSeconds >= WarmHoldSeconds))
-                // With the neural setting on, the loading screen holds while the precomputed 2x atlas is built
-                // (bounded: what is left trickles in over the first minutes), so play does not begin at half FPS.
                 _loading.MarkLoaded();
+            }
             _previousKeys = Keyboard.GetState();
             _previousMouse = SdlMouse.GetState();
             base.Update(gameTime);
@@ -3492,7 +3462,8 @@ public sealed class MapGame : Game
         // sees them) and the filter — still Catmull-Rom or Lanczos2 — scales by zoom / 2 instead of by zoom.
         bool smooth = _scaling != Scaling.Sharp && _zoom > 1;
         int worldScale = smooth && _sprites.NeuralUpscaleEnabled
-            && FitsTexture(2 * MathF.Ceiling(visible.Width), 2 * MathF.Ceiling(visible.Height)) ? 2 : 1;        bool hiResWorld = worldScale == 2;
+            && FitsTexture(2 * MathF.Ceiling(visible.Width), 2 * MathF.Ceiling(visible.Height)) ? 2 : 1;
+        bool hiResWorld = worldScale == 2;
         var origin = new Vector2(MathF.Floor(visible.X), MathF.Floor(visible.Y));
         var worldView = View;
         var worldProjection = Matrix.CreateOrthographicOffCenter(0, viewport.Width, viewport.Height, 0, -1, 1);
