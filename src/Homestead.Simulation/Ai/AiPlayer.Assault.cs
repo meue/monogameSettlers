@@ -23,6 +23,7 @@ public sealed partial class AiPlayer
         AssaultOn = player;
         _strikes.Clear();
         _campaign = null;
+        _offensive = null;
         _nextMilitary = _world.Tick;
         Note($"assaults player {player + 1} with everything it has");
     }

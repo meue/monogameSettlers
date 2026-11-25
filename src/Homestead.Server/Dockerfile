@@ -3,14 +3,14 @@
 #   docker run -p 8080:8080 homestead-server
 # For a server others can reach: the flags and limits in src/Homestead.Server/README.md.
 # Without .git (e.g. a source archive): --build-arg VERSION=1.2.3.
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 ARG VERSION=
 WORKDIR /source
 COPY . .
 RUN dotnet publish src/Homestead.Server/Homestead.Server.csproj -c Release -o /app \
     ${VERSION:+-p:MinVerVersionOverride=$VERSION}
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 WORKDIR /app
 COPY --from=build /app .
 USER $APP_UID

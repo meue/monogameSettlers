@@ -119,7 +119,10 @@ public sealed partial class AiPlayer
             Note(_campaign is null ? $"cannot take up the challenge of player {challenger + 1}: no target within reach"
                 : $"takes up the challenge of player {challenger + 1}");
             ChallengedBy = null;
+            OffensiveTakenUp();
         }
+        else if (_campaign is null && _offensive is not null)
+            ContinueOffensive(military, spare);
         if (_campaign is null && !EnemyGroups.Any(g => g.Armed && onOwnLand(g)))
             CheckSuperiority(military, spare);
         if (_campaign is null && !EnemyGroups.Any(g => g.Armed && onOwnLand(g)))

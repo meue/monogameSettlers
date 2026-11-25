@@ -97,7 +97,7 @@ MonoGame game. Capture options: [capture.md](capture.md).
     AI chat (`AiChat`, only with a key: `aiChat` section of `settings.json` with `apiKey`, `model` (default `claude-haiku-5-5`, without thinking;
     other models always think), `effort` (`low`), otherwise `ANTHROPIC_API_KEY`; tokens per request on the console): every own line → a request to the Claude API in the background (Anthropic SDK), one at a time
     (things said in between go with the next one). Prompt and character voices in `data/ai-chat.json` (system cached), situation `AiSituation`.
-    Claude speaks for all computer opponents via the tools `say` (→ `World.Say`), `attack` (→ `AiPlayer.Challenge`, `all_in` → `Assault`;
+    Claude speaks for all computer opponents via the tools `say` (→ `World.Say`), `attack` (→ `AiPlayer.Challenge`, by an ally of the human → `StartOffensive`, `all_in` → `Assault`;
     per opponent at most every `attackCooldownSeconds`), `truce` (→ `Truce`, up to `truceMaxMinutes`) and `defend` (→ `Help`, up to `helpMaxMinutes`); applied in the game thread, answers for another game discarded; errors `chat.aiFailed`;
     unsolicited (`AiChat.Reactions`, `reactions` in ai-chat.json): goods that our own donkeys unload on a computer opponent's land
     (`World.GoodsHandedOver`), summed by `giftValues` (gold 10 … food 2, rest 0.2, log −1), at `giftPleased` (60) or
@@ -145,7 +145,7 @@ MonoGame game. Capture options: [capture.md](capture.md).
     clickable → order, the button stays pressed (dark image), both locked until the launch; building material delivered/needed at the bottom),
     hammer on the right (file 03 GUI 392) → the next left-click into the water sets the dock (pale preview at the mouse pointer; right-click/Esc cancels;
     locked during construction).
-    German names/states in `data/ui.json`; text via FontStashSharp with the system font.
+    German names/states in `data/ui.json`; text via FontStashSharp with the system font (`UiFont.Locate`: fixed Windows/macOS paths, then DejaVu/Liberation/Noto/… searched recursively in `/usr/share/fonts`, `/usr/local/share/fonts`, `/run/host/fonts`, `$XDG_DATA_HOME/fonts`, `~/.fonts`, `$XDG_DATA_DIRS/*/fonts`, last `fc-match sans-serif:lang=pl`, `.ttf` only).
 - **Statistics** (`StatisticsScreen`; "Quit game", after a lost game Esc; the game stands still): blue marble (`statisticsBackground`, file 02 GUI 29),
   pages Overview (table, land share), Economy, Military, Goods (every good per minute), Society – charts `Charts` (lines with values
   under the mouse, shares, bars) from `GameHistory`/`ProductionStatistics`; ←/→/Tab page through; "Resume" (Esc; not after "Quit game"),

@@ -56,6 +56,82 @@ public class AiChatTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_campaign_ends_when_an_ally_takes_the_target()
+    {
+        // A save: the human took the Egyptian tower two allies were attacking; their campaigns went on against the
+        // human's tower for good, and every later "attack them" in the chat was promised but refused.
+        var (world, ai, enemyTower) = Standoff();
+        world.PlayerCount = 3;
+        world.Teams.AddRange([1, 0, 1]);
+        Assert.True(ai.Challenge(1));
+        Run(world, 90 * World.TicksPerSecond, () => ai.CampaignAttacking);
+        Assert.True(ai.CampaignAttacking);
+
+        typeof(Building).GetProperty(nameof(Building.Player))!.SetValue(enemyTower, 2); // as taken by player 3
+        Run(world, 5 * World.TicksPerSecond);
+        Assert.Null(ai.CampaignAgainst);
+        Assert.Contains(ai.Log, l => l.Contains("player 3 took the tower"));
+        Assert.DoesNotContain(world.Settlers, s => s.Player == 0 && world.Military.AttackTarget(s) == enemyTower);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void An_offensive_marches_on_from_target_to_target_and_joins_the_allied_front(bool allyAtFarTower)
+    {
+        // Player 1 (the AI) and player 3 on one team against player 2: towers at 40,90 and 40,125 (35 fields apart, within
+        // offensive.range), a third one far off at 130,140 – taken only when player 3's soldiers stand there.
+        var map = new GameMap(200);
+        var world = new World(map, TestConfig.NoTools) { TerritoryRules = true, PlayerCount = 3 };
+        world.Teams.AddRange([1, 0, 1]);
+        var tower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(40, 40), force: true)!;
+        world.SpawnSoldier(tower.Door, SoldierType.Swordsman);
+        for (int i = 0; i < 12; i++)
+            world.SpawnSoldier(new GridPoint(44 + i % 6, 46 + i / 6), SoldierType.Swordsman);
+        var near = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(40, 90), force: true)!;
+        var next = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(40, 125), force: true)!;
+        var far = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(130, 140), force: true)!;
+        foreach (var enemy in new[] { near, next, far })
+            world.SpawnSoldier(enemy.Door, SoldierType.Swordsman, player: 1);
+        var ai = new AiPlayer(world, Romans, 0, character: "standard");
+        world.AiPlayers.Add(ai);
+
+        Assert.True(ai.StartOffensive(1));
+        Assert.Equal(1, ai.OffensiveAgainst);
+        Assert.False(ai.StartOffensive(1));
+        Assert.Contains("offensive through enemy land", AiSituation.Build(world, 2).Players[0].Doing);
+        Run(world, 900 * World.TicksPerSecond, () => next.Player == 0);
+        // Player 3's soldiers fighting at the far tower when the second one falls: the offensive comes along.
+        var ally = allyAtFarTower ? world.SpawnSoldier(new GridPoint(126, 142), SoldierType.Swordsman, player: 2) : null;
+        Run(world, 900 * World.TicksPerSecond, () => ai.OffensiveAgainst is null);
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Null(ai.OffensiveAgainst);
+        Assert.Contains(ai.Log, l => l.Contains("no target left within reach"));
+        Assert.Equal(0, near.Player);
+        Assert.Equal(0, next.Player);
+        Assert.Equal(allyAtFarTower ? 0 : 1, far.Player);
+    }
+
+    [Fact]
+    public void An_offensive_ends_with_the_first_retreat()
+    {
+        // Too few against a strong garrison: it gives up or retreats, and the offensive is over.
+        var (world, ai, enemyTower) = Standoff(idle: 2);
+        Assert.True(ai.StartOffensive(1));
+        Run(world, 30 * World.TicksPerSecond, () => ai.CampaignAgainst is not null);
+        Assert.Equal(1, ai.CampaignAgainst);
+        for (int i = 0; i < 8; i++)
+            world.SpawnSoldier(new GridPoint(40 + i % 4, 136 + i / 4), SoldierType.Swordsman, player: 1);
+        Run(world, 300 * World.TicksPerSecond, () => ai.OffensiveAgainst is null);
+        foreach (string line in ai.Log)
+            output.WriteLine(line);
+        Assert.Null(ai.OffensiveAgainst);
+        Assert.Contains(ai.Log, l => l.Contains("after 1 campaigns: retreated") || l.Contains("after 1 campaigns: gave up a campaign"));
+        Assert.Equal(1, enemyTower.Player);
+    }
+
+    [Fact]
     public void A_skirmisher_takes_up_a_challenge_far_beyond_its_reach_with_half_its_idle_fighters()
     {
         // The skirmisher only campaigns within 60 fields of its land (attack.maxDistance); a challenge goes anyway (a save:

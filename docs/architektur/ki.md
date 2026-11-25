@@ -53,7 +53,8 @@ Concept of the characters and tactics: [../KI-TACTICS.md](../KI-TACTICS.md).
     `rotatingTowers` (Unyielding: 30%, redrawn every minute), Hothead: one heap.
   - `AiPlayer.Campaign`: gathers soldiers, captures enemy military buildings at 1.5:1 (garrison weighted by
     `attack.garrisonWeight`, castle double). While gathering, it gives up only below 85% of the cancellation
-    threshold; an abandoned/vacated target is left alone for 60 s.
+    threshold; an abandoned/vacated target is left alone for 60 s. Ends once the target is no enemy's any more
+    (taken by us or an ally – before, it besieged the ally's building for good and refused every challenge).
     Values: `attack.armyRatio` (0 = irrelevant), `attack.commit` (share of free soldiers, 1 = all), `attack.abortRatio` (0 = never give up),
     `attack.maxDistance` (0 = irrelevant), `military.retreatRatio` (0 = never retreat).
   - `AiPlayer.Assault` (cheat `/attackme`, `AssaultOn`, saved): instead of strikes/campaign/defence/hospital,
@@ -66,6 +67,12 @@ Concept of the characters and tactics: [../KI-TACTICS.md](../KI-TACTICS.md).
     pressure); 1:1 against the defence suffices, at least half of the remaining free fighters come along; a
     normal campaign afterwards. Not during campaign/assault, allies never.
     `CanTakeUpChallenge`: the same target search as a dry run (for `cannotAttackSpeaker` in the situation).
+  - `AiPlayer.Offensive` (AI chat: an ally of the human asked to attack, `AiReplyKind.Offensive`; `_offensive`, saved, lazy):
+    starts as a challenge, then after every finished campaign (taken, gone, taken by an ally) at once the next one, without time
+    limit: any enemy's occupied military building within `offensive.range` (40) of the last target or `offensive.frontRange` (30)
+    of allied soldiers outside on enemy land (`AlliedFront`, distance counts half → preferred), like a challenge otherwise but with
+    `offensive.ratio` (1.0); the rally point is the own military building nearest the target, so usually the one just taken.
+    Ends without a target in reach/strong enough, on retreat, a campaign given up, or `Assault`. Situation: `doing` "offensive …".
   - `AiPlayer.Superiority` (`superiority` in `ai.json`, all characters; against opponents out of range on large
     maps): from `startMinutes` (60) every `intervalSeconds` (300) a crude comparison of the whole armies (all
     soldiers × combat strength); against the weakest enemy with ≥ `armyRatio` (2):1 a campaign as with the

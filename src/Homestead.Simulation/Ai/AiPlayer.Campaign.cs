@@ -42,22 +42,25 @@ public sealed partial class AiPlayer
     /// <param name="only">A challenge (<see cref="Challenge"/>) or superiority (<see cref="CheckSuperiority"/>): only against this
     /// player, whatever the armies, the distance, the character's timing and its ratio say (one to one is enough).</param>
     /// <param name="ratio">With <paramref name="only"/>: the force against the defence instead of one to one.</param>
-    private void StartCampaign(List<Building> military, List<Settler> spare, int? only = null, double? ratio = null)
+    /// <param name="offensive">An offensive going on (<see cref="ContinueOffensive"/>): any enemy near its focus or the allied
+    /// front, like a challenge otherwise.</param>
+    private void StartCampaign(List<Building> military, List<Settler> spare, int? only = null, double? ratio = null, Offensive? offensive = null)
     {
         var rules = _config.Attack;
+        bool forced = only is not null || offensive is not null;
         // Bowmen do not attack buildings: they stay home for defence and guerilla.
         var fighters = spare.Where(s => s.SoldierType != SoldierType.Bowman).ToList();
-        if (fighters.Count < (only is null ? rules.MinSoldiers : 1))
+        if (fighters.Count < (forced ? 1 : rules.MinSoldiers))
             return;
         // Decision point "timing": a trait may hold campaigns back.
-        if (only is null && Character.Traits.Any(t => !t.AllowCampaign(this)))
+        if (!forced && Character.Traits.Any(t => !t.AllowCampaign(this)))
             return;
-        if (ChooseCampaign(military, fighters, only, ratio) is not { } chosen)
+        if (ChooseCampaign(military, fighters, only, ratio, offensive) is not { } chosen)
             return;
         spare.RemoveAll(chosen.Force.Contains);
         fighters.RemoveAll(chosen.Force.Contains);
         // A share of the other spare soldiers comes along (all of them: full strength); against a challenger at least half.
-        double commit = only is null ? rules.Commit : Math.Max(rules.Commit, ChallengeCommit);
+        double commit = forced ? Math.Max(rules.Commit, ChallengeCommit) : rules.Commit;
         var along = fighters.OrderBy(s => PathFinder.Distance(s.Position, chosen.Rally.Door))
             .Take((int)Math.Ceiling(fighters.Count * commit)).ToList();
         chosen.Force.AddRange(along);
@@ -74,11 +77,14 @@ public sealed partial class AiPlayer
 
     /// <summary>The target building, the own military building to gather at and the soldiers needed, or null without a target.</summary>
     private (Building Target, Building Rally, List<Settler> Force)? ChooseCampaign(List<Building> military, List<Settler> fighters, int? only,
-        double? onlyRatio = null)
+        double? onlyRatio = null, Offensive? offensive = null)
     {
         var rules = _config.Attack;
-        double ratio = only is null ? rules.Ratio : onlyRatio ?? Math.Min(rules.Ratio, 1.0);
-        int minSoldiers = only is null ? rules.MinSoldiers : 1;
+        bool forced = only is not null || offensive is not null;
+        double ratio = offensive is not null ? (_config.Offensive ?? AiConfig.OffensiveRules.Default).Ratio
+            : only is null ? rules.Ratio : onlyRatio ?? Math.Min(rules.Ratio, 1.0);
+        int minSoldiers = forced ? 1 : rules.MinSoldiers;
+        var front = offensive is null ? [] : AlliedFront();
         var pathFinder = _world.PathFinder!;
         // Team against team; the own army fights on foreign land, the enemy's at home.
         var armies = Armies();
@@ -91,16 +97,20 @@ public sealed partial class AiPlayer
                                                            && b.State == BuildingState.Finished && _world.Military.IsOccupied(b)
                                                            && !_givenUp.ContainsKey(b.Id) && (only is null ? !InTruce(b.Player) : b.Player == only)))
         {
+            // An offensive goes on near its last target or the allies' front only.
+            double? onward = offensive is null ? null : OffensiveDistance(offensive, front, target.Position);
+            if (offensive is not null && onward is null)
+                continue;
             // Clearly stronger than that enemy as a whole.
-            if (only is null && ownArmy < TeamArmy(armies, target.Player) * rules.ArmyRatio)
+            if (!forced && ownArmy < TeamArmy(armies, target.Player) * rules.ArmyRatio)
                 continue;
             // An outpost far away could not be held. Measured from the own land: the own military buildings stand
             // some 30 fields behind its edge, as the enemy's do behind theirs.
-            if (only is null && rules.MaxDistance > 0 && !OwnLandWithin(target.Position, rules.MaxDistance))
+            if (!forced && rules.MaxDistance > 0 && !OwnLandWithin(target.Position, rules.MaxDistance))
                 continue;
             var rally = military.MinBy(b => PathFinder.Distance(b.Position, target.Position))!;
-            // A challenge fights its way through whatever stands on the way.
-            if (!pathFinder.AreConnected(rally.Door, target.Door) || only is null && !WayIsClear(rally.Door, target))
+            // A challenge or offensive fights its way through whatever stands on the way.
+            if (!pathFinder.AreConnected(rally.Door, target.Door) || !forced && !WayIsClear(rally.Door, target))
                 continue;
             double defense = Defense(target);
             var force = new List<Settler>();
@@ -116,7 +126,7 @@ public sealed partial class AiPlayer
             if (strength < defense * ratio || force.Count < minSoldiers)
                 continue;
             // Weakly defended and close to the own land first.
-            double score = (defense + 1) * (1 + PathFinder.Distance(rally.Position, target.Position) / 30.0);
+            double score = (defense + 1) * (1 + (onward ?? PathFinder.Distance(rally.Position, target.Position)) / 30.0);
             if (best is null || score < best.Value.Score)
                 best = (target, rally, force, score);
         }
@@ -132,9 +142,11 @@ public sealed partial class AiPlayer
         c.Soldiers.RemoveAll(s => s.IsDead || s.IsInside || s.Player != Player); // also won over by a spell
         c.Resting.IntersectWith(c.Soldiers);
         var target = c.Target;
-        if (!target.Exists || target.Player == Player || c.Soldiers.Count == 0)
+        // Taken by an ally (or the own side) counts as won: otherwise it would besiege a friend's building for good.
+        if (!target.Exists || !IsEnemy(target.Player) || c.Soldiers.Count == 0)
         {
             Note(target.Player == Player ? $"took the {target.Definition.Name} at {target.Position.X},{target.Position.Y}"
+                : target.Exists && !IsEnemy(target.Player) ? $"player {target.Player + 1} took the {target.Definition.Name} at {target.Position.X},{target.Position.Y}"
                 : c.Soldiers.Count == 0 ? $"lost the campaign against {target.Position.X},{target.Position.Y}"
                 : $"the {target.Definition.Name} at {target.Position.X},{target.Position.Y} is gone");
             if (c.Soldiers.Count > 0)
@@ -161,6 +173,7 @@ public sealed partial class AiPlayer
             if (strength < defense * rules.AbortRatio * GatherSlack && !TurnWithSpell(target.Position, strength, defense * rules.AbortRatio))
             {
                 Note($"gives up the campaign against {target.Position.X},{target.Position.Y}: the defence got stronger");
+                EndOffensive("gave up a campaign");
                 _world.Military.Move(c.Soldiers, HomeDoor());
                 _givenUp[target.Id] = _world.Tick + GiveUpTicks;
                 _campaign = null;
@@ -176,6 +189,7 @@ public sealed partial class AiPlayer
         if (strength < defense * _config.Military.RetreatRatio && !TurnWithSpell(target.Door, strength, defense * _config.Military.RetreatRatio))
         {
             Note($"retreats from {target.Position.X},{target.Position.Y}");
+            EndOffensive("retreated");
             _world.Military.Move(c.Soldiers, RetreatDoor(CenterOf(c.Soldiers), target.Door), forced: true);
             _givenUp[target.Id] = _world.Tick + GiveUpTicks;
             _campaign = null;

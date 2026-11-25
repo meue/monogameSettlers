@@ -130,6 +130,8 @@ public static class AiSituation
             doing.Add($"about to attack player {challenger + 1}");
         else if (ai.CampaignAgainst is { } target)
             doing.Add($"campaign against player {target + 1} ({(ai.CampaignAttacking ? "attacking" : "gathering")})");
+        if (ai.OffensiveAgainst is { } offensive)
+            doing.Add($"offensive through enemy land, started against player {offensive + 1} (marching on target after target)");
         if (ai.Helping is { } ally)
             doing.Add($"helping player {ally + 1} with {ai.HelperCount} soldiers");
         for (int player = 0; player < players; player++)
