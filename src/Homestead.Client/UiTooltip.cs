@@ -41,8 +41,10 @@ public static class UiTooltip
         public bool Due(double now) => _key is not null && now - _lastDrawn <= Pause && now - _since >= Delay;
     }
 
-    /// <summary>Draws the text next to the cursor, kept inside <paramref name="area"/> (screen space).</summary>
-    public static void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, string text, Vector2 cursor, Rectangle area, float scale)
+    /// <summary>Draws the text next to the cursor, kept inside <paramref name="area"/> (screen space); with
+    /// <paramref name="maxWidth"/> (screen pixels) longer texts break into lines.</summary>
+    public static void Draw(SpriteBatch batch, Texture2D pixel, UiFont font, string text, Vector2 cursor, Rectangle area, float scale,
+        int? maxWidth = null)
     {
         const int TextSize = 16, MinTextSize = 12;
         const int PaddingX = 8, PaddingY = 5;
@@ -50,6 +52,8 @@ public static class UiTooltip
         const int GapRight = 14, GapBelow = 18, GapAbove = 8;
         const float BoxOpacity = 0.92f, FrameOpacity = 0.7f;
         int size = Math.Max(MinTextSize, (int)MathF.Round(TextSize * scale));
+        if (maxWidth is { } wrap)
+            text = string.Join('\n', font.Wrap(text, wrap - 2 * PaddingX, size));
         var measured = font.Measure(text, size);
         int width = (int)measured.X + 2 * PaddingX, height = (int)measured.Y + 2 * PaddingY;
         int x = (int)cursor.X + GapRight, y = (int)cursor.Y + GapBelow;

@@ -8,6 +8,13 @@ namespace Homestead.Client;
 public enum Language { German, English, Polish }
 
 /// <summary>
+/// How the world picture reaches the screen at zoom above 1: <c>CatmullRom</c> without upscaling (as before it),
+/// <c>Lanczos2</c> with the neural 2x sprites (whose target is double size, the filter scales by zoom / 2; see
+/// MapGame). F2 cycles all four for the session only, a developer key for comparisons.
+/// </summary>
+public enum Scaling { Linear, CatmullRom, Sharp, Lanczos2 }
+
+/// <summary>
 /// The look of the title and loading screens: <c>Normal</c> the Gold Edition's title and each campaign's loading
 /// screen; the others always gold, the original's orange (<c>Classic</c>) or the Amazons' purple.
 /// </summary>
@@ -52,6 +59,13 @@ public sealed record DisplaySettings
     /// <summary>Chat commands (<c>/cheats</c>, <c>/attackme</c> …) work; only in the file, the settings screen keeps it as it is.</summary>
     public bool Cheats { get; init; }
 
+    /// <summary>"Upscaling": neural x2 sprites with the Lanczos2 filter (off by default: as before, Catmull-Rom);
+    /// F4 switches the sprites for the session only.</summary>
+    public bool NeuralUpscale { get; init; }
+
+    /// <summary>The world filter that goes with the setting (F2 overrides it for the session).</summary>
+    public Scaling Scaling => NeuralUpscale ? Scaling.Lanczos2 : Scaling.CatmullRom;
+
     /// <summary>The settings in the file (default: the user's); missing or unreadable values keep their default.</summary>
     public static DisplaySettings Load(string? path = null)
     {
@@ -74,6 +88,7 @@ public sealed record DisplaySettings
             AutoSave = Flag("autoSave", settings.AutoSave),
             IntroVideo = Flag("introVideo", settings.IntroVideo),
             Cheats = Flag("cheats", settings.Cheats),
+            NeuralUpscale = Flag("neuralUpscale", settings.NeuralUpscale),
             Language = display.TryGetProperty("language", out var language) && language.ValueKind == JsonValueKind.String
                 ? Lang.Parse(language.GetString())
                 : settings.Language,
@@ -102,5 +117,6 @@ public sealed record DisplaySettings
             ["introVideo"] = IntroVideo,
             ["preferredColor"] = PlayerColors.Choices[PreferredColor].Id,
             ["cheats"] = Cheats,
+            ["neuralUpscale"] = NeuralUpscale,
         }, path);
 }

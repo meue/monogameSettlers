@@ -501,7 +501,10 @@
       "introVideo": "Wideo intro",
       "introVideoHint": "Tak: intro oryginału przy każdym uruchomieniu (kliknięcie, Esc, spacja lub Enter pomija).",
       "preferredColor": "Preferowany kolor",
-      "preferredColorHint": "Twój kolor jako gracza 1 na ekranie startowym, o ile nie wybierzesz innego."
+      "preferredColorHint": "Twój kolor jako gracza 1 na ekranie startowym, o ile nie wybierzesz innego.",
+      "neuralUpscale": "Skalowanie grafiki",
+      "neuralUpscaleHint": "Przy przybliżaniu rysuje postacie i obiekty w podwójnej rozdzielczości, ostrzej i gładziej. Wymaga więcej mocy obliczeniowej; wyłączone: znany wygląd, dobre dla wolnych komputerów.",
+      "neuralUpscaleUnavailable": "Skalowanie grafiki jest niedostępne na tym systemie (brak biblioteki ONNX Runtime); pozostaje wyłączone."
     }
   },
   "install": {

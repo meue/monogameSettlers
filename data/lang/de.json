@@ -501,7 +501,10 @@
       "introVideo": "Intro-Video",
       "introVideoHint": "Ja: das Intro des Originals bei jedem Start (Klick, Esc, Leertaste oder Enter überspringt es).",
       "preferredColor": "Bevorzugte Farbe",
-      "preferredColorHint": "Deine Farbe als Spieler 1 auf dem Startscreen, solange du keine andere wählst."
+      "preferredColorHint": "Deine Farbe als Spieler 1 auf dem Startscreen, solange du keine andere wählst.",
+      "neuralUpscale": "Hochskalierung",
+      "neuralUpscaleHint": "Zeichnet Figuren und Objekte beim Hineinzoomen in doppelter Auflösung, schärfer und glatter. Braucht mehr Rechenleistung; aus: das gewohnte Bild, gut für langsame Rechner.",
+      "neuralUpscaleUnavailable": "Die Hochskalierung ist auf diesem System nicht verfügbar (keine ONNX-Runtime-Bibliothek); sie bleibt aus."
     }
   },
   "install": {
