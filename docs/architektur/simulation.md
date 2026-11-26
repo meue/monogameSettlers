@@ -30,9 +30,10 @@ on Linux, Windows (x64) and macOS (ARM), `determinism-compare` compares.
   (`Idling`); whoever loses the land under their feet while on a job (`World.IsStranded`) cancels, drops what they are carrying and accepts
   something new only on own land.
 - `Trails`: carriers on a job tread footpaths into grass (`GroundCover.Trail`, after `trailSteps`), they fade after `trailFadeSeconds` (300).
-  Farmland and paths keep one field of distance from everything except grass/levelled ground and from each other (`GameMap.CoverFits`, otherwise the
-  original transitions break). Grain is sown onto paths too and shortens paths all around (`Trails.CutAround`); sowing turns grass within
-  `farmlandRadius` (1) into farmland, as far as it fits and lies in the work area.
+  Farmland and paths keep one field of distance from everything except grass and from each other (`GameMap.CoverFits`, otherwise the
+  original transitions break; paths may touch levelled ground). Grain is sown onto paths too and shortens paths all around (`Trails.CutAround`);
+  likewise onto bare levelled ground (`GameMap.IsBareLevelled`: no blocker), which it turns back on and around the field (`GameMap.Unlevel`);
+  sowing turns grass within `farmlandRadius` (1) into farmland, as far as it fits and lies in the work area.
 - `Buildings/`: definitions from `data/buildings/*.json`.
   - Build-spot check (`CanPlace`, `DoorLeadsOut`, `PlanLevelling`): "seen" via a marker field over the map (`NewSearch`/`See`), no HashSet.
   - `Construction`: levelling (`World.PlanLevelling`, `levelling` in `production.json`): footprint to the average height, ring by ring around it,
@@ -45,6 +46,9 @@ on Linux, Windows (x64) and macOS (ARM), `determinism-compare` compares.
     (footprint = grid points covered by the original image, door/piles per the image), loaded before `overrides.json`.
   - `World.RemoveBuilding`: demolition/loss with a dust cloud (`DustClouds`), a share `demolition.payback` of the building material stays on the ground. The land
     of demolished military buildings stays with the player, but unprotected (an enemy military building takes it together with the buildings).
+    Its levelled ground grows back over (`Construction.Fell`/`Regrow`): once a second each bare point at the edge with a chance of
+    1 in `demolition.regrowSeconds` (20; 0 from older saves → 20) – to what it was (`GameMap` remembers non-grass terrain under levelled ground),
+    built-on points drop out. Saves from before: all bare levelled ground surveyed once; levelled ground of an original map otherwise stays.
   - Demolition: the worker keeps profession and tool, takes over the next building of their profession.
 - `Economy/`: goods, piles.
   - A new building pile (construction site, finished) on a loose pile: its goods are put down next to it (`AddPile` → `DropGoods`), not overwritten.

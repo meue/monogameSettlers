@@ -122,6 +122,14 @@ public sealed record ProductionConfig
     /// <summary>Share of its construction material a building leaves when it comes down (sites: of what was built in).</summary>
     public double DemolitionPayback { get; init; } = 0.5;
 
+    /// <summary>
+    /// Mean seconds until a point of a fallen building's levelled ground at the edge grows back over, see
+    /// <see cref="Buildings.Construction"/> (0 from a game saved before there was this value: <see cref="DefaultRegrowSeconds"/>).
+    /// </summary>
+    public int RegrowSeconds { get; init; } = DefaultRegrowSeconds;
+
+    public const int DefaultRegrowSeconds = 20;
+
     /// <summary>How geologists search (see <see cref="Geology"/>).</summary>
     public GeologistRules Geologists { get; init; } = new(10, 3 * World.TicksPerSecond, 2 * World.TicksPerSecond,
         4 * 60 * World.TicksPerSecond, 9 * 60 * World.TicksPerSecond);
@@ -342,6 +350,8 @@ public sealed record ProductionConfig
                 }
                 : ShippingRules.Default,
             DemolitionPayback = root.TryGetProperty("demolition", out var demolition) ? demolition.GetProperty("payback").GetDouble() : 0.5,
+            RegrowSeconds = root.TryGetProperty("demolition", out var regrow) && regrow.TryGetProperty("regrowSeconds", out var regrowSeconds)
+                ? regrowSeconds.GetInt32() : DefaultRegrowSeconds,
             Depletion = root.TryGetProperty("depletion", out var depletion)
                 ? new Depletion(depletion.GetProperty("stone").GetInt32(), depletion.GetProperty("mountain").GetInt32(), depletion.GetProperty("fish").GetInt32())
                 : new Depletion(100, 100, 100),

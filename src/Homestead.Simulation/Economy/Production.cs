@@ -1120,6 +1120,12 @@ public sealed partial class Production
         void Make(GridPoint p)
         {
             _world.Trails.CutAround(p);
+            // Grain wins over the bare levelled ground of a building that came down: on the point and around it,
+            // so grass stays between farmland and levelled ground (see GameMap.CoverFits).
+            map.Unlevel(p);
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+                if (p.Neighbor((Direction)d) is var q && map.IsBareLevelled(q))
+                    map.Unlevel(q);
             map.SetCover(p, GroundCover.Farmland);
             _farmland[map.Index(p)] = farm;
         }
@@ -1149,7 +1155,7 @@ public sealed partial class Production
     {
         var map = _world.Map!;
         return map.Contains(p) && map.IsWalkable(p) && map.ObjectCodeAt(p) == MapObjectCodes.None
-               && crop.Ground.Contains(map.TerrainAt(p)) && (!crop.Farmland || map.CoverFits(p, GroundCover.Farmland)) && _world.IsFreeGround(p)
+               && crop.Ground.Contains(crop.Farmland && map.IsBareLevelled(p) ? map.Unlevelled(p) : map.TerrainAt(p)) && (!crop.Farmland || map.CoverFits(p, GroundCover.Farmland)) && _world.IsFreeGround(p)
                && (!_world.IsOccupied(p) || ignoreWorker is not null && ignoreWorker.Position == p)
                && (crop.FieldSpacing == 0 || !Area(p, crop.FieldSpacing - 1).Any(n => crop.Contains(map.ObjectCodeAt(n))));
     }

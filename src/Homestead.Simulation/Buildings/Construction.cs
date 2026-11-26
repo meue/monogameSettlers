@@ -35,9 +35,16 @@ public sealed class Construction
     private readonly Dictionary<int, int> _missingDiggers = new();
     private readonly Dictionary<int, int> _missingBuilders = new();
 
+    /// <summary>Levelled points of buildings that came down, growing back over (see <see cref="Regrow"/>), by index.</summary>
+    private readonly List<int> _bare = new();
+
+    /// <summary>Whether <see cref="_bare"/> holds the bare levelled ground; a game saved before it existed looks once.</summary>
+    private bool _bareSurveyed;
+
     internal Construction(World world)
     {
         _world = world;
+        _bareSurveyed = true; // levelled ground of the original map stays
     }
 
     public int Assigned => _assignments.Count;
@@ -56,6 +63,67 @@ public sealed class Construction
             Dispatch();
             RecruitWorkers();
         }
+        if (_world.Tick % World.TicksPerSecond == 0)
+            Regrow();
+    }
+
+    /// <summary>The building came down: its levelled ground grows back over (<see cref="Regrow"/>).</summary>
+    internal void Fell(Building building)
+    {
+        var map = _world.Map!;
+        foreach (var p in building.BlockedPoints)
+            if (map.Contains(p) && map.TerrainAt(p) == Map.TerrainType.Flattened && !_bare.Contains(map.Index(p)))
+                _bare.Add(map.Index(p));
+    }
+
+    /// <summary>
+    /// Once a second: every bare levelled point at the edge (next to ground that is not levelled) goes back to what it was
+    /// with a chance of 1 in <see cref="ProductionConfig.RegrowSeconds"/>, so a fallen building's ground grows over
+    /// from the outside in. Points built on again leave the list.
+    /// </summary>
+    private void Regrow()
+    {
+        if (_world.Map is not { } map)
+            return;
+        if (!_bareSurveyed)
+        {
+            _bareSurveyed = true;
+            for (int i = 0; i < map.PointCount; i++)
+                if (map.TerrainAt(i) == Map.TerrainType.Flattened && _world.BuildingAt(map.Point(i)) is null)
+                    _bare.Add(i);
+        }
+        int seconds = _world.Production.Config.RegrowSeconds is > 0 and var s ? s : ProductionConfig.DefaultRegrowSeconds;
+        ulong second = (ulong)(_world.Tick / World.TicksPerSecond);
+        for (int i = _bare.Count - 1; i >= 0; i--)
+        {
+            var p = map.Point(_bare[i]);
+            if (map.TerrainAt(p) != Map.TerrainType.Flattened || _world.BuildingAt(p) is not null)
+            {
+                _bare.RemoveAt(i);
+                continue;
+            }
+            if (!AtEdge(map, p) || Mix((ulong)_bare[i], second, (ulong)_world.Seed) % (ulong)seconds != 0)
+                continue;
+            map.Unlevel(p);
+            _bare.RemoveAt(i);
+        }
+    }
+
+    private static bool AtEdge(Map.GameMap map, GridPoint p)
+    {
+        for (int d = 0; d < DirectionExtensions.Count; d++)
+            if (p.Neighbor((Direction)d) is var q && map.Contains(q) && map.TerrainAt(q) != Map.TerrainType.Flattened)
+                return true;
+        return false;
+    }
+
+    /// <summary>A deterministic hash (SplitMix64 finaliser) standing in for a dice roll per point and second.</summary>
+    private static ulong Mix(ulong a, ulong b, ulong c)
+    {
+        ulong z = a * 0x9E3779B97F4A7C15UL ^ b * 0xC2B2AE3D27D4EB4FUL ^ c * 0x165667B19E3779F9UL;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+        return z ^ (z >> 31);
     }
 
     /// <summary>Recruits diggers and builders while the sites have more free spots than there are workers.</summary>

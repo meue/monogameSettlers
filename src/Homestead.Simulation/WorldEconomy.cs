@@ -548,6 +548,7 @@ public sealed partial class World
         }
         foreach (var offset in building.Definition.Protected)
             Unprotect(map, building.Position + offset);
+        Construction.Fell(building);
 
         // Material built in: all of it once finished, else what the builders used up of each pile.
         // (A construction pile's capacity shrinks with every unit built in.)

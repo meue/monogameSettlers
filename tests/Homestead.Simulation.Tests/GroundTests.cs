@@ -216,6 +216,83 @@ public class GroundTests
             }
     }
 
+    [Fact]
+    public void A_fallen_buildings_levelled_ground_grows_back_over_from_the_edge()
+    {
+        var map = new GameMap(60);
+        var world = new World(map, TestConfig.NoTools);
+        var house = world.PlaceConstructionSite(Romans["medium_livinghouse"], 0, new GridPoint(30, 30))!;
+        var ground = house.BlockedPoints.ToList();
+        Assert.All(ground, p => Assert.Equal(TerrainType.Flattened, map.TerrainAt(p)));
+        var keep = world.PlaceConstructionSite(Romans["sawmill"], 0, new GridPoint(45, 30))!; // stays levelled
+
+        world.RemoveBuilding(house);
+        Run(world, 3 * World.TicksPerSecond);
+        Assert.Contains(ground, p => map.TerrainAt(p) == TerrainType.Flattened); // not all at once
+        // The edge first: a point grows over only next to ground that is not levelled any more.
+        var seen = ground.ToHashSet();
+        for (int t = 0; t < 30 * 60 * World.TicksPerSecond && ground.Any(p => map.TerrainAt(p) == TerrainType.Flattened); t++)
+        {
+            world.Step();
+            foreach (var p in seen.Where(p => map.TerrainAt(p) == TerrainType.Grass).ToList())
+            {
+                seen.Remove(p);
+                Assert.Contains(Enumerable.Range(0, DirectionExtensions.Count).Select(d => p.Neighbor((Direction)d)),
+                    q => map.TerrainAt(q) != TerrainType.Flattened);
+            }
+        }
+        Assert.All(ground, p => Assert.Equal(TerrainType.Grass, map.TerrainAt(p)));
+        Assert.All(keep.BlockedPoints, p => Assert.Equal(TerrainType.Flattened, map.TerrainAt(p)));
+    }
+
+    [Fact]
+    public void Levelled_ground_goes_back_to_what_it_was()
+    {
+        var map = new GameMap(20);
+        map.SetTerrain(new GridPoint(5, 5), TerrainType.DesertBorderOuter);
+        map.SetTerrain(new GridPoint(5, 5), TerrainType.Flattened);
+        map.SetTerrain(new GridPoint(6, 5), TerrainType.Flattened);
+        Assert.Equal(TerrainType.DesertBorderOuter, map.Unlevelled(new GridPoint(5, 5)));
+
+        map.Unlevel(new GridPoint(5, 5));
+        map.Unlevel(new GridPoint(6, 5));
+
+        Assert.Equal(TerrainType.DesertBorderOuter, map.TerrainAt(new GridPoint(5, 5)));
+        Assert.Equal(TerrainType.Grass, map.TerrainAt(new GridPoint(6, 5)));
+    }
+
+    [Fact]
+    public void Farms_sow_on_a_fallen_buildings_ground_and_keep_grass_between_farmland_and_levelled_ground()
+    {
+        var map = new GameMap(70);
+        var world = new World(map, TestConfig.NoTools.WithCropGrowTicks("grain", 700) with { RegrowSeconds = 1_000_000 });
+        var farm = world.PlaceBuilding(Romans["farm"], 0, new GridPoint(30, 20))!;
+        var center = farm.Position + farm.Definition.WorkCenter!.Value;
+        var house = PathFinder.Circle(center, 4).Select(p => world.PlaceConstructionSite(Romans["medium_livinghouse"], 0, p))
+            .First(site => site is not null)!;
+        var ruin = house.BlockedPoints.ToHashSet();
+        world.RemoveBuilding(house);
+        world.PlaceBuilding(Romans["stock"], 0, new GridPoint(55, 25));
+        for (int i = 0; i < 3; i++)
+            world.Spawn(new GridPoint(45 + i, 40), Profession.Carrier);
+
+        for (int t = 0; t < 40_000 && !ruin.Any(p => map.ObjectAt(p) == MapObjectKind.Field); t++)
+            world.Step();
+
+        Assert.Contains(ruin, p => map.ObjectAt(p) == MapObjectKind.Field);
+        var farmland = Enumerable.Range(0, map.PointCount).Select(map.Point).Where(p => map.CoverAt(p) == GroundCover.Farmland).ToList();
+        Assert.Contains(farmland, ruin.Contains);
+        foreach (var p in farmland)
+            for (int d = 0; d < DirectionExtensions.Count; d++)
+                Assert.NotEqual(TerrainType.Flattened, map.TerrainAt(p.Neighbor((Direction)d)));
+    }
+
+    private static void Run(World world, int ticks)
+    {
+        for (int t = 0; t < ticks; t++)
+            world.Step();
+    }
+
     [Theory]
     [InlineData(TerrainType.DesertBorderOuter)]
     [InlineData(TerrainType.MudBorderOuter)]

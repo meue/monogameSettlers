@@ -28,6 +28,9 @@ public sealed class GameMap
     /// <summary>What lies on the ground of a point (farmland, trail); see <see cref="GroundCover"/>.</summary>
     private readonly GroundCover[] _cover;
 
+    /// <summary>What levelled points were before, where it was not grass (they go back to it, see <see cref="Unlevel"/>).</summary>
+    private readonly Dictionary<int, TerrainType> _levelledFrom = new();
+
     public GameMap(int size)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(size, 2);
@@ -160,7 +163,12 @@ public sealed class GameMap
 
     public void SetTerrain(GridPoint p, TerrainType terrain)
     {
-        _terrain[Index(p)] = terrain;
+        int index = Index(p);
+        if (terrain != TerrainType.Flattened)
+            _levelledFrom.Remove(index);
+        else if (_terrain[index] is not (TerrainType.Grass or TerrainType.Flattened))
+            _levelledFrom[index] = _terrain[index];
+        _terrain[index] = terrain;
         // Farmland and trails lie on grass only (levelled for a building: gone).
         if (terrain != TerrainType.Grass)
             _cover[Index(p)] = GroundCover.None;
@@ -175,22 +183,41 @@ public sealed class GameMap
 
     public TerrainType TerrainAt(int index) => _terrain[index];
 
+    /// <summary>Levelled ground nothing stands on (a building that came down, or levelled on the original map).</summary>
+    public bool IsBareLevelled(GridPoint p) => Contains(p) && _terrain[Index(p)] == TerrainType.Flattened && _blockers[Index(p)] == 0;
+
+    /// <summary>The terrain of the point, for levelled ground what it was before (grass unless known otherwise).</summary>
+    public TerrainType Unlevelled(GridPoint p) =>
+        _terrain[Index(p)] == TerrainType.Flattened ? _levelledFrom.GetValueOrDefault(Index(p), TerrainType.Grass) : _terrain[Index(p)];
+
+    /// <summary>Levelled ground goes back to what it was (grass grows over a demolished building's ground, farmland takes it).</summary>
+    public void Unlevel(GridPoint p)
+    {
+        if (TerrainAt(p) == TerrainType.Flattened)
+            SetTerrain(p, Unlevelled(p));
+    }
+
+    /// <summary>Bare levelled grass, which sowing takes back (<see cref="Unlevel"/>).</summary>
+    private bool IsReclaimable(GridPoint p) => IsBareLevelled(p) && Unlevelled(p) == TerrainType.Grass;
+
     /// <summary>
     /// Whether <paramref name="cover"/> may lie on the grass point <paramref name="p"/>. Farmland and trails draw
     /// with the original's tiles for earth and sand, whose transitions would join them with rivers, swamps,
-    /// deserts and each other: one point of grass (or levelled ground) stays between them and any other ground.
-    /// Farmland may touch trails, though, since sowing cuts them back (<see cref="Trails.CutAround"/>).
+    /// deserts and each other: one point of grass stays between them and any other ground (trails may touch
+    /// levelled ground). Farmland may touch trails, since sowing cuts them back (<see cref="Trails.CutAround"/>), and may
+    /// take bare levelled grass, which sowing turns back into grass (<see cref="IsReclaimable"/>), on and around the point.
     /// </summary>
     public bool CoverFits(GridPoint p, GroundCover cover)
     {
-        if (!Contains(p) || TerrainAt(p) != TerrainType.Grass)
+        if (!Contains(p) || TerrainAt(p) != TerrainType.Grass && !(cover == GroundCover.Farmland && IsReclaimable(p)))
             return false;
         for (int d = 0; d < DirectionExtensions.Count; d++)
         {
             var q = p.Neighbor((Direction)d);
             if (!Contains(q))
                 continue;
-            if (TerrainAt(q) is not (TerrainType.Grass or TerrainType.Flattened))
+            if (TerrainAt(q) != TerrainType.Grass
+                && !(cover == GroundCover.Trail ? TerrainAt(q) == TerrainType.Flattened : IsReclaimable(q)))
                 return false;
             var other = CoverAt(q);
             if (other != GroundCover.None && other != cover && !(cover == GroundCover.Farmland && other == GroundCover.Trail))
