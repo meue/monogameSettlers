@@ -4,7 +4,7 @@ Offscreen PNGs for inspection, only into temporary directories (no original asse
 
 - **Capture** (`--capture <dir>`, offscreen PNGs, temporary directories only): ignores input, without VSync, 4× speed; prints counters and
   building states at the end. Environment variables `HOMESTEAD_CAPTURE_…`:
-  `ZOOM=4`; `EVERY=<n>` (a PNG every n frames, otherwise 120); `SIZE=1920x1080` (otherwise 960×600); `SCALING=<Sharp|Linear|CatmullRom|Lanczos2>`;
+  `ZOOM=<n>` (fixed camera zoom; without it the zoom glides from 1.25 down to 1 — the neural 2x sprites need a zoom above 1 together with a smooth filter, so captures without `ZOOM` never show one); `EVERY=<n>` (a PNG every n frames, otherwise 120); `SIZE=1920x1080` (otherwise 960×600); `SCALING=<Sharp|Linear|CatmullRom|Lanczos2>` (`Sharp` draws no 2x sprites: its path has no world pass);
   `FOCUS=<building>` (`site`: fresh construction site; `temple`: small temple with mana; military buildings such as `castle`: fully garrisoned);
   `TOOLTIP=<button>` (with `FOCUS`: that button of the building panel – `pause`, `priority`, `workArea` or `demolish` – as if under the mouse, if the building has it; captures cannot hover); `FOG=1`;
 
