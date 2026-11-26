@@ -130,7 +130,7 @@ public sealed class MapGame : Game
         ? DisplaySettings.Load() with { Theme = theme }
         : DisplaySettings.Load();
     /// <summary>
-    /// F2 cycles this for the session; the settings start it. Except <see cref="Scaling.Sharp"/> (every sprite
+    /// The setting starts it (<see cref="DisplaySettings.Scaling"/>), F2 cycles it for the session (developer key). Except <see cref="Scaling.Sharp"/> (every sprite
     /// scaled with point sampling) the world is drawn into <see cref="_worldTarget"/> and that is scaled up by
     /// the zoom, soft like the original upscaled to the screen.
     /// </summary>
@@ -3749,11 +3749,10 @@ public sealed class MapGame : Game
         if (_showClock)
             bottom = DrawCornerText(GameTime(), bottom);
         if (gameTime.TotalGameTime < _scalingShownUntil)
-            bottom = DrawCornerText(Lang.T("settings.display.scaling") + ": "
-                + Lang.T("settings.display.scaling." + _scaling.ToString().ToLowerInvariant()), bottom);
+            // F2 and F4 are developer keys: their notes stay English.
+            bottom = DrawCornerText($"Scaling: {_scaling}", bottom);
         if (gameTime.TotalGameTime < _neuralUpscaleShownUntil)
-            DrawCornerText(Lang.T("settings.display.neuralUpscale") + ": "
-                + Lang.T(_sprites.NeuralUpscaleEnabled ? "common.on" : "common.off"), bottom);
+            DrawCornerText($"Neural upscale: {(_sprites.NeuralUpscaleEnabled ? "on" : "off")}", bottom);
         else if (_neuralWanted && _sprites.NeuralUpscaleUnavailable)
             // The setting (or F4) asks for it, but this system has no ONNX Runtime: on the screen for as long as it is asked for.
             DrawCornerText(Lang.T("settings.display.neuralUpscaleUnavailable"), bottom);

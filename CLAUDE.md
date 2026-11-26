@@ -63,7 +63,7 @@ Own crop codes: grain 200–207 (207 ripe), wine 208–210, rice 211–214, beeh
 - Terrain atlas: texture coordinates half a texel inside the cell, otherwise lines bleed in from neighbouring cells.
 - Sprites only via `SpriteLibrary` (shared atlas pages, `SpriteAtlas`); no separate `Texture2D` per image (draw calls).
 - Walk sequences: 72 frames = 6 directions of 12 each (SW, W, NW, NE, E, SE); frame 0 standing, 1–11 one cycle per grid step.
-- Sprites optionally x2 via neural upscaling (`SpriteLibrary` path only, Real-ESRGAN/ONNX in `Neural/`, telemetry natively off, osx-x64 without a native library: the feature disables itself); off by default, F4 per session, with the setting active the 2x atlas is precomputed at game start (details: docs/architektur/client.md).
+- Sprites optionally x2 via neural upscaling (`SpriteLibrary` path only, Real-ESRGAN/ONNX in `Neural/`, telemetry natively off, osx-x64 without a native library: the feature disables itself); setting "Upscaling" off by default (on: also the Lanczos2 filter), F4/F2 developer keys per session; only drawn sequences are upscaled, each switched whole (details: docs/architektur/client.md).
 - Load GUI images from the original files at runtime via `GfxDirectory`/`SpriteLibrary` from the installation (like all original sprites).
 
 ## Installing the original

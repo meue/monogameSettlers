@@ -102,8 +102,6 @@ public sealed class SettingsScreen : IDisposable
             Display("preferredColor", PlayerColors.Palette.Select((_, i) => ("", i)).ToArray(), d => d.PreferredColor,
                 (d, v) => d with { PreferredColor = v }, PlayerColors.Palette),
             Display("neuralUpscale", OnOff, d => d.NeuralUpscale ? 1 : 0, (d, v) => d with { NeuralUpscale = v == 1 }),
-            Display("scaling", Enum.GetValues<Scaling>().Select(s => ("settings.display.scaling." + s.ToString().ToLowerInvariant(), (int)s)).ToArray(),
-                d => (int)d.Scaling, (d, v) => d with { Scaling = (Scaling)v }),
         ], "settings.notes.immediately"),
     ];
 
@@ -116,7 +114,7 @@ public sealed class SettingsScreen : IDisposable
     private static readonly Rectangle OkButton = new(528, 555, 116, 30);
     private static readonly Rectangle CancelButton = new(656, 555, 116, 30);
 
-    private const int RowTop = 148, RowHeight = 33;
+    private const int RowTop = 150, RowHeight = 36;
 
     private static Rectangle Row(int row) => new(Content.X + 16, RowTop + row * RowHeight, Content.Width - 32, RowHeight - 6);
 
@@ -136,6 +134,7 @@ public sealed class SettingsScreen : IDisposable
     private string? _error;
 
     private float _scale = 1;
+    private readonly UiTooltip.Hover _hintHover = new();
     private Vector2 _origin;
     private KeyboardState _previousKeys = Keyboard.GetState();
     private MouseState _previousMouse = SdlMouse.GetState();
@@ -296,21 +295,15 @@ public sealed class SettingsScreen : IDisposable
                 }
             }
         }
-        if (hint is not null)
-        {
-            float y = Content.Bottom - 46;
-            foreach (string line in font.Wrap(hint, Px(Content.Width - 40), Px(11)))
-            {
-                Write(batch, font, line, Content.X + 20, y, Dim, 11);
-                y += 15;
-            }
-        }
 
         Write(batch, font, _error ?? Lang.T(current.Note), NoteField.X + 6, NoteField.Y + 4,
             _error is null ? Dim : Error, 11);
         TextButton.Draw(batch, pixel, font, ToScreen(DefaultButton), Lang.T("settings.defaults"), mouse.ToVector2(), size: Px(13));
         TextButton.Draw(batch, pixel, font, ToScreen(OkButton), Lang.T("common.ok"), mouse.ToVector2(), size: Px(13));
         TextButton.Draw(batch, pixel, font, ToScreen(CancelButton), Lang.T("common.cancel"), mouse.ToVector2(), size: Px(13));
+        // The hint of the row under the cursor in the game's shared tooltip (the rows fill the page down to its bottom).
+        if (_hintHover.Update(hint, Environment.TickCount64 / 1000.0))
+            UiTooltip.Draw(batch, pixel, font, hint!, mouse.ToVector2(), view, _scale, maxWidth: Px(380));
     }
 
     private static int? TabAt(Point at)

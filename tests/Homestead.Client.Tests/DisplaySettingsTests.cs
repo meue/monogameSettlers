@@ -37,31 +37,23 @@ public class DisplaySettingsTests : IDisposable
     }
 
     [Fact]
-    public void A_missing_scaling_stays_CatmullRom()
+    public void The_filter_follows_upscaling_as_before_without_it()
     {
+        File.WriteAllText(_path, """{ "display": { "neuralUpscale": true } }""");
+        Assert.Equal(Scaling.Lanczos2, DisplaySettings.Load(_path).Scaling);
+
         File.WriteAllText(_path, """{ "display": { "fullScreen": true } }""");
-
         Assert.Equal(Scaling.CatmullRom, DisplaySettings.Load(_path).Scaling);
     }
 
     [Fact]
-    public void A_chosen_scaling_survives_a_save_load_round_trip()
+    public void An_old_scaling_entry_is_ignored_and_not_written_again()
     {
-        File.WriteAllText(_path, """{ "display": { "scaling": "lanczos2" } }""");
+        File.WriteAllText(_path, """{ "display": { "scaling": "sharp" } }""");
 
-        Assert.Equal(Scaling.Lanczos2, DisplaySettings.Load(_path).Scaling);
-
+        Assert.Equal(Scaling.CatmullRom, DisplaySettings.Load(_path).Scaling);
         DisplaySettings.Load(_path).Save(_path);
-        Assert.Equal(Scaling.Lanczos2, DisplaySettings.Load(_path).Scaling);
-        Assert.Contains("\"scaling\": \"lanczos2\"", File.ReadAllText(_path));
-    }
-
-    [Fact]
-    public void An_unknown_scaling_keeps_the_default()
-    {
-        File.WriteAllText(_path, """{ "display": { "scaling": "bicubic" } }""");
-
-        Assert.Equal(Scaling.CatmullRom, DisplaySettings.Load(_path).Scaling);
+        Assert.DoesNotContain("\"scaling\"", File.ReadAllText(_path));
     }
 
     public void Dispose()

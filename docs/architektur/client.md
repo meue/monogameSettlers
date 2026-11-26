@@ -53,7 +53,9 @@ MonoGame game. Capture options: [capture.md](capture.md).
   100/75/50/25/10%/∞; Military: spell cost increase constant/+10/+25/+50% → `MagicConfig.CostIncrease`; Display: hardware cursor, full screen, language Deutsch/English/Polski (default English, independent of the system language; applies to the installation dialog too),
   theme Normal/Gold/Classic/Amazons (title and loading screen; `titleScreen.themes` in `ui.json` with engraving colours, Normal = Gold; `HOMESTEAD_THEME` overrides), music/effects 100/75/50/25%/off, music per people, preferred color
   (`DisplaySettings.PreferredColor`, colour fields, saved as an identifier), autosave
-  (yes/no, default no: every 15 min real time in-game and on "Quit game" into slot 8, not after a defeat, not in captures), intro video (yes/no, default yes: `MapGame.IntroVideo` = `S3/ADD/001/01_00_00.DAT` at every start before the title screen, end/click → title) – music without a choice by system language; `Lang.Use` sets the culture too;
+  (yes/no, default no: every 15 min real time in-game and on "Quit game" into slot 8, not after a defeat, not in captures), intro video (yes/no, default yes: `MapGame.IntroVideo` = `S3/ADD/001/01_00_00.DAT` at every start before the title screen, end/click → title), upscaling
+  (on/off, `display.neuralUpscale`, default off: neural 2x sprites + Lanczos2, off = as before, Catmull-Rom); a row's hint (`<key>Hint`) appears in the
+  shared `UiTooltip` after resting on it (wrapped at 380 px), so the rows (`RowTop` 150, `RowHeight` 36) fill the page down to its bottom (11 at most) – music without a choice by system language; `Lang.Use` sets the culture too;
   Gold Edition title image per language, `background` `{de, en}`; Polish without its own title image (the English one), `HOMESTEAD_LANGUAGE=de|en|pl` overrides, e.g. for captures).
   OK/Enter saves `GameSettings` (section `game`) and `DisplaySettings` (client, section `display`, applied immediately) to
   `~/.config/homestead/settings.json` (`SettingsFile`: per section, the rest of the file stays); cancel/Esc discards, defaults resets the open
@@ -185,8 +187,8 @@ MonoGame game. Capture options: [capture.md](capture.md).
 - **Keys**: Enter chat (see info feed), Esc cancels placing/aiming, otherwise pause like P; no cheat keys (only `/cheats`, see info feed);
   F attack on the enemy military building under the mouse, fog of war (sight 1×/s, `FogLayer` fades softly,
   tapering off over `SoftFields` (3); unexplored black, explored dark, foreign figures only in sight; on/off only in the cheat menu), F11 full screen (for the session only; default in the settings),
-  F2 scaling soft (linear)/smooth (Catmull-Rom, default)/sharp (point-sampled)/sharpest (Lanczos2) in that order – the settings row and its hint explain
-  them (`settings.display.scaling*`; the corner text after F2 shows the same localized label); session only, default `display.scaling` in the settings; world into a small render target, enlarged by the zoom – with neural upscaling twice as large, filter with zoom/2; markers/panel sharp;
+  F2 (developer key, English corner text) scaling linear/Catmull-Rom/sharp (point-sampled)/Lanczos2, session only, start from the upscaling setting
+  (`DisplaySettings.Scaling`: on Lanczos2, off Catmull-Rom); world into a small render target, enlarged by the zoom – with neural upscaling twice as large, filter with zoom/2; markers/panel sharp;
   `Shaders/Upscale.fx` → embedded `.mgfx`, after changes `tools/compile-shaders.sh`, needs Wine),
   F3 performance display (FPS, ms simulation/update/draw, longest frame, draw calls; draws only what lies in the visible rows and
   horizontally in view – margin 96 px, building strips by pixel width up to 320 px, ships 160 px), F12 held 10× speed, T game time, I AI plays for you
@@ -227,7 +229,7 @@ MonoGame game. Capture options: [capture.md](capture.md).
   (presentation only); tower bowmen with a firing animation in rhythm, without a shadow (as in the original), infantry in the tower as a window image; buildings: layer 0, garrison, then further layers (window frames/balustrades in front); drawn in 8-px strips, each in the foremost blocker row of its column (`EconomyRenderer.Strip`, otherwise a tall building hides what stands in front of it sideways); arrows in a flat arc
   (`docs/formate/gfx.md`). `SettlerAnimations` resolves type/action/good/direction via `data/settlers.json` (generated with
   `tools/data-import/convert_jsettlers_movables.py`, do not edit by hand). Construction sites show a sign and posts.
-- **Neural upscaling** (pilot, `Neural/`; setting `display.neuralUpscale`, off by default, F4 toggles it any time for the session): sprites on the
+- **Neural upscaling** (pilot, `Neural/`; setting "Upscaling" `display.neuralUpscale`, off by default, with Lanczos2 instead of Catmull-Rom; F4 developer key toggles the sprites for the session): sprites on the
   `SpriteLibrary` path (figures with torso and shadow, map objects, ships, water glitter; not terrain and portraits) are scaled to x2 at load time with
   Real-ESRGAN realesr-animevideov3 – the model's x4 output is halved in C# with Lanczos2 (like `Upscale.fx`). Transparent pixels take the colours of
   their neighbours over 4 pixels (no dark fringes), the alpha becomes a soft contour (`UpscaleMath.SmoothAlpha`: Catmull-Rom over the coverage, contour
