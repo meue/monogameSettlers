@@ -33,6 +33,7 @@ public sealed partial class AiChat
     private readonly string _effort;
     private readonly string _system;
     private readonly IReadOnlyDictionary<string, string> _characters;
+    private readonly IReadOnlyList<string> _spices;
     private readonly long _attackCooldownTicks;
     private readonly int _truceMaxMinutes;
     private readonly int _helpMaxMinutes;
@@ -55,8 +56,12 @@ public sealed partial class AiChat
         _client = new AnthropicClient { ApiKey = apiKey };
         _model = model;
         _effort = effort;
-        _system = string.Join("\n", data.GetProperty("system").EnumerateArray().Select(l => l.GetString()));
         _characters = data.GetProperty("characters").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? "");
+        _spices = data.GetProperty("spices").EnumerateArray().Select(s => s.GetString() ?? "").ToList();
+        // The voices of all characters go with the system prompt: cached, so each request only names the characters (situation).
+        _system = string.Join("\n", data.GetProperty("system").EnumerateArray().Select(l => l.GetString())) +
+                  "\nHow each character talks (situation: character):\n" +
+                  string.Join("\n", _characters.Select(c => $"- {c.Key}: {c.Value}"));
         _attackCooldownTicks = data.GetProperty("attackCooldownSeconds").GetInt32() * World.TicksPerSecond;
         _truceMaxMinutes = data.GetProperty("truceMaxMinutes").GetInt32();
         _helpMaxMinutes = data.GetProperty("helpMaxMinutes").GetInt32();
@@ -184,10 +189,12 @@ public sealed partial class AiChat
         // The world is read here, on the game's thread; only the request runs in the background.
         _asked = world;
         string situation = AiSituation.Describe(world, Player);
-        var voices = world.AiPlayers.Where(ai => IsVoice(world, ai.Player))
-            .Select(ai => $"- player {ai.Player + 1}: {_characters.GetValueOrDefault(ai.Character.Id, _characters["standard"])}");
+        // Characters without a voice of their own (made up for the arena) talk like the standard one.
+        var unvoiced = world.AiPlayers.Where(ai => IsVoice(world, ai.Player) && !_characters.ContainsKey(ai.Character.Id))
+            .Select(ai => $"player {ai.Player + 1}").ToList();
         string request = $"Language: {Lang.Current}\n" +
-                         $"Computer players and how they talk:\n{string.Join("\n", voices)}\n" +
+                         (unvoiced.Count > 0 ? $"Talk like standard: {string.Join(", ", unvoiced)}\n" : "") +
+                         $"Spice: {_spices[_random.Next(_spices.Count)]}\n" +
                          $"<situation>\n{situation}\n</situation>";
         if (_happenings.Count > 0)
         {

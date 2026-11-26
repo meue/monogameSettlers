@@ -98,7 +98,9 @@ MonoGame game. Capture options: [capture.md](capture.md).
     war machines, +50 mana, mission accomplished/lost, fog of war on/off); `/attackme`: all undefeated computer opponents `AiPlayer.Assault(0)` (info `chat.attackMe`); unknown: `chat.unknown` with the list.
     AI chat (`AiChat`, only with a key: `aiChat` section of `settings.json` with `apiKey`, `model` (default `claude-haiku-5-5`, without thinking;
     other models always think), `effort` (`low`), otherwise `ANTHROPIC_API_KEY`; tokens per request on the console): every own line → a request to the Claude API in the background (Anthropic SDK), one at a time
-    (things said in between go with the next one). Prompt and character voices in `data/ai-chat.json` (system cached), situation `AiSituation`.
+    (things said in between go with the next one). Prompt and character voices in `data/ai-chat.json` (system cached; the voices of all characters go with it, the request only
+    names each ruler's character in the situation, unknown ones "talk like standard"), situation `AiSituation`; per request one random
+    `spices` entry ("Spice: …", a device for one line against sameness).
     Claude speaks for all computer opponents via the tools `say` (→ `World.Say`), `attack` (→ `AiPlayer.Challenge`, by an ally of the human → `StartOffensive`, `all_in` → `Assault`;
     per opponent at most every `attackCooldownSeconds`), `truce` (→ `Truce`, up to `truceMaxMinutes`) and `defend` (→ `Help`, up to `helpMaxMinutes`); applied in the game thread, answers for another game discarded; errors `chat.aiFailed`;
     unsolicited (`AiChat.Reactions`, `reactions` in ai-chat.json): goods that our own donkeys unload on a computer opponent's land

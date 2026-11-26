@@ -91,7 +91,9 @@ Concept of the characters and tactics: [../KI-TACTICS.md](../KI-TACTICS.md).
     after expiry / when the ally has no buildings. `CanHelp` → `cannotHelpSpeaker`.
     Situation for the chat: `AiSituation` (compact JSON, zeros/false omitted, per player: people, character, army,
     `powerVsSpeaker`, `distanceToSpeaker`, enemies in the land, land, buildings, battles, trend of the last 5 min
-    from `GameHistory`, `doing`; plus the last 16 chat lines).
+    from `GameHistory`, `doing`, `regard`; plus the last 16 chat lines). `regard` (computer players only): contempt/rival/respect/awe
+    by the speaker's share (<0.3/<0.5/<0.7/else) – an enemy from the war between the two (`KillsOf`, `CapturedFrom` × 8), an ally
+    from the speaker's whole record (from 10 on), ⅓ the armies (alone below that).
   - `AiPlayer.Tactics`: in small engagements (strike/campaign ≤ `military.wounded.maxSoldiers` 10) fighters below
     `withdrawHealth` (35%) retreat (forced, holding position `restDistance` from the enemy towards `RetreatDoor`;
     pursued → to the building; own hospital within call range, not closer to the enemy: released to its door

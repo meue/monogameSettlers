@@ -252,7 +252,8 @@ on Linux, Windows (x64) and macOS (ARM), `determinism-compare` compares.
   `Sowing` (with `Trade`); `Strike` carries the people (the Egyptian bow sounds different).
 - `GameHistory` (`World.History`): every 30 s (`SampleTicks`) one `HistorySample` per player (land, settlers by kind, soldiers by type,
   buildings, construction sites, military buildings, housing, strikers, stock, produced goods, combat strength, mana) plus running totals
-  (killed/fallen, buildings captured/lost, completed/destroyed); for the statistics screen.
+  (killed/fallen, buildings captured/lost, completed/destroyed); for the statistics screen. Between two players (lazy, saved):
+  `KillsOf(by, victim)`, `CapturedFrom(by, victim)` (for the chat's `regard`).
 - `Lockstep/`: `LockstepSession` (commands for the current turn + delay, waits for the bundle, compares checksums → `Desync`), `TurnRelay`
   (server logic), `CommandCodec`
   (JSON network format), `LocalRelay`, `GameFingerprint` (protocol, version, data hashes; details: `docs/MULTIPLAYER.md`).

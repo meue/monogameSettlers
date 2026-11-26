@@ -36,7 +36,8 @@ public static class AiSituation
     public sealed record PlayerState(
         int Player, string People, string? Character, IReadOnlyList<string>? Traits, int? Team, bool? Defeated, bool? AllyOfSpeaker,
         Army Soldiers, double? PowerVsSpeaker, int? DistanceToSpeaker, int? EnemySoldiersOnLand,
-        int Land, int MilitaryBuildings, int Buildings, Fights? Fights, Trend? Trend, string? Doing, bool? CannotAttackSpeaker, bool? CannotHelpSpeaker);
+        int Land, int MilitaryBuildings, int Buildings, Fights? Fights, Trend? Trend, string? Doing, bool? CannotAttackSpeaker, bool? CannotHelpSpeaker,
+        string? Regard = null);
 
     /// <summary>Soldiers by type (types without any left out).</summary>
     public sealed record Army(int Total, int? Swordsmen, int? Bowmen, int? Pikemen);
@@ -110,11 +111,47 @@ public static class AiSituation
                 Doing: ai is null ? null : Doing(ai, players),
                 CannotAttackSpeaker: ai is not null && player != speaker && !world.AreAllies(player, speaker) && ai.AssaultOn is null
                                      && ai.ChallengedBy is null && ai.CampaignAgainst is null && !ai.CanTakeUpChallenge(speaker) ? true : null,
-                CannotHelpSpeaker: ai is not null && player != speaker && world.AreAllies(player, speaker) && !ai.CanHelp(speaker) ? true : null));
+                CannotHelpSpeaker: ai is not null && player != speaker && world.AreAllies(player, speaker) && !ai.CanHelp(speaker) ? true : null,
+                Regard: ai is null || player == speaker ? null : Regard(world, player, speaker, speakerPower > 0 ? power / speakerPower : null)));
         }
         var chat = world.Chat.Messages.TakeLast(ChatLines)
             .Select(c => new ChatLine((int)(c.Tick / (60 * World.TicksPerSecond)), c.Player + 1, c.Text)).ToList();
         return new Report((int)(world.Tick / (60 * World.TicksPerSecond)), speaker + 1, states, chat);
+    }
+
+    /// <summary>A building captured weighs this many soldiers killed in <see cref="Regard"/>.</summary>
+    private const int CaptureWeight = 8;
+
+    /// <summary>Below this many soldiers and buildings (weighted) between them, the fighting says too little: the armies decide.</summary>
+    private const int RegardMinRecord = 10;
+
+    /// <summary>
+    /// How the computer player sees the speaker: <c>contempt</c>, <c>rival</c>, <c>respect</c> or <c>awe</c>. Against an
+    /// enemy from the war between the two (kills, buildings captured weighing <see cref="CaptureWeight"/>), for an ally from the
+    /// speaker's whole record; the armies (<paramref name="power"/>: the computer player's against the speaker's) count a
+    /// third, alone while there is little record.
+    /// </summary>
+    internal static string? Regard(World world, int player, int speaker, double? power)
+    {
+        var history = world.History;
+        double good, bad;
+        if (world.AreAllies(player, speaker))
+        {
+            var latest = history.Samples(speaker) is { Count: > 0 } samples ? samples[^1] : null;
+            good = (latest?.Kills ?? 0) + CaptureWeight * (latest?.Captured ?? 0);
+            bad = (latest?.Losses ?? 0) + CaptureWeight * (latest?.Lost ?? 0);
+        }
+        else
+        {
+            good = history.KillsOf(speaker, player) + CaptureWeight * history.CapturedFrom(speaker, player);
+            bad = history.KillsOf(player, speaker) + CaptureWeight * history.CapturedFrom(player, speaker);
+        }
+        // The speaker's share: 0 all against it, 1 all for it.
+        double? armies = power is { } p ? 1 / (1 + p) : null;
+        double? record = good + bad >= RegardMinRecord ? good / (good + bad) : null;
+        if ((record is null ? armies : armies is null ? record : 2.0 / 3 * record + 1.0 / 3 * armies) is not { } share)
+            return null;
+        return share < 0.3 ? "contempt" : share < 0.5 ? "rival" : share < 0.7 ? "respect" : "awe";
     }
 
     /// <summary>The count, or null for none (left out of the request).</summary>
