@@ -575,6 +575,41 @@ public class MilitaryTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Taking_a_tower_never_tears_down_an_unoccupied_military_building_in_its_circle()
+    {
+        var map = new GameMap(120);
+        var world = new World(map, TestConfig.NoTools);
+        var enemyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(80, 60))!;
+        world.SpawnSoldier(enemyTower.Door, SoldierType.Swordsman, player: 1);
+        Run(world, 2_000, stopWhen: () => world.Military.IsOccupied(enemyTower));
+        // Finished, but no soldier comes (as when the last one stands guard at a broken door).
+        var emptyTower = world.PlaceBuilding(Romans["tower"], 1, new GridPoint(95, 64))!;
+        Run(world, 20);
+        Assert.False(world.Military.IsOccupied(emptyTower));
+        Assert.Equal(1, map.OwnerAt(emptyTower.Position));
+
+        var ownTower = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(45, 60), force: true)!;
+        SpawnSoldiers(world, SoldierType.Swordsman, 5, new GridPoint(52, 68));
+        Run(world, 3_000, stopWhen: () => world.Military.IsOccupied(ownTower) && world.Settlers.Count(s => s.Player == 0 && !s.HasTask && !s.IsInside) == 4);
+        Assert.Equal(4, world.Military.Attack(0, enemyTower));
+        Run(world, 20_000, stopWhen: () => enemyTower.Player == 0);
+        Assert.Equal(0, enemyTower.Player);
+
+        // Military buildings go down only when their player tears them down or a war machine destroys them.
+        Assert.True(emptyTower.Exists);
+        Assert.All(emptyTower.BlockedPoints.Append(emptyTower.Door), p => Assert.Equal(1, map.OwnerAt(p)));
+        Assert.Equal(0, map.OwnerAt(new GridPoint(100, 56))); // the rest of the land changed sides
+
+        // Nor does a newly occupied tower claiming the land around it.
+        var second = world.PlaceBuilding(Romans["tower"], 0, new GridPoint(105, 75), force: true)!;
+        world.SpawnSoldier(second.Door, SoldierType.Swordsman);
+        Run(world, 2_000, stopWhen: () => world.Military.IsOccupied(second));
+        Assert.True(world.Military.IsOccupied(second));
+        Assert.True(emptyTower.Exists);
+        Assert.Equal(1, map.OwnerAt(emptyTower.Position));
+    }
+
+    [Fact]
     public void Idle_soldiers_take_an_enemy_tower_within_sight_on_their_own()
     {
         var world = new World(new GameMap(100), TestConfig.NoTools);

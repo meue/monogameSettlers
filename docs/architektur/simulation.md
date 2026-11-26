@@ -147,7 +147,8 @@ on Linux, Windows (x64) and macOS (ARM), `determinism-compare` compares.
   weapon at a time (as far as the carrier reserve goes, those walking from all barracks count), each is trained at the door or directly beside it.
   Target garrison per type (`ChangeWanted`: new 1 swordsman; never 0, never above the infantry/bow slots; "+" with full infantry slots replaces the
   other infantry kind; surplus ones turn around or come out, never the last one – the replacement swaps at the door). Occupied ones claim land; always
-  their own ground (otherwise a captured tower would fall again immediately).
+  their own ground (otherwise a captured tower would fall again immediately). Finished military buildings keep their ground even while empty
+  (`Military.Covers`/`StandsOn`): they never fall with land taken around them (claim, capture, pioneers), only by own demolition or a war machine.
   - `Move`: target fields around the point first free (nobody stands there, no other soldier sent there), otherwise occupied, then round-robin.
     Soldiers do not walk through someone standing on their target on the last step (watchdog), but stop in front (counts as arrived).
   - `MilitaryCombat`: enemy search via cells (`CellSize` 8) of the fighters at the start of the tick, per player (only cells of enemies searched)

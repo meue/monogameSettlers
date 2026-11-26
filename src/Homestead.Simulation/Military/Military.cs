@@ -504,10 +504,18 @@ public sealed partial class Military
             .Where(p => map.Contains(p) && InCircle(building.Position, p, radius));
     }
 
-    /// <summary>Whether an occupied military building of the player (other than <paramref name="except"/>) covers the point.</summary>
+    /// <summary>
+    /// Whether a military building of the player (other than <paramref name="except"/>) covers the point: an occupied one
+    /// its circle, a finished one always its own ground – military buildings go down only when their player tears them
+    /// down or a war machine destroys them, never with land taken around them (even while empty, e.g. the last soldier
+    /// standing guard outside a broken door).
+    /// </summary>
     private bool Covers(int player, GridPoint p, Building? except = null) => _garrisons.Values.Any(g =>
-        g.Building != except && g.Building.Exists && g.Building.Player == player && g.Places.Any(s => s is not null)
-        && InCircle(g.Building.Position, p, TerritoryRadius(g.Building)));
+        g.Building != except && g.Building.Exists && g.Building.Player == player
+        && (g.Places.Any(s => s is not null) && InCircle(g.Building.Position, p, TerritoryRadius(g.Building)) || StandsOn(g.Building, p)));
+
+    private static bool StandsOn(Building building, GridPoint p) =>
+        p == building.Door || building.Definition.Blocked.Contains(new GridPoint(p.X - building.Position.X, p.Y - building.Position.Y));
 
     /// <summary>
     /// The building takes the land in its circle that is free or not protected by its owner's occupied
